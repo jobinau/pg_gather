@@ -17,6 +17,7 @@ SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FR
 \echo <li><a href="#findings">Important findings</a></li>
 \echo <li><a href="#activiy">Session Summary</a></li>
 \echo <li><a href="#time">Database time</a></li>
+\echo <li><a href="#sess">Database time</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes</p>
@@ -33,16 +34,28 @@ SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live
 SELECT * FROM pg_get_confs;
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="activiy">Session Summary</h2>
-SELECT datid,state,COUNT(pid) FROM pg_get_activity WHERE state is not null GROUP BY 1,2 ORDER BY 1;
+SELECT d.datname,state,COUNT(pid) 
+  FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
+  WHERE state is not null GROUP BY 1,2 ORDER BY 1;;
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="time">Database time</h2>
-\echo <canvas id="chart" width="800" height="480" style="border: 1px solid black; float:right">Canvas is not supported</canvas>
+\echo <canvas id="chart" width="800" height="480" style="border: 1px solid black; float:right; width:75% ">Canvas is not supported</canvas>
 \pset tableattr 'id="tableConten" name="waits"'
 WITH ses AS (SELECT COUNT (*) as tot, COUNT(*) FILTER (WHERE state is not null) working FROM pg_get_activity),
- waits AS (SELECT wait_event ,count(*) cnt from pg_pid_wait group by wait_event)
-SELECT 'CPU' "Event", working*2000 - (SELECT sum(cnt) FROM waits) "Count" FROM ses
-UNION ALL
-SELECT wait_event "Event", cnt "Count" FROM waits;
+    waits AS (SELECT wait_event ,count(*) cnt from pg_pid_wait group by wait_event)
+  SELECT 'CPU' "Event", working*2000 - (SELECT sum(cnt) FROM waits) "Count" FROM ses
+  UNION ALL
+  SELECT wait_event "Event", cnt "Count" FROM waits;
+--session waits
+\echo <a href="#topics">Go to Topics</a>
+\pset tableattr
+\echo <h2 id="sess" style="clear: both">Session Timing</h2>
+WITH w AS (SELECT pid,wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
+SELECT a.pid,2000 - s.tot cpu,string_agg( w.wait_event ||':'|| w.cnt,',') waits FROM pg_get_activity a 
+    JOIN w ON a.pid = w.pid
+    JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
+WHERE a.state IS NOT NULL
+GROUP BY 1,2;
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
 \echo <a href="#topics">Go to Topics</a>
