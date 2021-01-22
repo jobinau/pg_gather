@@ -11,13 +11,20 @@
 \H
 \echo <h2>Connection and Server</h2>
 SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FROM pg_srvr;
+\echo <div>
+\echo  <label for="cpus">CPUs</label>
+\echo  <input type="number" id="cpus" name="cpus" value="8">
+\echo  <label for="mem">Memory in GB</label>
+\echo  <input type="number" id="mem" name="mem" value="32">
+\echo </div>
 \echo <h2 id="topics">Go to Topics</h2>
 \echo <ol>
 \echo <li><a href="#parameters">Parameter settings</a></li>
 \echo <li><a href="#findings">Important findings</a></li>
 \echo <li><a href="#activiy">Session Summary</a></li>
 \echo <li><a href="#time">Database time</a></li>
-\echo <li><a href="#sess">Database time</a></li>
+\echo <li><a href="#sess">Session Timing</a></li>
+\echo <li><a href="#findings">Important Findings</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes</p>
@@ -60,6 +67,7 @@ GROUP BY 1,2;
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
 \echo <a href="#topics">Go to Topics</a>
 \echo <script type="text/javascript">
+\echo $("input").change(function(){  alert("Number changed"); }); 
 \echo  const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo  const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo  document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
@@ -68,8 +76,7 @@ GROUP BY 1,2;
 \echo          .sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc))
 \echo          .forEach(tr => table.appendChild(tr) );
 \echo  })));
-\echo  </script>
-\echo <script type="text/javascript">
+\echo 
 \echo $(''''<thead></thead>'''').prependTo(''''#tableConten'''').append($(''''#tableConten tr:first''''));
 \echo  var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
 \echo  mysColores :[
