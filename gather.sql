@@ -1,5 +1,5 @@
 ---- Gather Performance metics and server configuration
----- Version 1 for PG 12+ 
+---- Version 2 for PG 10,11,12 - 25 - Jan -2021 
 
 \pset tuples_only
 \echo '\\t'
@@ -14,7 +14,13 @@
 COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_wal_lsn()) TO stdin;
 \echo '\\.'
 
-\echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc) FROM stdin;
+--There is more Activity information form PG12+
+SELECT ( 120000 < :SERVER_VERSION_NUM ) AS pgnewver \gset
+\if :pgnewver
+    \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc) FROM stdin;
+\else
+    \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ) FROM stdin;
+\endif
 \copy (select * from  pg_stat_get_activity(NULL) where pid != pg_backend_pid()) to stdin
 \echo '\\.'
 
