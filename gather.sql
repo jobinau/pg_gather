@@ -33,7 +33,8 @@ COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_post
 --A much lightweight implimentation 26/12/2020
 \a
 PREPARE pidevents AS
-SELECT pg_stat_get_backend_pid(s.backendid) || E'\t' || pg_stat_get_backend_wait_event(s.backendid) FROM (SELECT pg_stat_get_backend_idset() AS backendid) AS s WHERE pg_stat_get_backend_wait_event(s.backendid) NOT IN ('AutoVacuumMain','LogicalLauncherMain');
+SELECT pid,wait_event FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
+--SELECT pg_stat_get_backend_pid(s.backendid) || E'\t' || pg_stat_get_backend_wait_event(s.backendid) FROM (SELECT pg_stat_get_backend_idset() AS backendid) AS s WHERE pg_stat_get_backend_wait_event(s.backendid) NOT IN ('AutoVacuumMain','LogicalLauncherMain');
 \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \gexec
