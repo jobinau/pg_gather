@@ -17,9 +17,9 @@ BEGIN {
       tpl = 1;
       sub(/<%\s*/, "");
       print
-    } else if ( /^\s*$/ ) {
+    } else if ( /^\s*$/ ) {  ## Empty lines
       print
-    } else {
+    } else {                 ## Remaining lines (HTML tags) echo as it is
       sub(/^/, "\\echo ");
       gsub(/'/, "''");
       print
