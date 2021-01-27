@@ -1,13 +1,19 @@
+#################################################################
+#  AWK script by Nickolay Ihalainen
+#  Generate the SQL script (report.sql) for final analysis report 
+#  Using HTML Template by replacing markers
+#################################################################  
+
 BEGIN {
   tpl = 0
 }
 {
   if (tpl == 0) {
-    if ( /^<%.*%>/ ) {
+    if ( /^<%.*%>/ ) {       ## Single line SQL statement/psql command
       sub(/<%\s*/, "");
       sub(/\s*%>/, "");
       print
-    } else if ( /^<%/ ) {
+    } else if ( /^<%/ ) {    ## Multi line SQL statement starting
       tpl = 1;
       sub(/<%\s*/, "");
       print
@@ -18,12 +24,12 @@ BEGIN {
       gsub(/'/, "''");
       print
     }
-  } else {
-    if ( /%>/ ) {
+  } else {                  ## Following lines of Multi line SQL statement 
+    if ( /%>/ ) {           ## Last line of the Multi line SQL statement
       tpl = 0;
       sub(/%>/, "");
       print
-    } else {
+    } else {                ## All lines in between starting and last line of multi line statement
       print
     }
   }
