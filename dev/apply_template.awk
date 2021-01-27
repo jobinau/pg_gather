@@ -21,15 +21,15 @@ BEGIN {
       print
     } else {                 ## Remaining lines (HTML tags) echo as it is
       sub(/^/, "\\echo ");
-      gsub(/'/, "''");
+      gsub(/'/, "''");       ## Replace all single quotes with double single quotes
       print
     }
-  } else {                  ## Following lines of Multi line SQL statement 
-    if ( /%>/ ) {           ## Last line of the Multi line SQL statement
+  } else {                   ## Following lines of Multi line SQL statement 
+    if ( /%>/ ) {            ## Last line of the Multi line SQL statement
       tpl = 0;
       sub(/%>/, "");
       print
-    } else {                ## All lines in between starting and last line of multi line statement
+    } else {                 ## All lines in between starting and last line of multi line statement
       print
     }
   }
