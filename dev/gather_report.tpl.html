@@ -1,4 +1,4 @@
-<% --\pset border 2 %>
+<% \set QUIET 1 %>
 <script type="text/javascript" src="http://mozigo.risko.org/js/graficarBarras.js"></script>
 <script type="text/javascript" src="http://mozigo.risko.org/js/tabla2array.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
@@ -65,6 +65,13 @@ WHERE a.state IS NOT NULL
 GROUP BY 1,2; %>
 <a href="#topics">Go to Topics</a>
 <h2 id="findings" style="clear: both">Important Findings</h2>
+<% \pset format aligned
+\pset tuples_only on
+WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
+SELECT CASE WHEN val > 0 
+  THEN 'There are '||val||' idle in transaction session(s) please crosscheck with to blocking sessions<br>' 
+  ELSE 'No idle in transactions <br>' END 
+FROM W; %>
 <a href="#topics">Go to Topics</a>
 <script type="text/javascript">
 $("input").change(function(){  alert("Number changed"); }); 

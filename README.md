@@ -19,12 +19,12 @@ At the core of the requirement is that, If a PostgreSQL client (psql) is able to
 # How to Use
 
 ## Data Gathering.
-The configuration and Performance data can be gathered by executing the `gather.sql` against the database as follows
+Inorder to gather the configuration and Performance information, the `gather.sql` script can be executed against the database using `psql` as follows
 ```
 psql -f gather.sql > out.txt
 ```
-One might have to specify additional connection information also in the psql as follows
-
+This script may take 20+ seconds to execute as there are sleeps within. You may provide additional psql command line options if it is required in our environment.
+For example,
 ```
  psql -h serverhost -U user -f gather.sql > out.txt
 ```
