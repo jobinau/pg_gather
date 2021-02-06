@@ -4,7 +4,8 @@ This is a SQL-only script for gathering performance and configuration data from 
 A SQL-Only script addresses the limitations of other means to collect data<br>
 If a PostgreSQL client (psql) is able to connect to a PostgreSQL server, This works.
 
-**Supported Versions** : PostgreSQL 10, 11, 12 & 13
+**Supported Versions** : PostgreSQL 10, 11, 12 & 13  
+**Minimum support versions** : PostgreSQL 9.5, 9.6
 
 # Features
 1. Transperent / fully auditable code for the end user.<br>
@@ -30,7 +31,9 @@ For example,
 ```
  psql -h serverhost -U user dbname -f gather.sql > out.txt
 ```
-This output file contains all the information for analysis
+This output file contains all the information for analysis  
+**Note:-** There is a seperate `gather_old.sql` form minimum support versions 9.5 and 9.6
+
 ## Data Analysis
 The collected data can be imported to a PostgreSQL Instance as follows
 ```
