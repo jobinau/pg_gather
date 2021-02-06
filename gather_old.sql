@@ -1,6 +1,5 @@
 ---- Gather Performance metics and server configuration
----- Version 2 for PG 10,11,12 - 25 - Jan -2021 
----- Version 3 Supporting PG 13 - 06 - Feb -2021
+--- for older versions till 9.5
 
 \pset tuples_only
 \echo '\\t'
@@ -12,18 +11,11 @@
 \echo '\\.'
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_wal_lsn()) TO stdin;
+COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_xlog_location()) TO stdin;
 \echo '\\.'
 
 --There is more Activity information in PG13 and PG12 than previous versions
-SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13 \gset
-\if :pg13
-    \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc,leader_pid) FROM stdin;
-\elif :pg12
-    \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc) FROM stdin;
-\else
-    \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ) FROM stdin;
-\endif
+\echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ) FROM stdin;
 \copy (select * from  pg_stat_get_activity(NULL) where pid != pg_backend_pid()) to stdin
 \echo '\\.'
 
@@ -40,6 +32,8 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 --\a
 
 --A much lightweight implimentation 26/12/2020
+SELECT ( :SERVER_VERSION_NUM > 90600 ) AS pg96 \gset
+\if :pg96
 \a
 PREPARE pidevents AS
 SELECT pid || E'\t' || wait_event FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
@@ -49,7 +43,7 @@ SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) 
 \gexec
 \echo '\\.'
 \a
-
+\endif
 
 --Ideas to try. Try writing to a seperate output file and run it here again
 --If not possible, develop a clean up script using sed
@@ -104,6 +98,7 @@ COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid
 
 --Blocking information
 \echo COPY get_block FROM stdin;
+\if :pg96
 COPY (SELECT blocked_locks.pid  AS blocked_pid,
        blocked_activity.usename  AS blocked_user,
        blocked_activity.client_addr as blocked_client_addr,
@@ -138,12 +133,48 @@ FROM  pg_catalog.pg_locks   blocked_locks
         AND blocking_locks.pid != blocked_locks.pid
    JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid
 WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
+\else
+SELECT blocked_locks.pid  AS blocked_pid,
+       blocked_activity.usename  AS blocked_user,
+       blocked_activity.client_addr as blocked_client_addr,
+       blocked_activity.client_hostname as blocked_client_hostname,
+       blocked_activity.application_name as blocked_application_name,
+       NULL as blocked_wait_event_type,
+       NULL as blocked_wait_event,
+       blocked_activity.query   AS blocked_statement,
+       blocked_activity.xact_start AS blocked_xact_start,
+       blocking_locks.pid  AS blocking_pid,
+       blocking_activity.usename AS blocking_user,
+       blocking_activity.client_addr as blocking_client_addr,
+       blocking_activity.client_hostname as blocking_client_hostname,
+       blocking_activity.application_name as blocking_application_name,
+       NULL as blocking_wait_event_type,
+       NULL as blocking_wait_event,
+       blocking_activity.query AS current_statement_in_blocking_process,
+       blocking_activity.xact_start AS blocking_xact_start
+FROM  pg_catalog.pg_locks   blocked_locks
+   JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid
+   JOIN pg_catalog.pg_locks         blocking_locks 
+        ON blocking_locks.locktype = blocked_locks.locktype
+        AND blocking_locks.DATABASE IS NOT DISTINCT FROM blocked_locks.DATABASE
+        AND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation
+        AND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page
+        AND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple
+        AND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid
+        AND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid
+        AND blocking_locks.classid IS NOT DISTINCT FROM blocked_locks.classid
+        AND blocking_locks.objid IS NOT DISTINCT FROM blocked_locks.objid
+        AND blocking_locks.objsubid IS NOT DISTINCT FROM blocked_locks.objsubid
+        AND blocking_locks.pid != blocked_locks.pid
+   JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid
+WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid;
+\endif
 \echo '\\.'
 
 --select * from pg_stat_replication;
 \echo COPY pg_replication_stat FROM stdin;
 COPY ( 
-   SELECT usename, client_addr, client_hostname, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state  FROM pg_stat_replication
+   SELECT usename, client_addr, client_hostname, state, sent_location, write_location, flush_location, replay_location, sync_state  FROM pg_stat_replication
 ) TO stdin;
 \echo '\\.'
 
@@ -185,9 +216,11 @@ SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
 
 
 --active session again
-\a
-\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
-SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
-\gexec
-\echo '\\.'
-\a
+\if :pg96
+    \a
+    \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
+    SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
+    \gexec
+    \echo '\\.'
+    \a
+\endif
