@@ -48,7 +48,8 @@ CREATE TABLE pg_get_activity (
     ssl_issuer_dn text,
     gss_auth boolean,
     gss_princ text,
-    gss_enc boolean
+    gss_enc boolean,
+    leader_pid integer
 );
 
 CREATE TABLE pg_get_wait(

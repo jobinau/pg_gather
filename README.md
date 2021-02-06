@@ -1,16 +1,18 @@
 # pg_gather
-This is a SQL only script for gathering performance information from PostgreSQL databases.
+This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases.
 
-The decision to develop and SQL-Only script was taken after assessing the limitations of with of other approches to collect info<br>
-At the core of the requirement is that, If a PostgreSQL client (psql) is able to connect to PostgreSQL server, the data collection for the analysis should be possible.
+A SQL-Only script addresses the limitations of other means to collect data<br>
+If a PostgreSQL client (psql) is able to connect to a PostgreSQL server, This works.
 
-# Major Features
-1. Transperent / fully auditable code by the end user.<br>
-   SQL only script is prefered over shell scripts, executable programs from readablity perspective, No Programming language skills needed.
+**Supported Versions** : PostgreSQL 10, 11, 12 & 13
+
+# Features
+1. Transperent / fully auditable code for the end user.<br>
+   A SQL-only script is prefered over shell scripts, executable programs from end user readablity perspective, No Programming language skills needed.
 2. No Executables are to be deployed<br>
-    Using executables on a secured environments posses risks and not acceptable in may environments
+    Usage of executables on a secured environments posses risks and not acceptable in many environments
 3. Authentication agnostic<br>
-   Any authentication mechanism which PostgreSQL supports should be acceptable for data gathering
+   Any authentication mechanism which PostgreSQL supports should be acceptable for data gathering. So if `psql` is able to connect, data for analysis can be collected.
 4. Any Operating System and architecture.<br>
    Linux 32 / 64 bit, SunSolaris, MAC os, Windows On x86-64 bit, ARM, Sparc
 5. Minimal data collection with a single file output.
@@ -19,14 +21,14 @@ At the core of the requirement is that, If a PostgreSQL client (psql) is able to
 # How to Use
 
 ## Data Gathering.
-Inorder to gather the configuration and Performance information, the `gather.sql` script can be executed against the database using `psql` as follows
+Inorder to gather the configuration and Performance information, the `gather.sql` script need be executed against the database using `psql` as follows
 ```
 psql -f gather.sql > out.txt
 ```
-This script may take 20+ seconds to execute as there are sleeps within. You may provide additional psql command line options if it is required in our environment.
+This script may take 20+ seconds to execute as there are sleeps/delays within. You may provide additional psql command line options if it is required in our environment. Please mention the database name also wherever relevant.
 For example,
 ```
- psql -h serverhost -U user -f gather.sql > out.txt
+ psql -h serverhost -U user dbname -f gather.sql > out.txt
 ```
 This output file contains all the information for analysis
 ## Data Analysis
