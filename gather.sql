@@ -103,7 +103,7 @@ COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid
 \echo '\\.'
 
 --Blocking information
-\echo COPY get_block FROM stdin;
+\echo COPY pg_get_block FROM stdin;
 COPY (SELECT blocked_locks.pid  AS blocked_pid,
        blocked_activity.usename  AS blocked_user,
        blocked_activity.client_addr as blocked_client_addr,

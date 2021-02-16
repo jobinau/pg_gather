@@ -1,6 +1,6 @@
 --Schema for using with gather.sql v1
 
-DROP TABLE pg_gather,pg_get_activity,pg_get_class,pg_get_confs,pg_get_db,pg_get_index,pg_get_rel,pg_get_wait,pg_srvr,get_block,pg_pid_wait,pg_replication_stat,pg_archiver_stat,pg_tab_bloat,pg_get_toast;
+DROP TABLE pg_gather,pg_get_activity,pg_get_class,pg_get_confs,pg_get_db,pg_get_index,pg_get_rel,pg_get_wait,pg_srvr,pg_get_block,pg_pid_wait,pg_replication_stat,pg_archiver_stat,pg_tab_bloat,pg_get_toast;
 
 CREATE TABLE pg_srvr (
     connstr text
@@ -127,7 +127,7 @@ CREATE TABLE pg_get_rel (
 --rel_size is "main" fork size
 --tab_size includes toast also
 
-CREATE TABLE get_block (
+CREATE TABLE pg_get_block (
     blocked_pid integer,
     blocked_user text,
     blocked_client_addr text,

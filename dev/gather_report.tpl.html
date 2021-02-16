@@ -24,6 +24,7 @@ th { cursor: pointer;}
 <li><a href="#activiy">Session Summary</a></li>
 <li><a href="#time">Database time</a></li>
 <li><a href="#sess">Session Timing</a></li>
+<li><a href="#blocking">Blocking Sessions</a></li>
 <li><a href="#findings">Important Findings</a></li>
 </ol>
 <h2>Tables Info</h2>
@@ -64,12 +65,17 @@ SELECT a.pid,2000 - s.tot cpu,string_agg( w.wait_event ||':'|| w.cnt,',') waits 
 WHERE a.state IS NOT NULL
 GROUP BY 1,2; %>
 <a href="#topics">Go to Topics</a>
+
+<h2 id="blocking" style="clear: both">Blocking Sessions</h2>
+<% SELECT * FROM pg_get_block; %>
+<a href="#topics">Go to Topics</a>
+
 <h2 id="findings" style="clear: both">Important Findings</h2>
 <% \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
 SELECT CASE WHEN val > 0 
-  THEN 'There are '||val||' idle in transaction session(s) please crosscheck with to blocking sessions<br>' 
+  THEN 'There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also<br>' 
   ELSE 'No idle in transactions <br>' END 
 FROM W; %>
 <a href="#topics">Go to Topics</a>
