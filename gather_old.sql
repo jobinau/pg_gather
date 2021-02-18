@@ -1,5 +1,5 @@
 ---- Gather Performance metics and server configuration
---- for older versions till 9.5
+--- for older versions (9.6 and 9.5)
 
 \pset tuples_only
 \echo '\\t'
@@ -97,7 +97,7 @@ COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid
 \echo '\\.'
 
 --Blocking information
-\echo COPY get_block FROM stdin;
+\echo COPY pg_get_block FROM stdin;
 \if :pg96
 COPY (SELECT blocked_locks.pid  AS blocked_pid,
        blocked_activity.usename  AS blocked_user,
