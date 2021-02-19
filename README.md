@@ -1,43 +1,47 @@
 # pg_gather
-This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases.
+This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases 
 
 A SQL-Only script addresses the limitations of other means to collect data<br>
-If a PostgreSQL client (psql) is able to connect to a PostgreSQL server, This works.
+This requires only `psql` (PostgreSQL client tool) connectivity to server
 
 **Supported Versions** : PostgreSQL 10, 11, 12 & 13  
 **Minimum support versions** : PostgreSQL 9.5, 9.6
 
-# Features
-1. Transperent / fully auditable code for the end user.<br>
+
+# Highlights
+1. **Secure by Open :** Simple, Transperent, Fully auditable code.<br>
    A SQL-only script is prefered over shell scripts, executable programs from end user readablity perspective, No Programming language skills needed.
-2. No Executables are to be deployed<br>
+2. **No Executables** are to be deployed on the database host<br>
     Usage of executables on a secured environments posses risks and not acceptable in many environments
-3. Authentication agnostic<br>
+3. **Authentication agnostic**<br>
    Any authentication mechanism which PostgreSQL supports should be acceptable for data gathering. So if `psql` is able to connect, data for analysis can be collected.
-4. Any Operating System and architecture.<br>
-   Linux 32 / 64 bit, SunSolaris, MAC os, Windows On x86-64 bit, ARM, Sparc
-5. Minimal data collection with a single file output.
-6. Works with any cloud, DaaS, On-Prim 
+4. **Any Operating System** <br>
+   Linux 32 / 64 bit, SunSolaris, MAC os, Windows
+5. **Architecture agnostic**<br>
+   x86-64 bit, ARM, Sparc, Power etc
+6. **Minimal data collection** with a single text file with Tab Seperated Values (TSV)
+7. **Any cloud** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
+   (Hiroku specific restrictions are addressed. Please see the note below)
 
 # How to Use
 
 ## Data Gathering.
 Inorder to gather the configuration and Performance information, the `gather.sql` script need be executed against the database using `psql` as follows
 ```
-psql -f gather.sql > out.txt
+psql <connection_parameters_if_any> -f gather.sql > out.txt
 ```
-This script may take 20+ seconds to execute as there are sleeps/delays within. You may provide additional psql command line options if it is required in our environment. Please mention the database name also wherever relevant.
-For example,
-```
- psql -h serverhost -U user dbname -f gather.sql > out.txt
-```
+This script may take 20+ seconds to execute as there are sleeps/delays within. <br>
+
 This output file contains all the information for analysis  
-**Note:-** There is a seperate `gather_old.sql` form minimum support versions 9.5 and 9.6
+
+## Notes: 
+   1. There is a seperate `gather_old.sql` for older minimum support versions 9.5 and 9.6
+   2. Heroku like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errors during the data collection. which can be ignored
 
 ## Data Analysis
 The collected data can be imported to a PostgreSQL Instance as follows
 ```
-sed -i '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^$/d' out.txt; psql -f gather_schema.sql -f out.txt
+sed -i '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^\s*$/d' out.txt; psql -f gather_schema.sql -f out.txt
 ```
 The analysis report can be generated as follows
 ```
