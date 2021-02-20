@@ -32,7 +32,7 @@ psql <connection_parameters_if_any> -f gather.sql > out.txt
 ```
 This script may take 20+ seconds to execute as there are sleeps/delays within. <br>
 
-This output file contains all the information for analysis  
+This output file contains performance and configuration data for analysis  
 
 ## Notes: 
    1. There is a seperate `gather_old.sql` for older minimum support versions 9.5 and 9.6
@@ -41,9 +41,9 @@ This output file contains all the information for analysis
 ## Data Analysis
 The collected data can be imported to a PostgreSQL Instance as follows
 ```
-sed -i '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^\s*$/d' out.txt; psql -f gather_schema.sql -f out.txt
+sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -f - 
 ```
 The analysis report can be generated as follows
 ```
-psql -q -X -f gather_report.sql > out.html
+psql -X -f gather_report.sql > out.html
 ```
