@@ -37,6 +37,10 @@ This output file contains performance and configuration data for analysis
 ## Notes: 
    1. There is a seperate `gather_old.sql` for older minimum support versions 9.5 and 9.6
    2. Heroku like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errors during the data collection. which can be ignored
+   3. Windows users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
+   ```
+     "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
+   ```
 
 ## Data Analysis
 The collected data can be imported to a PostgreSQL Instance as follows
