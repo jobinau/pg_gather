@@ -28,7 +28,7 @@ This requires only `psql` (PostgreSQL client tool) connectivity to server
 ## Data Gathering.
 Inorder to gather the configuration and Performance information, the `gather.sql` script need be executed against the database using `psql` as follows
 ```
-psql <connection_parameters_if_any> -f gather.sql > out.txt
+psql <connection_parameters_if_any> -X -f gather.sql > out.txt
 ```
 This script may take 20+ seconds to execute as there are sleeps/delays within. <br>
 
