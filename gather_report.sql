@@ -89,6 +89,13 @@ FROM W;
 \echo <a href="#topics">Go to Topics</a>
 \echo <script type="text/javascript">
 \echo $("input").change(function(){  alert("Number changed"); }); 
+\echo function bytesToSize(bytes) {
+\echo   const sizes = ["B","KB","MB","GB","TB"];
+\echo   if (bytes == 0) return 'n/a';
+\echo   const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1000)), 10);
+\echo   if (i === 0) return bytes + sizes[i];
+\echo   return (bytes / (1000 ** i)).toFixed(1) + sizes[i]; 
+\echo }
 \echo //Following line breaks the AWK script, because there is single quote within double quote
 \echo autovacuum_freeze_max_age = Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
 \echo console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
@@ -102,13 +109,13 @@ FROM W;
 \echo     TotTab = $(this).children().eq(8);
 \echo     TotTabSize = Number(TotTab.html());
 \echo     if( TotTabSize > 2000000000 ){
-\echo       TotTab.addClass("lime").prop("title", TotTabSize.toLocaleString("en-US") + "\nBig Table, Consider Partitioning, Archive+Purge" );
+\echo       TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
 \echo     }
 \echo     TabInd = $(this).children().eq(9);
 \echo     TabIndSize = Number(TabInd.html());
 \echo     if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 ){   //Table size above 20MB and Index size is greater than table size
-\echo       TabInd.addClass("warn").prop("title", "Total Index Size : " + (TabIndSize-TotTabSize).toLocaleString("en-US") + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + " Times the size of table " + 
-\echo           TotTabSize.toLocaleString("en-US") + "\n Total : " + TabIndSize.toLocaleString("en-US"));
+\echo       TabInd.addClass("warn").prop("title", "Total Index Size : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + " Times the size of table of " + 
+\echo           bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
 \echo     }
 \echo });
 \echo $("#tabInfo tr td:nth-child(9),td:nth-child(10)").each(function(){
