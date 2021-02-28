@@ -24,7 +24,7 @@ SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FR
 \echo <h2 id="topics">Go to Topics</h2>
 \echo <ol>
 \echo <li><a href="#parameters">Parameter settings</a></li>
-\echo <li><a href="#findings">Important findings</a></li>
+\echo <li><a href="#indexes">Indexes</a></li>
 \echo <li><a href="#activiy">Session Summary</a></li>
 \echo <li><a href="#time">Database time</a></li>
 \echo <li><a href="#sess">Session Timing</a></li>
@@ -42,6 +42,14 @@ JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind <> 't'
 LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid; 
+\pset tableattr
+\echo <a href="#topics">Go to Topics</a>
+\echo <h2 id="indexes">Index Info</h2>
+\pset tableattr 'id="IndInfo"'
+SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
+  FROM pg_get_index i 
+  JOIN pg_get_class ct on i.indrelid = ct.reloid 
+  JOIN pg_get_class ci ON i.indexrelid = ci.reloid;
 \pset tableattr
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="parameters">Parameters & settings</h2>
