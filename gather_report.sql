@@ -7,11 +7,15 @@
 \echo th {background-color: #d2f2ff;}
 \echo tr:nth-child(even) {background-color: #d2e2ff;}
 \echo th { cursor: pointer;}
+\echo .warn { font-weight:bold; background-color: #FAA }
+\echo .lime { font-weight:bold}
 \echo </style>
 \H
 \echo <h2>Connection and Server</h2>
 SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FROM pg_srvr;
 \echo <div>
+\echo <h2>Your Input about host resrouces </h2>
+\echo <p>You may input CPU and Memory in the host server which will be used for analysis</p>
 \echo  <label for="cpus">CPUs</label>
 \echo  <input type="number" id="cpus" name="cpus" value="8">
 \echo  <label for="mem">Memory in GB</label>
@@ -24,10 +28,12 @@ SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FR
 \echo <li><a href="#activiy">Session Summary</a></li>
 \echo <li><a href="#time">Database time</a></li>
 \echo <li><a href="#sess">Session Timing</a></li>
+\echo <li><a href="#blocking">Blocking Sessions</a></li>
 \echo <li><a href="#findings">Important Findings</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes</p>
+\pset tableattr 'id="tabInfo"'
 SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
@@ -36,9 +42,12 @@ JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind <> 't'
 LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid; 
+\pset tableattr
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="parameters">Parameters & settings</h2>
+\pset tableattr 'id="params"'
 SELECT * FROM pg_get_confs;
+\pset tableattr
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="activiy">Session Summary</h2>
 SELECT d.datname,state,COUNT(pid) 
@@ -64,17 +73,49 @@ SELECT a.pid,2000 - s.tot cpu,string_agg( w.wait_event ||':'|| w.cnt,',') waits 
 WHERE a.state IS NOT NULL
 GROUP BY 1,2; 
 \echo <a href="#topics">Go to Topics</a>
+
+\echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
+SELECT * FROM pg_get_block;
+\echo <a href="#topics">Go to Topics</a>
+
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
 \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
 SELECT CASE WHEN val > 0 
-  THEN 'There are '||val||' idle in transaction session(s) please crosscheck with to blocking sessions<br>' 
+  THEN 'There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also<br>' 
   ELSE 'No idle in transactions <br>' END 
 FROM W; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <script type="text/javascript">
 \echo $("input").change(function(){  alert("Number changed"); }); 
+\echo //Following line breaks the AWK script, because there is single quote within double quote
+\echo autovacuum_freeze_max_age = Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
+\echo console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
+\echo //##Analyze Table Info values
+\echo $("#tabInfo tr").each(function(){
+\echo     $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){
+\echo     //Check Table, TOAST and Max Age and compare with autovacuum_freeze_max_age
+\echo     if( Number($(this).html()) > autovacuum_freeze_max_age ){
+\echo         $(this).addClass("warn").prop("title", "Age is :" + Number($(this).html().trim()).toLocaleString("en-US") + ". Meanwhile, \n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
+\echo     }});
+\echo     TotTab = $(this).children().eq(8);
+\echo     TotTabSize = Number(TotTab.html());
+\echo     if( TotTabSize > 2000000000 ){
+\echo       TotTab.addClass("lime").prop("title", TotTabSize.toLocaleString("en-US") + "\nBig Table, Consider Partitioning, Archive+Purge" );
+\echo     }
+\echo     TabInd = $(this).children().eq(9);
+\echo     TabIndSize = Number(TabInd.html());
+\echo     if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 ){   //Table size above 20MB and Index size is greater than table size
+\echo       TabInd.addClass("warn").prop("title", "Total Index Size : " + (TabIndSize-TotTabSize).toLocaleString("en-US") + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + " Times the size of table " + 
+\echo           TotTabSize.toLocaleString("en-US") + "\n Total : " + TabIndSize.toLocaleString("en-US"));
+\echo     }
+\echo });
+\echo $("#tabInfo tr td:nth-child(9),td:nth-child(10)").each(function(){
+\echo     if( $(this).text().trim() > 2000000000 ){
+\echo         //$(this).addClass("lime").prop("title", Number($(this).text().trim()).toLocaleString("en-US") );
+\echo     }
+\echo });
 \echo  const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo  const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo  document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
