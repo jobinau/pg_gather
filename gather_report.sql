@@ -14,8 +14,8 @@
 \echo <h2>Connection and Server</h2>
 SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FROM pg_srvr;
 \echo <div>
-\echo <h2>Your Input about host resrouces </h2>
-\echo <p>You may input CPU and Memory in the host server which will be used for analysis</p>
+\echo <h2>Your input about host resources </h2>
+\echo <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
 \echo  <label for="cpus">CPUs</label>
 \echo  <input type="number" id="cpus" name="cpus" value="8">
 \echo  <label for="mem">Memory in GB</label>
