@@ -4,6 +4,25 @@
 #  Using HTML Template by replacing markers
 #################################################################  
 
+function psql_echo_escape() {
+  in_double_quotes = 0
+  split($0, chars, "")
+  for (i=1; i <= length($0); i++) {
+    ch = chars[i]
+    if (ch == "\"" && in_double_quotes == 0) {
+      in_double_quotes = 1
+      printf("%s", "\"")
+    } else if (ch == "\"" && in_double_quotes == 1) {
+      in_double_quotes = 0
+      printf("%s", "\"")
+    } else if (ch == "'" && in_double_quotes == 0) {
+      printf("%s", "'\\''")
+    } else {
+      printf("%s", chars[i])
+    }
+  }
+}
+
 BEGIN {
   tpl = 0
 }
@@ -21,8 +40,8 @@ BEGIN {
       print
     } else {                 ## Remaining lines (HTML tags) echo as it is
       sub(/^/, "\\echo ");
-      gsub(/'/, "''");       ## Replace all single quotes with double single quotes
-      print
+      psql_echo_escape()     ## Replace single quotes outside double quotes with escaped value
+      printf("\n")
     }
   } else {                   ## Following lines of Multi line SQL statement 
     if ( /%>/ ) {            ## Last line of the Multi line SQL statement
