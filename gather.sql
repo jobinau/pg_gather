@@ -94,10 +94,8 @@ COPY (SELECT indexrelid,indrelid,indisunique,indisprimary, pg_stat_get_numscans(
 \echo COPY pg_get_rel FROM stdin;
 COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid) AS n_live_tup,pg_stat_get_dead_tuples(oid) AS n_dead_tup,
    pg_relation_size(oid) only_tab_size,  pg_table_size(oid) tot_tab_size, pg_total_relation_size(oid) "tot_tab+idx", age(relfrozenxid) rel_age,
- CASE WHEN (pg_stat_get_last_autovacuum_time(oid) > pg_stat_get_last_vacuum_time(oid)) 
-    THEN pg_stat_get_last_autovacuum_time(oid) ELSE  pg_stat_get_last_vacuum_time(oid) END,
- CASE WHEN (pg_stat_get_last_autoanalyze_time(oid) > pg_stat_get_last_analyze_time(oid))
-    THEN pg_stat_get_last_autoanalyze_time(oid) ELSE pg_stat_get_last_analyze_time(oid) END,
+   GREATEST(pg_stat_get_last_autovacuum_time(oid),pg_stat_get_last_vacuum_time(oid)),
+   GREATEST(pg_stat_get_last_autoanalyze_time(oid),pg_stat_get_last_analyze_time(oid)),
  pg_stat_get_vacuum_count(oid)+pg_stat_get_autovacuum_count(oid)
  FROM pg_class WHERE relkind in ('r','t','p','m','')) TO stdin;
 \echo '\\.'
