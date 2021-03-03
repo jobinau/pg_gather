@@ -31,6 +31,7 @@ Inorder to gather the configuration and Performance information, the `gather.sql
 psql <connection_parameters_if_any> -X -f gather.sql > out.txt
 ```
 This script may take 20+ seconds to execute as there are sleeps/delays within. <br>
+Recommended running the script as a privileged user (`superuser`, `rds_superuser` etc) or some account with `pg_monitor` privilege.  
 
 This output file contains performance and configuration data for analysis  
 
@@ -49,5 +50,5 @@ sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^\s*$/d' ou
 ```
 The analysis report can be generated as follows
 ```
-psql -X -f gather_report.sql > out.html
+psql -X -f gather_report.sql > GatherReport.html
 ```
