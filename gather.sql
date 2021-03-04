@@ -1,6 +1,7 @@
----- Gather Performance metics and server configuration
+---- pg_gather : Gather Performance metics and server configuration
 ---- Version 2 for PG 10,11,12 - 25 - Jan -2021 
 ---- Version 3 Supporting PG 13 - 06 - Feb -2021
+---- Version 4 Bug fixes and Report enhacements
 
 \pset tuples_only
 \echo '\\t'
