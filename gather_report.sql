@@ -23,8 +23,8 @@ SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FR
 \echo </div>
 \echo <h2 id="topics">Go to Topics</h2>
 \echo <ol>
-\echo <li><a href="#parameters">Parameter settings</a></li>
 \echo <li><a href="#indexes">Index Info</a></li>
+\echo <li><a href="#parameters">Parameter settings</a></li>
 \echo <li><a href="#activiy">Session Summary</a></li>
 \echo <li><a href="#time">Database time</a></li>
 \echo <li><a href="#sess">Session Timing</a></li>
@@ -38,7 +38,7 @@ SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
 FROM pg_get_rel r
-JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind <> 't'
+JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
 LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid; 
@@ -48,9 +48,9 @@ LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid;
 \pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
   FROM pg_get_index i 
-  JOIN pg_get_class ct on i.indrelid = ct.reloid 
+  JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid;
-\pset tableattr
+\pset tableattr 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="parameters">Parameters & settings</h2>
 \pset tableattr 'id="params"'
@@ -99,15 +99,14 @@ FROM W;
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo function bytesToSize(bytes) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
-\echo   if (bytes == 0) return 'n/a';
+\echo   if (bytes == 0) return ''n/a'';
 \echo   const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1000)), 10);
 \echo   if (i === 0) return bytes + sizes[i];
 \echo   return (bytes / (1000 ** i)).toFixed(1) + sizes[i]; 
 \echo }
-\echo //Following line breaks the AWK script, because there is single quote within double quote
 \echo autovacuum_freeze_max_age = Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
-\echo console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
-\echo //##Analyze Table Info values
+\echo //console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
+\echo //##Analyze Max age column
 \echo $("#tabInfo tr").each(function(){
 \echo     $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){
 \echo     //Check Table, TOAST and Max Age and compare with autovacuum_freeze_max_age
@@ -126,10 +125,17 @@ FROM W;
 \echo           bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
 \echo     }
 \echo });
-\echo $("#tabInfo tr td:nth-child(9),td:nth-child(10)").each(function(){
-\echo     if( $(this).text().trim() > 2000000000 ){
-\echo         //$(this).addClass("lime").prop("title", Number($(this).text().trim()).toLocaleString("en-US") );
-\echo     }
+\echo //Examine the parameters
+\echo $("#params tr").each(function(){
+\echo   //console.log($(this).children().eq(0).text() + " : " + $(this).children().eq(1).text());
+\echo   switch($(this).children().eq(0).text()) {
+\echo     case "autovacuum_max_workers" :
+\echo             console.log($(this).children().eq(1).text());
+\echo           break;
+\echo     case "autovacuum_vacuum_cost_limit" :
+\echo           console.log($(this).children().eq(1).text());
+\echo           break;
+\echo   }
 \echo });
 \echo  const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo  const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
