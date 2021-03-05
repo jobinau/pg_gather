@@ -16,7 +16,7 @@ function psql_echo_escape() {
       in_double_quotes = 0
       printf("%s", "\"")
     } else if (ch == "'" && in_double_quotes == 0) {
-      printf("%s", "'\\''")
+      printf("%s", "''")
     } else {
       printf("%s", chars[i])
     }

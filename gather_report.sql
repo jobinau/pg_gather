@@ -24,7 +24,7 @@ SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FR
 \echo <h2 id="topics">Go to Topics</h2>
 \echo <ol>
 \echo <li><a href="#parameters">Parameter settings</a></li>
-\echo <li><a href="#indexes">Indexes</a></li>
+\echo <li><a href="#indexes">Index Info</a></li>
 \echo <li><a href="#activiy">Session Summary</a></li>
 \echo <li><a href="#time">Database time</a></li>
 \echo <li><a href="#sess">Session Timing</a></li>

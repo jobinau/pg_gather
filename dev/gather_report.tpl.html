@@ -14,6 +14,8 @@ th { cursor: pointer;}
 <h2>Connection and Server</h2>
 <% SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FROM pg_srvr; %>
 <div>
+<h2>Your input about host resources </h2>
+<p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
  <label for="cpus">CPUs</label>
  <input type="number" id="cpus" name="cpus" value="8">
  <label for="mem">Memory in GB</label>
@@ -21,8 +23,8 @@ th { cursor: pointer;}
 </div>
 <h2 id="topics">Go to Topics</h2>
 <ol>
+<li><a href="#indexes">Index Info</a></li>
 <li><a href="#parameters">Parameter settings</a></li>
-<li><a href="#findings">Important findings</a></li>
 <li><a href="#activiy">Session Summary</a></li>
 <li><a href="#time">Database time</a></li>
 <li><a href="#sess">Session Timing</a></li>
@@ -41,6 +43,14 @@ LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid; %>
 <% \pset tableattr%>
+<a href="#topics">Go to Topics</a>
+<h2 id="indexes">Index Info</h2>
+<% \pset tableattr 'id="IndInfo"'
+SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
+  FROM pg_get_index i 
+  JOIN pg_get_class ct on i.indrelid = ct.reloid 
+  JOIN pg_get_class ci ON i.indexrelid = ci.reloid;
+\pset tableattr %>
 <a href="#topics">Go to Topics</a>
 <h2 id="parameters">Parameters & settings</h2>
 <% \pset tableattr 'id="params"'%>
@@ -87,17 +97,37 @@ FROM W; %>
 <a href="#topics">Go to Topics</a>
 <script type="text/javascript">
 $("input").change(function(){  alert("Number changed"); }); 
+function bytesToSize(bytes) {
+  const sizes = ["B","KB","MB","GB","TB"];
+  if (bytes == 0) return 'n/a';
+  const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1000)), 10);
+  if (i === 0) return bytes + sizes[i];
+  return (bytes / (1000 ** i)).toFixed(1) + sizes[i]; 
+}
 autovacuum_freeze_max_age = $("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text();
 console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
 //##Analyze Max age column
-$("#tabInfo tr td:nth-child(18)").each(function(){
-    if( $(this).text().trim() > autovacuum_freeze_max_age ){
-        $(this).addClass("warn").prop("title", Number($(this).text().trim()).toLocaleString("en-US") );
+$("#tabInfo tr").each(function(){
+    $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){
+    //Check Table, TOAST and Max Age and compare with autovacuum_freeze_max_age
+    if( Number($(this).html()) > autovacuum_freeze_max_age ){
+        $(this).addClass("warn").prop("title", "Age is :" + Number($(this).html().trim()).toLocaleString("en-US") + ". Meanwhile, \n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
+    }});
+    TotTab = $(this).children().eq(8);
+    TotTabSize = Number(TotTab.html());
+    if( TotTabSize > 2000000000 ){
+      TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
+    }
+    TabInd = $(this).children().eq(9);
+    TabIndSize = Number(TabInd.html());
+    if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 ){   //Table size above 20MB and Index size is greater than table size
+      TabInd.addClass("warn").prop("title", "Total Index Size : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + " Times the size of table of " + 
+          bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
     }
 });
 $("#tabInfo tr td:nth-child(9),td:nth-child(10)").each(function(){
     if( $(this).text().trim() > 2000000000 ){
-        $(this).addClass("lime").prop("title", Number($(this).text().trim()).toLocaleString("en-US") );
+        //$(this).addClass("lime").prop("title", Number($(this).text().trim()).toLocaleString("en-US") );
     }
 });
  const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
