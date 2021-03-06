@@ -99,52 +99,77 @@ FROM W; %>
 $("input").change(function(){  alert("Number changed"); }); 
 function bytesToSize(bytes) {
   const sizes = ["B","KB","MB","GB","TB"];
-  if (bytes == 0) return 'n/a';
+  if (bytes == 0) return "0B";
   const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1000)), 10);
   if (i === 0) return bytes + sizes[i];
   return (bytes / (1000 ** i)).toFixed(1) + sizes[i]; 
 }
-autovacuum_freeze_max_age = Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
+autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
+function checkpars(){   //parameter checking
+$("#params tr").each(function(){
+  switch($(this).children().eq(0).text()) {
+    case "autovacuum_max_workers" :
+      console.log($(this).children().eq(1).text());
+      break;
+    case "autovacuum_vacuum_cost_limit" :
+      console.log($(this).children().eq(1).text());
+      break;
+    case "autovacuum_freeze_max_age" :
+      autovacuum_freeze_max_age = Number($(this).children().eq(1).text());
+      break;
+    case "deadlock_timeout":
+      $(this).children().eq(1).addClass("lime").prop("title",$(this).children().eq(2).text());
+      break;
+    case "effective_cache_size":
+      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*8*1024));
+      break;
+    case "maintenance_work_mem":
+      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024));
+      break;
+    case "max_connections":
+      $(this).children().eq(1).addClass("lime").prop("title",$(this).children().eq(1).text());
+      if($(this).children().eq(1).text() > 500) $(this).children().eq(1).addClass("warn");
+      break;
+    case "max_wal_size":
+      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024*1024));
+      if($(this).children().eq(1).text() < 10240) $(this).children().eq(1).addClass("warn");
+      break;
+    case "server_version":
+      $(this).children().eq(1).addClass("lime");
+      break;
+  }
+});
+}
+checkpars();
 //console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
 //##Analyze Max age column
 $("#tabInfo tr").each(function(){
     $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){
     //Check Table, TOAST and Max Age and compare with autovacuum_freeze_max_age
     if( Number($(this).html()) > autovacuum_freeze_max_age ){
-        $(this).addClass("warn").prop("title", "Age is :" + Number($(this).html().trim()).toLocaleString("en-US") + ". Meanwhile, \n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
+        $(this).addClass("warn").prop("title", "Age :" + Number($(this).html().trim()).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
     }});
     TotTab = $(this).children().eq(8);
     TotTabSize = Number(TotTab.html());
-    if( TotTabSize > 2000000000 ){
+    if( TotTabSize > 5000000000 ) 
       TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
-    }
+    else 
+      TotTab.prop("title",bytesToSize(TotTabSize));
     TabInd = $(this).children().eq(9);
     TabIndSize = Number(TabInd.html());
     if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 ){   //Table size above 20MB and Index size is greater than table size
-      TabInd.addClass("warn").prop("title", "Total Index Size : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + " Times the size of table of " + 
+      TabInd.addClass("warn").prop("title", "Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + 
           bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
     }
 });
-//Examine the parameters
-$("#params tr").each(function(){
-  //console.log($(this).children().eq(0).text() + " : " + $(this).children().eq(1).text());
-  switch($(this).children().eq(0).text()) {
-    case "autovacuum_max_workers" :
-            console.log($(this).children().eq(1).text());
-          break;
-    case "autovacuum_vacuum_cost_limit" :
-          console.log($(this).children().eq(1).text());
-          break;
-  }
-});
- const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
- const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== ''' && v2 !== ''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
- document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (() => {
-     const table = th.closest(''table'');
-     Array.from(table.querySelectorAll(''tr:nth-child(n+2)''))
-         .sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc))
-         .forEach(tr => table.appendChild(tr) );
- })));
+const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
+const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== ''' && v2 !== ''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
+document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (() => {
+    const table = th.closest(''table'');
+    Array.from(table.querySelectorAll(''tr:nth-child(n+2)''))
+        .sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc))
+        .forEach(tr => table.appendChild(tr) );
+})));
 
 $(''<thead></thead>'').prependTo(''#tableConten'').append($(''#tableConten tr:first''));
  var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
