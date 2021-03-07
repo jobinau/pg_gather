@@ -9,10 +9,18 @@ tr:nth-child(even) {background-color: #d2e2ff;}
 th { cursor: pointer;}
 .warn { font-weight:bold; background-color: #FAA }
 .lime { font-weight:bold}
+.lineblk {display : inline-block }
 </style>
-<% \H%>
-<h2>Connection and Server</h2>
-<% SELECT replace(connstr,'You are connected to ','') "Connection / Server info" FROM pg_srvr; %>
+<% \H
+\pset footer off %>
+<h1>pg_gather Report</h1>
+<% \pset tableattr 'class="lineblk"'
+SELECT  UNNEST(ARRAY ['Collected At','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
+        UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS v4   
+FROM pg_gather;
+SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
+\pset tableattr off
+%>
 <div>
 <h2>Your input about host resources </h2>
 <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
@@ -33,7 +41,8 @@ th { cursor: pointer;}
 </ol>
 <h2>Tables Info</h2>
 <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes</p>
-<% \pset tableattr 'id="tabInfo"'%>
+<% \pset footer on
+\pset tableattr 'id="tabInfo"'%>
 <% SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
@@ -58,7 +67,8 @@ SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,num
 <% \pset tableattr%>
 <a href="#topics">Go to Topics</a>
 <h2 id="activiy">Session Summary</h2>
-<% SELECT d.datname,state,COUNT(pid) 
+<% \pset footer off
+ SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1;; %>
 <a href="#topics">Go to Topics</a>
@@ -141,26 +151,21 @@ $("#params tr").each(function(){
 });
 }
 checkpars();
-//console.log("autovacuum_freeze_max_age :"+ autovacuum_freeze_max_age);
-//##Analyze Max age column
 $("#tabInfo tr").each(function(){
-    $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){
-    //Check Table, TOAST and Max Age and compare with autovacuum_freeze_max_age
-    if( Number($(this).html()) > autovacuum_freeze_max_age ){
+    $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){ // Age >  autovacuum_freeze_max_age
+    if( Number($(this).html()) > autovacuum_freeze_max_age )
         $(this).addClass("warn").prop("title", "Age :" + Number($(this).html().trim()).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
-    }});
+    });
     TotTab = $(this).children().eq(8);
     TotTabSize = Number(TotTab.html());
-    if( TotTabSize > 5000000000 ) 
-      TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
-    else 
-      TotTab.prop("title",bytesToSize(TotTabSize));
+    if( TotTabSize > 5000000000 ) TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
+    else TotTab.prop("title",bytesToSize(TotTabSize));
     TabInd = $(this).children().eq(9);
     TabIndSize = Number(TabInd.html());
-    if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 ){   //Table size above 20MB and Index size is greater than table size
-      TabInd.addClass("warn").prop("title", "Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + 
-          bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
-    }
+    if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 )   //Tab above 20MB and with Index bigger than Tab
+      TabInd.addClass("warn").prop("title", "Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " +  bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
+    else  TabInd.prop("title",bytesToSize(TabIndSize));
+    if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 });
 const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== ''' && v2 !== ''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
