@@ -51,6 +51,17 @@ SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) 
 \echo '\\.'
 \a
 
+--pg_stat_statements
+SELECT (select count(*) > 0 from pg_class where relname='pg_stat_statements') AS pg_stmnt \gset
+\if :pg_stmnt
+    \echo COPY pg_get_statements (userid,dbid,query,calls,total_time) FROM stdin;
+\if :pg13
+    \COPY (SELECT userid,dbid,query,calls,total_plan_time+total_exec_time "total_time" from pg_stat_statements) TO stdout;
+\else
+    \COPY (SELECT userid,dbid,query,calls,total_time from pg_stat_statements) TO stdout;
+\endif
+    \echo '\\.'
+\endif
 
 --Ideas to try. Try writing to a seperate output file and run it here again
 --If not possible, develop a clean up script using sed
