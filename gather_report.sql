@@ -34,8 +34,8 @@ SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and Pos
 \echo <li><a href="#indexes">Index Info</a></li>
 \echo <li><a href="#parameters">Parameter settings</a></li>
 \echo <li><a href="#activiy">Session Summary</a></li>
-\echo <li><a href="#time">Database time</a></li>
-\echo <li><a href="#sess">Session Timing</a></li>
+\echo <li><a href="#time">Database Time</a></li>
+\echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#blocking">Blocking Sessions</a></li>
 \echo <li><a href="#findings">Important Findings</a></li>
 \echo </ol>
@@ -77,19 +77,21 @@ SELECT * FROM pg_get_confs;
 \pset tableattr 'id="tableConten" name="waits"'
 WITH ses AS (SELECT COUNT (*) as tot, COUNT(*) FILTER (WHERE state is not null) working FROM pg_get_activity),
     waits AS (SELECT wait_event ,count(*) cnt from pg_pid_wait group by wait_event)
-  SELECT 'CPU' "Event", working*2000 - (SELECT sum(cnt) FROM waits) "Count" FROM ses
+  SELECT '*CPU Estimate' "Event", working*2000 - (SELECT sum(cnt) FROM waits) "Count" FROM ses
   UNION ALL
   SELECT wait_event "Event", cnt "Count" FROM waits;
   --session waits 
 \echo <a href="#topics">Go to Topics</a>
 \pset tableattr
-\echo <h2 id="sess" style="clear: both">Session Timing</h2>
-WITH w AS (SELECT pid,wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
-SELECT a.pid,2000 - s.tot cpu,string_agg( w.wait_event ||':'|| w.cnt,',') waits FROM pg_get_activity a 
-    JOIN w ON a.pid = w.pid
-    JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
+\echo <h2 id="sess" style="clear: both">Session Details</h2>
+WITH w AS (SELECT pid,wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
+g AS (SELECT collect_ts FROM pg_gather)
+SELECT a.pid,a.state, left(query,60) "Last statement", g.collect_ts - backend_start "Connection Since",  g.collect_ts - query_start "Statement since",g.collect_ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits FROM pg_get_activity a 
+ JOIN w ON a.pid = w.pid
+ JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
+ LEFT JOIN g ON true
 WHERE a.state IS NOT NULL
-GROUP BY 1,2; 
+GROUP BY 1,2,3,4,5,6; 
 \echo <a href="#topics">Go to Topics</a>
 
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
@@ -167,6 +169,7 @@ FROM W;
 \echo     else  TabInd.prop("title",bytesToSize(TabIndSize));
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
+
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
@@ -175,7 +178,13 @@ FROM W;
 \echo         .sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc))
 \echo         .forEach(tr => table.appendChild(tr) );
 \echo })));
-
+\echo $("#IndInfo tr").each(function(){
+\echo   Scans = $(this).children().eq(4);
+\echo   if(Number(Scans.html()) == 0 ) Scans.addClass("warn").prop("title","Unused Index");
+\echo   IndSz = $(this).children().eq(5);
+\echo   IndSz.prop("title", bytesToSize(IndSz.html()));
+\echo   if (Number(IndSz.html()) > 2000000000)  IndSz.addClass("lime");
+\echo });
 \echo $(''''<thead></thead>'''').prependTo(''''#tableConten'''').append($(''''#tableConten tr:first''''));
 \echo  var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
 \echo  mysColores :[
