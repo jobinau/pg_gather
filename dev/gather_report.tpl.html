@@ -14,7 +14,7 @@ th { cursor: pointer;}
 </style>
 <% \H
 \pset footer off %>
-<h1>pg_gather Report</h1>
+<h1>pg_gather Report <b id="busy" class="warn"> Loading... </b></h1>
 <% \pset tableattr 'class="lineblk"'
 SELECT  UNNEST(ARRAY ['Collected At','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
         UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS v4   
@@ -109,6 +109,7 @@ SELECT CASE WHEN val > 0
 FROM W; %>
 <a href="#topics">Go to Topics</a>
 <script type="text/javascript">
+$(function() { $("#busy").hide(); });
 $("input").change(function(){  alert("Number changed"); }); 
 function bytesToSize(bytes) {
   const sizes = ["B","KB","MB","GB","TB"];

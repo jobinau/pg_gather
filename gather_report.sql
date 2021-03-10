@@ -1,4 +1,5 @@
 \set QUIET 1
+\echo <html><meta charset="utf-8" />
 \echo <script type="text/javascript" src="http://mozigo.risko.org/js/graficarBarras.js"></script>
 \echo <script type="text/javascript" src="http://mozigo.risko.org/js/tabla2array.js"></script>
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
@@ -13,7 +14,7 @@
 \echo </style>
 \H
 \pset footer off 
-\echo <h1>pg_gather Report</h1>
+\echo <h1>pg_gather Report <b id="busy" class="warn"> Loading... </b></h1>
 \pset tableattr 'class="lineblk"'
 SELECT  UNNEST(ARRAY ['Collected At','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
         UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS v4   
@@ -108,6 +109,7 @@ SELECT CASE WHEN val > 0
 FROM W; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <script type="text/javascript">
+\echo $(function() { $("#busy").hide(); });
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo function bytesToSize(bytes) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
@@ -173,10 +175,12 @@ FROM W;
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
-\echo     const table = th.closest(''''table'''');
-\echo     Array.from(table.querySelectorAll(''''tr:nth-child(n+2)''''))
-\echo         .sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc))
-\echo         .forEach(tr => table.appendChild(tr) );
+\echo   const table = th.closest(''''table'''');
+\echo   th.style.cursor = "progress";
+\echo   setTimeout(function (){
+\echo   Array.from(table.querySelectorAll(''''tr:nth-child(n+2)'''')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
+\echo   setTimeout(function(){th.style.cursor = "pointer";},10);
+\echo   },50);
 \echo })));
 \echo $("#IndInfo tr").each(function(){
 \echo   Scans = $(this).children().eq(4);
@@ -194,4 +198,4 @@ FROM W;
 \echo     anchoLinea : 2, };
 \echo    obtener_datos_tabla_convertir_en_array(''''tableConten'''',graficarBarras,''''chart'''',''''750'''',''''480'''',misParam,true);
 \echo </script>
-
+\echo </html>
