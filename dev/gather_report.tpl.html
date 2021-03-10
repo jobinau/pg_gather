@@ -1,4 +1,5 @@
 <% \set QUIET 1 %>
+<html><meta charset="utf-8" />
 <script type="text/javascript" src="http://mozigo.risko.org/js/graficarBarras.js"></script>
 <script type="text/javascript" src="http://mozigo.risko.org/js/tabla2array.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
@@ -173,10 +174,12 @@ $("#tabInfo tr").each(function(){
 const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== ''' && v2 !== ''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (() => {
-    const table = th.closest(''table'');
-    Array.from(table.querySelectorAll(''tr:nth-child(n+2)''))
-        .sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc))
-        .forEach(tr => table.appendChild(tr) );
+  const table = th.closest(''table'');
+  th.style.cursor = "progress";
+  setTimeout(function (){
+  Array.from(table.querySelectorAll(''tr:nth-child(n+2)'')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
+  setTimeout(function(){th.style.cursor = "pointer";},10);
+  },50);
 })));
 $("#IndInfo tr").each(function(){
   Scans = $(this).children().eq(4);
@@ -194,4 +197,4 @@ $(''<thead></thead>'').prependTo(''#tableConten'').append($(''#tableConten tr:fi
     anchoLinea : 2, };
    obtener_datos_tabla_convertir_en_array(''tableConten'',graficarBarras,''chart'',''750'',''480'',misParam,true);
 </script>
-
+</html>
