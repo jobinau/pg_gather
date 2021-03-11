@@ -16,7 +16,7 @@
 \pset footer off 
 \echo <h1>pg_gather Report <b id="busy" class="warn"> Loading... </b></h1>
 \pset tableattr 'class="lineblk"'
-SELECT (SELECT count(*) > 2 FROM pg_srvr) AS conlines \gset
+SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines \gset
 \if :conlines
   \echo "There is serious problem with the data. Please make sure that all tables are dropped and recreated as part of importing data (gather_schema.sql) and there was no error"
   "SOMETHING WENT WRONG WHILE IMPORTING THE DATA. PLEASE MAKE SURE THAT ALL TABLES ARE DROPPED AND RECREATED AS PART OF IMPORTING";
