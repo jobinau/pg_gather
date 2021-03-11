@@ -16,6 +16,12 @@ th { cursor: pointer;}
 \pset footer off %>
 <h1>pg_gather Report <b id="busy" class="warn"> Loading... </b></h1>
 <% \pset tableattr 'class="lineblk"'
+SELECT (SELECT count(*) > 2 FROM pg_srvr) AS conlines \gset
+\if :conlines
+  \echo "There is serious problem with the data. Please make sure that all tables are dropped and recreated as part of importing data (gather_schema.sql) and there was no error"
+  "SOMETHING WENT WRONG WHILE IMPORTING THE DATA. PLEASE MAKE SURE THAT ALL TABLES ARE DROPPED AND RECREATED AS PART OF IMPORTING";
+  \q
+\endif
 SELECT  UNNEST(ARRAY ['Collected At','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
         UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS v4   
 FROM pg_gather;
