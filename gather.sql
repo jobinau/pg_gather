@@ -3,6 +3,15 @@
 ---- Version 3 Supporting PG 13 - 06 - Feb -2021
 ---- Version 4 Bug fixes and Report enhacements
 
+---Error out and exit, unless healthy
+\echo 'SELECT (SELECT count(*) > 1 FROM pg_srvr) AS conlines \\gset'
+\echo '\\if :conlines'
+\echo '\\echo SOMETHING WRONG, EXITING'
+\echo 'SOMETHING WRONG, EXITING;'
+\echo '\\q'
+\echo '\\endif'
+
+
 \pset tuples_only
 \echo '\\t'
 \echo '\\r'
