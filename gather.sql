@@ -1,7 +1,8 @@
----- pg_gather : Gather Performance metics and server configuration
+---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- Version 2 for PG 10,11,12 - 25 - Jan -2021 
 ---- Version 3 Supporting PG 13 - 06 - Feb -2021
 ---- Version 4 Bug fixes and Report enhacements
+---- Version 5 Force exit if not healthy
 
 ---Error out and exit, unless healthy
 \echo 'SELECT (SELECT count(*) > 1 FROM pg_srvr) AS conlines \\gset'
@@ -11,12 +12,11 @@
 \echo '\\q'
 \echo '\\endif'
 
-
 \pset tuples_only
 \echo '\\t'
 \echo '\\r'
 
---Server information
+--PG Server
 \echo COPY pg_srvr FROM stdin;
 \conninfo
 \echo '\\.'
@@ -25,7 +25,7 @@
 COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_wal_lsn()) TO stdin;
 \echo '\\.'
 
---There is more Activity information in PG13 and PG12 than previous versions
+--Activity information based on PG versions
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13 \gset
 \if :pg13
     \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc,leader_pid) FROM stdin;
@@ -49,6 +49,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 --\echo '\\.'
 --\a
 
+--Wait Event Analysis
 --A much lightweight implimentation 26/12/2020
 \a
 PREPARE pidevents AS
@@ -72,10 +73,7 @@ SELECT (select count(*) > 0 from pg_class where relname='pg_stat_statements') AS
     \echo '\\.'
 \endif
 
---Ideas to try. Try writing to a seperate output file and run it here again
---If not possible, develop a clean up script using sed
-
---Database level information
+--Database level info
 \echo COPY pg_get_db (datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size) FROM stdin;
 COPY (SELECT d.oid, d.datname, 
 pg_stat_get_db_xact_commit(d.oid) AS xact_commit,
@@ -96,7 +94,7 @@ pg_database_size(d.oid) AS db_size
 FROM pg_database d) TO stdin;
 \echo '\\.'
 
---pg_settings information
+--pg_settings
 \echo COPY pg_get_confs (name,setting,unit) FROM stdin;
 COPY ( SELECT name,setting,unit FROM pg_settings ) TO stdin;
 \echo '\\.'
@@ -195,13 +193,11 @@ JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_
 ) TO stdin;
 \echo '\\.'
 
-
 --Toast
 \echo COPY pg_get_toast FROM stdin;
 COPY (
 SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
 \echo '\\.'
-
 
 --active session again
 \a

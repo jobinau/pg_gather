@@ -46,7 +46,7 @@ This output file contains performance and configuration data for analysis
 ## Data Analysis
 The collected data can be imported to a PostgreSQL Instance as follows
 ```
-sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -f - 
+sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -f -
 ```
 The analysis report can be generated as follows
 ```
