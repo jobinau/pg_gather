@@ -10,7 +10,7 @@ tr:nth-child(even) {background-color: #d2e2ff;}
 th { cursor: pointer;}
 .warn { font-weight:bold; background-color: #FAA }
 .lime { font-weight:bold}
-.lineblk {display : inline-block }
+.lineblk {float: left; margin: 10px; }
 </style>
 <% \H
 \pset footer off %>
@@ -26,10 +26,11 @@ SELECT  UNNEST(ARRAY ['Collected At','PG build', 'PG Start','In recovery?','Clie
         UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS v4   
 FROM pg_gather;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
+SELECT datname,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, blks_hit*100/blks_fetch  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db where blks_fetch != 0;
 \pset tableattr off
 %>
 <div>
-<h2>Your input about host resources </h2>
+<h2 style="clear: both">Your input about host resources </h2>
 <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
  <label for="cpus">CPUs</label>
  <input type="number" id="cpus" name="cpus" value="8">

@@ -74,7 +74,7 @@ SELECT (select count(*) > 0 from pg_class where relname='pg_stat_statements') AS
 \endif
 
 --Database level info
-\echo COPY pg_get_db (datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size) FROM stdin;
+\echo COPY pg_get_db (datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age) FROM stdin;
 COPY (SELECT d.oid, d.datname, 
 pg_stat_get_db_xact_commit(d.oid) AS xact_commit,
 pg_stat_get_db_xact_rollback(d.oid) AS xact_rollback,
@@ -90,7 +90,7 @@ pg_stat_get_db_temp_bytes(d.oid) AS temp_bytes,
 pg_stat_get_db_deadlocks(d.oid) AS deadlocks,
 pg_stat_get_db_blk_read_time(d.oid) AS blk_read_time,
 pg_stat_get_db_blk_write_time(d.oid) AS blk_write_time,
-pg_database_size(d.oid) AS db_size
+pg_database_size(d.oid) AS db_size, age(datfrozenxid)
 FROM pg_database d) TO stdin;
 \echo '\\.'
 

@@ -90,7 +90,8 @@ CREATE TABLE pg_get_db (
     deadlocks bigint,
     blk_read_time double precision,
     blk_write_time double precision,
-    db_size bigint
+    db_size bigint,
+    age integer
 );
 
 CREATE TABLE pg_get_confs (
