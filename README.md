@@ -52,3 +52,5 @@ The analysis report can be generated as follows
 ```
 psql -X -f gather_report.sql > GatherReport.html
 ```
+# Demonstration
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/k1pnXuJAl40/0.jpg)](https://www.youtube.com/watch?v=k1pnXuJAl40)
