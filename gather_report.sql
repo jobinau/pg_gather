@@ -10,7 +10,7 @@
 \echo th { cursor: pointer;}
 \echo .warn { font-weight:bold; background-color: #FAA }
 \echo .lime { font-weight:bold}
-\echo .lineblk {display : inline-block }
+\echo .lineblk {float: left; margin:5px }
 \echo </style>
 \H
 \pset footer off 
@@ -23,13 +23,14 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
   \q
 \endif
 SELECT  UNNEST(ARRAY ['Collected At','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS v4   
+        UNNEST(ARRAY [collect_ts::text,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS V6   
 FROM pg_gather;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
+SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, blks_hit*100/blks_fetch  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db where blks_fetch != 0;
 \pset tableattr off
 
 \echo <div>
-\echo <h2>Your input about host resources </h2>
+\echo <h2 style="clear: both">Your input about host resources </h2>
 \echo <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
 \echo  <label for="cpus">CPUs</label>
 \echo  <input type="number" id="cpus" name="cpus" value="8">
@@ -44,6 +45,7 @@ SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and Pos
 \echo <li><a href="#time">Database Time</a></li>
 \echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#blocking">Blocking Sessions</a></li>
+\echo <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
 \echo <li><a href="#findings">Important Findings</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>
@@ -103,6 +105,11 @@ GROUP BY 1,2,3,4,5,6;
 
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 SELECT * FROM pg_get_block;
+\echo <a href="#topics">Go to Topics</a>
+
+\echo <h2 id="statements" style="clear: both">Top 10 Statements</h2>
+\echo <p>Statements consuming highest database time. Consider information from pg_get_statements for other criteria</p>
+select query,total_time,calls from pg_get_statements order by 2 desc limit 10;
 \echo <a href="#topics">Go to Topics</a>
 
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
