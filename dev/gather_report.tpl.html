@@ -45,6 +45,7 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 <li><a href="#time">Database Time</a></li>
 <li><a href="#sess">Session Details</a></li>
 <li><a href="#blocking">Blocking Sessions</a></li>
+<li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
 <li><a href="#findings">Important Findings</a></li>
 </ol>
 <h2>Tables Info</h2>
@@ -104,6 +105,11 @@ GROUP BY 1,2,3,4,5,6; %>
 
 <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 <% SELECT * FROM pg_get_block; %>
+<a href="#topics">Go to Topics</a>
+
+<h2 id="statements" style="clear: both">Top 10 Statements</h2>
+<p>Statements consuming highest database time. Consider information from pg_get_statements for other criteria</p>
+<% select query,total_time,calls from pg_get_statements order by 2 desc limit 10; %>
 <a href="#topics">Go to Topics</a>
 
 <h2 id="findings" style="clear: both">Important Findings</h2>
