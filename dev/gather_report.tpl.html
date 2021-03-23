@@ -161,6 +161,9 @@ $("#params tr").each(function(){
       $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024*1024));
       if($(this).children().eq(1).text() < 10240) $(this).children().eq(1).addClass("warn");
       break;
+    case "random_page_cost":
+      if($(this).children().eq(1).text() > 1.2) $(this).children().eq(1).addClass("warn");
+      break;
     case "server_version":
       $(this).children().eq(1).addClass("lime");
       break;
