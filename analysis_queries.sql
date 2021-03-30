@@ -15,4 +15,4 @@ WITH top_tabs AS (select relid,n_live_tup*0.2*6/1024/1024/1024 maint_work_mem_gb
 SELECT relid, relname,maint_work_mem_gb
  FROM top_tabs
  JOIN pg_get_class ON top_tabs.relid = pg_get_class.reloid
-ORDER BY 2 DESC;
+ORDER BY 3 DESC;
