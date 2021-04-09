@@ -1,6 +1,6 @@
 --Schema for using with gather.sql v1
 
-DROP TABLE pg_gather,pg_get_activity,pg_get_class,pg_get_confs,pg_get_db,pg_get_index,pg_get_rel,pg_get_wait,pg_srvr,pg_get_block,pg_pid_wait,pg_replication_stat,pg_archiver_stat,pg_tab_bloat,pg_get_toast,pg_get_statements;
+DROP TABLE pg_gather,pg_get_activity,pg_get_class,pg_get_confs,pg_get_db,pg_get_index,pg_get_rel,pg_get_wait,pg_srvr,pg_get_block,pg_pid_wait,pg_replication_stat,pg_archiver_stat,pg_tab_bloat,pg_get_toast,pg_get_statements,pg_get_bgwriter;
 
 CREATE TABLE pg_srvr (
     connstr text
@@ -191,7 +191,19 @@ CREATE TABLE pg_tab_bloat (
     est_pages bigint
 );
 
-
+CREATE TABLE pg_get_bgwriter(
+    checkpoints_timed bigint,
+    checkpoints_req  bigint,
+    checkpoint_write_time double precision,
+    checkpoint_sync_time double precision,
+    buffers_checkpoint bigint,
+    buffers_clean bigint,
+    maxwritten_clean bigint,
+    buffers_backend bigint,
+    buffers_backend_fsync bigint,
+    buffers_alloc bigint,
+    stats_reset timestamp with time zone
+);
 
 -- psql -f gather.sql > out.txt
 -- sed -i '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT/d; /^PREPARE/d; /^$/d' out.txt; psql -f gather_schema.sql -f out.txt

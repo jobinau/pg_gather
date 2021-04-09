@@ -22,7 +22,7 @@
 \echo '\\.'
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_wal_lsn()) TO stdin;
+COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin;
 \echo '\\.'
 
 --Activity information based on PG versions
@@ -197,6 +197,11 @@ JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_
 \echo COPY pg_get_toast FROM stdin;
 COPY (
 SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
+\echo '\\.'
+
+--bgwriter
+\echo COPY pg_get_bgwriter FROM stdin;
+COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
 \echo '\\.'
 
 --active session again
