@@ -22,7 +22,7 @@
 \echo '\\.'
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin;
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V7',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin;
 \echo '\\.'
 
 --Activity information based on PG versions
