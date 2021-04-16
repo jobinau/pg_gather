@@ -134,12 +134,12 @@ coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::num
 FROM pg_get_bgwriter
 CROSS JOIN 
 (SELECT 
-    round(extract('epoch' from now() - stats_reset)/60)::numeric min_since_reset,
+    round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric min_since_reset,
     buffers_checkpoint + buffers_clean + buffers_backend total_buffers,
     checkpoints_timed+checkpoints_req tot_cp 
     FROM pg_get_bgwriter) AS bg
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
-JOIN pg_settings lru ON lru.name = 'bgwriter_lru_maxpages'; 
+JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
 \echo <a href="#topics">Go to Topics</a>
 
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
