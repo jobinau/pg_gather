@@ -1,6 +1,14 @@
 ---- Gather Performance metics and server configuration
 --- for older versions (9.6 and 9.5)
 
+\echo 'SELECT (SELECT count(*) > 1 FROM pg_srvr) AS conlines \\gset'
+\echo '\\if :conlines'
+\echo '\\echo SOMETHING WRONG, EXITING'
+\echo 'SOMETHING WRONG, EXITING;'
+\echo '\\q'
+\echo '\\endif'
+
+
 \pset tuples_only
 \echo '\\t'
 \echo '\\r'
@@ -11,7 +19,7 @@
 \echo '\\.'
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_xlog_location()) TO stdin;
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V7',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),pg_current_xlog_location()) TO stdin;
 \echo '\\.'
 
 --FIX NEEDED for Issue 1 : backend_type is not there PG 9.6. verify for PG 9.5 also.
@@ -214,6 +222,10 @@ COPY (
 SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
 \echo '\\.'
 
+--bgwriter
+\echo COPY pg_get_bgwriter FROM stdin;
+COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
+\echo '\\.'
 
 --active session again
 \if :pg96
