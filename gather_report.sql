@@ -26,6 +26,7 @@ SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In r
         UNNEST(ARRAY [collect_ts::text,usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V7"
 FROM pg_gather;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
+\pset tableattr 'id="dbs"'
 SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, blks_hit*100/blks_fetch  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db where blks_fetch != 0;
 \pset tableattr off
 
@@ -94,14 +95,17 @@ WITH ses AS (SELECT COUNT (*) as tot, COUNT(*) FILTER (WHERE state is not null) 
 \echo <a href="#topics">Go to Topics</a>
 \pset tableattr
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
-WITH w AS (SELECT pid,wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
-g AS (SELECT collect_ts FROM pg_gather)
-SELECT a.pid,a.state, left(query,60) "Last statement", g.collect_ts - backend_start "Connection Since",  g.collect_ts - query_start "Statement since",g.collect_ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits FROM pg_get_activity a 
- JOIN w ON a.pid = w.pid
- JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
- LEFT JOIN g ON true
-WHERE a.state IS NOT NULL
-GROUP BY 1,2,3,4,5,6; 
+SELECT * FROM (
+  WITH w AS (SELECT pid,wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
+  g AS (SELECT collect_ts FROM pg_gather)
+  SELECT a.pid,a.state, left(query,60) "Last statement", g.collect_ts - backend_start "Connection Since",  g.collect_ts - query_start "Statement since",g.collect_ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
+  FROM pg_get_activity a 
+   LEFT JOIN w ON a.pid = w.pid
+   LEFT JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
+   LEFT JOIN g ON true
+  WHERE a.state IS NOT NULL
+  GROUP BY 1,2,3,4,5,6) AS sess
+  WHERE waits IS NOT NULL OR state != 'idle'; 
 \echo <a href="#topics">Go to Topics</a>
 
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
@@ -223,7 +227,15 @@ FROM W;
 \echo     else  TabInd.prop("title",bytesToSize(TabIndSize));
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
-
+\echo //Inspect database level info
+\echo $("#dbs tr").each(function(){
+\echo   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
+\echo     if( Number($(this).html()) > 1048576 )  //more than 1 MB
+\echo       $(this).addClass("lime").prop("title",bytesToSize(Number($(this).html())));
+\echo   });
+\echo   //console.log($(this).children().eq(8).html());
+\echo   if (Number($(this).children().eq(8).html()) > 400000000) $(this).children().eq(8).addClass("warn").prop("title", "Age :" + Number($(this).children().eq(8).html()).toLocaleString("en-US"));
+\echo });
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
