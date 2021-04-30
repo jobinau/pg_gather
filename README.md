@@ -52,5 +52,109 @@ The analysis report can be generated as follows
 ```
 psql -X -f gather_report.sql > GatherReport.html
 ```
+Alternatively, instead of following a manual procedure, you can use a `generate_report.sh` script. It is expected to be run from the cloned repository, or a directory that has both `gather_schema.sql` and `gather_report.sql` files available. Script will spin up a docker instance, import the provided output produced by `gather.sql` and output an html report.
+Script expects at least a single argument: path to the `out.txt` produced by `gather.sql`. Optionally, you can add one or two positional arguments: desired report name and path, and whether to keep the docker container. The latter may be needed to inspect raw data as provided by `gather.sql`.
+```
+$ ./generate_report.sh
+Usage is generate_report.sh path_to_output.txt [path_to_report.html] [keep the docker container y/n]
+```
+```
+$ ./generate_report.sh /tmp/out.txt
+13: Pulling from library/postgres
+Digest: sha256:61d5d8ef6cb4e2035f053f26b6b455c201a809354084cc8426b6904b8dd35602
+Status: Image is up to date for postgres:13
+docker.io/library/postgres:13
+Docker container is 61fbc6d15c626b484bdf70352e94bbdb821971de1e00c6de774ca5cd460e8db3; will wait 3 seconds before proceeding
+psql:<stdin>:3: ERROR:  table "pg_gather" does not exist
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+Tuples only is on.
+Query buffer reset (cleared).
+COPY 2
+COPY 1
+COPY 8
+COPY 1983
+COPY 0
+COPY 5
+COPY 330
+COPY 172
+COPY 186
+COPY 165
+COPY 0
+COPY 0
+COPY 1
+COPY 56
+COPY 59
+COPY 1
+COPY 1263
+61fbc6d15c626b484bdf70352e94bbdb821971de1e00c6de774ca5cd460e8db3
+61fbc6d15c626b484bdf70352e94bbdb821971de1e00c6de774ca5cd460e8db3
+Container 61fbc6d15c626b484bdf70352e94bbdb821971de1e00c6de774ca5cd460e8db3 deleted
+Finished generating report in /tmp/out.txt.html
+```
+```
+$ ./generate_report.sh /tmp/out.txt /tmp/custom-name.html y
+13: Pulling from library/postgres
+Digest: sha256:61d5d8ef6cb4e2035f053f26b6b455c201a809354084cc8426b6904b8dd35602
+Status: Image is up to date for postgres:13
+docker.io/library/postgres:13
+Docker container is df7b228a5a6a49586e5424e5fe7a2065d8be78e0ae3aa5cddd8658ee27f4790c; will wait 3 seconds before proceeding
+psql:<stdin>:3: ERROR:  table "pg_gather" does not exist
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+Tuples only is on.
+Query buffer reset (cleared).
+COPY 2
+COPY 1
+COPY 8
+COPY 1983
+COPY 0
+COPY 5
+COPY 330
+COPY 172
+COPY 186
+COPY 165
+COPY 0
+COPY 0
+COPY 1
+COPY 56
+COPY 59
+COPY 1
+COPY 1263
+df7b228a5a6a49586e5424e5fe7a2065d8be78e0ae3aa5cddd8658ee27f4790c
+Container df7b228a5a6a49586e5424e5fe7a2065d8be78e0ae3aa5cddd8658ee27f4790c left around
+Finished generating report in /tmp/custom-name.html
+```
+
 # Demonstration
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/k1pnXuJAl40/0.jpg)](https://www.youtube.com/watch?v=k1pnXuJAl40)
