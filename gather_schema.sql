@@ -91,7 +91,8 @@ CREATE TABLE pg_get_db (
     blk_read_time double precision,
     blk_write_time double precision,
     db_size bigint,
-    age integer
+    age integer,
+    stats_reset timestamp with time zone
 );
 
 CREATE TABLE pg_get_confs (

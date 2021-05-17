@@ -1,8 +1,6 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
----- Version 2 for PG 10,11,12 - 25 - Jan -2021 
----- Version 3 Supporting PG 13 - 06 - Feb -2021
----- Version 4 Bug fixes and Report enhacements
----- Version 5 Force exit if not healthy
+---- For Revision History : https://github.com/jobinau/pg_gather/releases
+
 
 ---Error out and exit, unless healthy
 \echo 'SELECT (SELECT count(*) > 1 FROM pg_srvr) AS conlines \\gset'
@@ -22,7 +20,7 @@
 \echo '\\.'
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user||' - pg_gather.V7',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin;
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V8',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin;
 \echo '\\.'
 
 --Activity information based on PG versions
@@ -74,7 +72,7 @@ SELECT (select count(*) > 0 from pg_class where relname='pg_stat_statements') AS
 \endif
 
 --Database level info
-\echo COPY pg_get_db (datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age) FROM stdin;
+\echo COPY pg_get_db (datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age,stats_reset) FROM stdin;
 COPY (SELECT d.oid, d.datname, 
 pg_stat_get_db_xact_commit(d.oid) AS xact_commit,
 pg_stat_get_db_xact_rollback(d.oid) AS xact_rollback,
@@ -90,7 +88,8 @@ pg_stat_get_db_temp_bytes(d.oid) AS temp_bytes,
 pg_stat_get_db_deadlocks(d.oid) AS deadlocks,
 pg_stat_get_db_blk_read_time(d.oid) AS blk_read_time,
 pg_stat_get_db_blk_write_time(d.oid) AS blk_write_time,
-pg_database_size(d.oid) AS db_size, age(datfrozenxid)
+pg_database_size(d.oid) AS db_size, age(datfrozenxid),
+pg_stat_get_db_stat_reset_time(d.oid) AS stats_reset
 FROM pg_database d) TO stdin;
 \echo '\\.'
 
