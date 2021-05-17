@@ -93,6 +93,11 @@ pg_stat_get_db_stat_reset_time(d.oid) AS stats_reset
 FROM pg_database d) TO stdin;
 \echo '\\.'
 
+--Users / Roles
+\echo COPY pg_get_roles(oid,rolname,rolsuper,rolreplication,rolconnlimit,rolconfig) FROM stdin;
+COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,rolconfig from pg_roles WHERE rolcanlogin) TO stdout;
+\echo '\\.'
+
 --pg_settings
 \echo COPY pg_get_confs (name,setting,unit) FROM stdin;
 COPY ( SELECT name,setting,unit FROM pg_settings ) TO stdin;
