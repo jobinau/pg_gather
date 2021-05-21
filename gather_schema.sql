@@ -1,23 +1,23 @@
---Schema for using with gather.sql v1
-
-DROP TABLE pg_gather;
-DROP TABLE pg_get_activity;
-DROP TABLE pg_get_class;
-DROP TABLE pg_get_confs;
-DROP TABLE pg_get_db;
-DROP TABLE pg_get_index;
-DROP TABLE pg_get_rel;
-DROP TABLE pg_get_wait;
-DROP TABLE pg_srvr;
-DROP TABLE pg_get_block;
-DROP TABLE pg_pid_wait;
-DROP TABLE pg_replication_stat;
-DROP TABLE pg_archiver_stat;
-DROP TABLE pg_tab_bloat;
-DROP TABLE pg_get_toast;
-DROP TABLE pg_get_statements;
-DROP TABLE pg_get_bgwriter;
-DROP TABLE pg_get_roles;
+--Schema for pg_gather
+set client_min_messages=ERROR;
+DROP TABLE IF EXISTS pg_gather;
+DROP TABLE IF EXISTS pg_get_activity;
+DROP TABLE IF EXISTS pg_get_class;
+DROP TABLE IF EXISTS pg_get_confs;
+DROP TABLE IF EXISTS pg_get_db;
+DROP TABLE IF EXISTS pg_get_index;
+DROP TABLE IF EXISTS pg_get_rel;
+DROP TABLE IF EXISTS pg_get_wait;
+DROP TABLE IF EXISTS pg_srvr;
+DROP TABLE IF EXISTS pg_get_block;
+DROP TABLE IF EXISTS pg_pid_wait;
+DROP TABLE IF EXISTS pg_replication_stat;
+DROP TABLE IF EXISTS pg_archiver_stat;
+DROP TABLE IF EXISTS pg_tab_bloat;
+DROP TABLE IF EXISTS pg_get_toast;
+DROP TABLE IF EXISTS pg_get_statements;
+DROP TABLE IF EXISTS pg_get_bgwriter;
+DROP TABLE IF EXISTS pg_get_roles;
 
 CREATE TABLE pg_srvr (
     connstr text
