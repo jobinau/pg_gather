@@ -49,15 +49,15 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 
 --Wait Event Analysis
 --A much lightweight implimentation 26/12/2020
-\a
 PREPARE pidevents AS
-SELECT pid || E'\t' || wait_event FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
---SELECT pg_stat_get_backend_pid(s.backendid) || E'\t' || pg_stat_get_backend_wait_event(s.backendid) FROM (SELECT pg_stat_get_backend_idset() AS backendid) AS s WHERE pg_stat_get_backend_wait_event(s.backendid) NOT IN ('AutoVacuumMain','LogicalLauncherMain');
-\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
+\a
+\o /dev/null
 SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
+\o
+\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
 \echo '\\.'
-\a
 
 --pg_stat_statements
 SELECT (select count(*) > 0 from pg_class where relname='pg_stat_statements') AS pg_stmnt \gset
@@ -209,9 +209,9 @@ COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
 \echo '\\.'
 
 --active session again
-\a
-\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
+\o /dev/null
 SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
+\o
+\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
 \echo '\\.'
-\a
