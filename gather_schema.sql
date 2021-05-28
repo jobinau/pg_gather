@@ -7,7 +7,7 @@ DROP TABLE IF EXISTS pg_get_confs;
 DROP TABLE IF EXISTS pg_get_db;
 DROP TABLE IF EXISTS pg_get_index;
 DROP TABLE IF EXISTS pg_get_rel;
-DROP TABLE IF EXISTS pg_get_wait;
+--DROP TABLE IF EXISTS pg_get_wait;
 DROP TABLE IF EXISTS pg_srvr;
 DROP TABLE IF EXISTS pg_get_block;
 DROP TABLE IF EXISTS pg_pid_wait;
@@ -77,11 +77,11 @@ CREATE TABLE pg_get_statements(
     total_time double precision
 );
 
-CREATE TABLE pg_get_wait(
-    itr integer,
-    pid integer,
-    wait_event text
-);
+--CREATE TABLE pg_get_wait(
+--    itr integer,
+--    pid integer,
+--    wait_event text
+--);
 
 CREATE TABLE pg_pid_wait(
     itr SERIAL,
