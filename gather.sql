@@ -1,7 +1,10 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 
+--Detect PG versions and type of gathering
+SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( current_database() != 'template1' ) as fullgather \gset
 
+\if :fullgather
 ---Error out and exit, unless healthy
 \echo 'SELECT (SELECT count(*) > 1 FROM pg_srvr) AS conlines \\gset'
 \echo '\\if :conlines'
@@ -9,6 +12,7 @@
 \echo 'SOMETHING WRONG, EXITING;'
 \echo '\\q'
 \echo '\\endif'
+\endif
 
 ---Option for passing parameters
 --\if :{?FULL}
@@ -20,17 +24,17 @@
 \echo '\\t'
 \echo '\\r'
 
+\if :fullgather
 --PG Server
 \echo COPY pg_srvr FROM stdin;
 \conninfo
 \echo '\\.'
+\endif
 
 \echo COPY pg_gather FROM stdin;
 COPY (SELECT current_timestamp,current_user||' - pg_gather.V8',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin;
 \echo '\\.'
 
---Activity information based on PG versions
-SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( current_database() != 'template1' ) as fullgather \gset
 \if :pg13
     \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc,leader_pid) FROM stdin;
 \elif :pg12
@@ -217,7 +221,7 @@ select archived_count,last_archived_wal,last_archived_time,last_failed_wal,last_
 COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
 \echo '\\.'
 
---active session again
+--Active session (again)
 \o /dev/null
 SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
