@@ -44,6 +44,7 @@ do
           s/COPY pg_get_db (/COPY pg_get_db (collect_ts,/
           /^COPY\|\\\./! s/\(.*\)/'"$coll_ts"\\t'\1/g
         }' $f | psql "options='-c search_path=history -c synchronous_commit=off'"  -f - 
+#TODO : Eleminate the need for deleteting lines by printing only /^COPY/, /^\\\./ pattern space.
     else
       echo "Full"
     fi
