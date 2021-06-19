@@ -19,11 +19,11 @@ DROP TABLE IF EXISTS pg_get_statements;
 DROP TABLE IF EXISTS pg_get_bgwriter;
 DROP TABLE IF EXISTS pg_get_roles;
 
-CREATE TABLE pg_srvr (
+CREATE UNLOGGED TABLE pg_srvr (
     connstr text
 );
 
-CREATE TABLE pg_gather (
+CREATE UNLOGGED TABLE pg_gather (
     collect_ts timestamp with time zone,
     usr text,
     db text,
@@ -36,7 +36,7 @@ CREATE TABLE pg_gather (
     current_wal pg_lsn
 );
 
-CREATE TABLE pg_get_activity (
+CREATE UNLOGGED TABLE pg_get_activity (
     datid oid, 
     pid integer,
     usesysid oid,
@@ -69,7 +69,7 @@ CREATE TABLE pg_get_activity (
     leader_pid integer
 );
 
-CREATE TABLE pg_get_statements(
+CREATE UNLOGGED TABLE pg_get_statements(
     userid oid,
     dbid oid,
     query text,
@@ -77,20 +77,20 @@ CREATE TABLE pg_get_statements(
     total_time double precision
 );
 
---CREATE TABLE pg_get_wait(
+--CREATE UNLOGGED TABLE pg_get_wait(
 --    itr integer,
 --    pid integer,
 --    wait_event text
 --);
 
-CREATE TABLE pg_pid_wait(
+CREATE UNLOGGED TABLE pg_pid_wait(
     itr SERIAL,
     pid integer,
     wait_event text
 );
 
 
-CREATE TABLE pg_get_db (
+CREATE UNLOGGED TABLE pg_get_db (
     datid oid,
     datname text,
     xact_commit bigint,
@@ -112,7 +112,7 @@ CREATE TABLE pg_get_db (
     stats_reset timestamp with time zone
 );
 
-CREATE TABLE pg_get_roles (
+CREATE UNLOGGED TABLE pg_get_roles (
     oid oid,
     rolname text,
     rolsuper boolean,
@@ -121,20 +121,20 @@ CREATE TABLE pg_get_roles (
     rolconfig text[]
 );
 
-CREATE TABLE pg_get_confs (
+CREATE UNLOGGED TABLE pg_get_confs (
     name text,
     setting text,
     unit text
 );
 
-CREATE TABLE pg_get_class (
+CREATE UNLOGGED TABLE pg_get_class (
     reloid oid,
     relname text,
     relkind char(1),
     relnamespace oid
 );
 
-CREATE TABLE pg_get_index (
+CREATE UNLOGGED TABLE pg_get_index (
     indexrelid oid,
     indrelid oid,
     indisunique boolean,
@@ -145,7 +145,7 @@ CREATE TABLE pg_get_index (
 --indexrelid - oid of the index
 --indrelid - oid of the corresponding table
 
-CREATE TABLE pg_get_rel (
+CREATE UNLOGGED TABLE pg_get_rel (
     relid oid,
     relnamespace oid,
     blks bigint,
@@ -163,7 +163,7 @@ CREATE TABLE pg_get_rel (
 --rel_size is "main" fork size
 --tab_size includes toast also
 
-CREATE TABLE pg_get_block (
+CREATE UNLOGGED TABLE pg_get_block (
     blocked_pid integer,
     blocked_user text,
     blocked_client_addr text,
@@ -184,7 +184,7 @@ CREATE TABLE pg_get_block (
     blocking_xact_start timestamp with time zone
 );
 
-CREATE TABLE pg_replication_stat (
+CREATE UNLOGGED TABLE pg_replication_stat (
     usename text,
     client_addr text,
     client_hostname text,
@@ -196,7 +196,7 @@ CREATE TABLE pg_replication_stat (
     sync_state text
 );
 
-CREATE TABLE pg_archiver_stat(
+CREATE UNLOGGED TABLE pg_archiver_stat(
     archived_count bigint,
     last_archived_wal text,
     last_archived_time timestamp with time zone,
@@ -205,20 +205,20 @@ CREATE TABLE pg_archiver_stat(
 );
 
 
-CREATE TABLE pg_get_toast(
+CREATE UNLOGGED TABLE pg_get_toast(
     relid oid,
     toastid oid
 );
 
 
-CREATE TABLE pg_tab_bloat (
+CREATE UNLOGGED TABLE pg_tab_bloat (
     table_oid oid,
     tablename text,
     relpages bigint,
     est_pages bigint
 );
 
-CREATE TABLE pg_get_bgwriter(
+CREATE UNLOGGED TABLE pg_get_bgwriter(
     checkpoints_timed bigint,
     checkpoints_req  bigint,
     checkpoint_write_time double precision,
