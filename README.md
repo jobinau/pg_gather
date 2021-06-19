@@ -1,31 +1,28 @@
 # pg_gather
 This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases 
 
-A SQL-Only script addresses the limitations of other means to collect data<br>
-This requires only `psql` (PostgreSQL client tool) connectivity to server
-
 **Supported Versions** : PostgreSQL 10, 11, 12 & 13  
 **Minimum support versions** : PostgreSQL 9.5, 9.6
 
 
 # Highlights
 1. **Secure by Open :** Simple, Transperent, Fully auditable code.<br>
-   A SQL-only script is prefered over shell scripts, executable programs from end user readablity perspective, No Programming language skills needed.
-2. **No Executables** are to be deployed on the database host<br>
+   A SQL-only data collection script. Programs with control structures are avoided for improving the readabilty and code auditability.
+2. **No Executables :** No executables need to be deployed on the database host<br>
     Usage of executables on a secured environments posses risks and not acceptable in many environments
 3. **Authentication agnostic**<br>
-   Any authentication mechanism which PostgreSQL supports should be acceptable for data gathering. So if `psql` is able to connect, data for analysis can be collected.
+   Any authentication mechanism supported by PostgreSQL works for data gathering. So if `psql` is able to connect, data for analysis can be collected.
 4. **Any Operating System** <br>
-   Linux 32 / 64 bit, SunSolaris, MAC os, Windows
+   Linux 32 / 64 bit, SunSolaris, MAC os, Windows. Works everywhere where `psql` is available
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
-6. **Minimal data collection** with a single text file with Tab Seperated Values (TSV)
+6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over for analysis.
 7. **Any cloud** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
    (Hiroku specific restrictions are addressed. Please see the note below)
 
 # How to Use
 
-## Data Gathering.
+# 1. Data Gathering.
 Inorder to gather the configuration and Performance information, the `gather.sql` script need be executed against the database using `psql` as follows
 ```
 psql <connection_parameters_if_any> -X -f gather.sql > out.txt
@@ -42,18 +39,39 @@ This output file contains performance and configuration data for analysis
    ```
      "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
    ```
+## Gathering data continuosly, but Partially
+One-time data collecton may not be sufficient for capturing a problem which may not be happening at the moment. The `pg_gather` (Ver.8 onwards) offers a very simple method to capture data for analysis. The idea is to schedule `gather.sql` every minute against "template1" database. The generated output files can be collected into a directory. Here is an example of scheduling in Linux/Unix systems using cron.
+```
+* * * * * psql -h localhost -U postgres -d template1 -X -f /path/to/gather.sql > /path/to/out/out-`date +\%a-\%H.\%M`.txt 2>&1
+```
+if the connection is to `template1` database, the gather script will collect only live, dynmamic, performance related information. Which means, all the database objects specific information will be skipped. So this is referred **"Partial"** gathering.
 
-# Data Analysis
-The collected data can be imported to a PostgreSQL Instance as follows
+# 2. Data Analysis
+## 2.1 Importing collected data
+The collected data can be imported to a PostgreSQL Instance. This creates required schema objects in the `public` schema of the database  
+**CAUTION :** Please avoid using any critical environments for importing the data. A temporary PostgreSQL instance is preferable.
 ```
 sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -f -
 ```
+## 2.2 Generating Report
 The analysis report can be generated as follows
 ```
 psql -X -f gather_report.sql > GatherReport.html
 ```
-## ALTERNATE : Using PostgreSQL container and wrapper script
-The above mentioned steps appears simple. However, that needs a PostgreSQL instance where the data can be imported. As an alternate option, the `generate_report.sh` script can spin up a docker container and do everything for you. It is expected to be run from the cloned repository, or a directory that has both `gather_schema.sql` and `gather_report.sql` files available.
+This HTML report can be viewed in your favourite borwser.
+
+## 2.3 Importing "*Partial*" data
+As mentioned in the previous section, partial data gathering is useful, if we ware scheduling the `gather.sql` as a simple continuous monitoring tool. The data can be imported to `history` schema.  
+The schema can be created using the `history_schema.sql` provided.
+```
+psql -X -f history_schema.sql
+```
+This project provides a sample `imphistory.sh` file which automates importing partial data from multiple files into the tables in `history` schema. This script can be executed from the directory which contains all the output files. Multiiple files and Wild cards are allowed. Here is an example:
+```
+$ ~/pg_gather/imphistory.sh out-*.txt
+```
+# ANNEXTURE 1 : Using PostgreSQL container and wrapper script
+The above mentioned steps for data analysis appears simple. However, that needs a PostgreSQL instance where the data can be imported. As an alternate option, the `generate_report.sh` script can spin up a docker container and do everything for you. It is expected to be run from the cloned repository, or a directory that has both `gather_schema.sql` and `gather_report.sql` files available.
 ### How it works
 This script will spin up a docker instance, import the provided output produced by `gather.sql` and output an html report. The script expects at least a single argument: path to the `out.txt` produced by `gather.sql`. 
 
