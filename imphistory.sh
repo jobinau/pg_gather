@@ -1,5 +1,9 @@
 #!/bin/bash
-for f in out-Sun-16*.txt;
+if [ $# -eq 0 ]
+  then
+    echo "Please specify the log files as parameter. Wildcards accepted"
+fi
+for f in "$@"
 do 
     ##Check whether the files are really the partial gather outputs
     partial=`head -n 12 $f | grep template1 | wc -l` ;
@@ -34,17 +38,18 @@ do
 #         SELECT collect_ts,(SELECT count(*) FROM history.pg_gather) FROM collect;' \
 #        $f | psql "options='-c search_path=history -c synchronous_commit=off'"  -f - 
 
-# An alternate and more elegent solution, But under development without any update runs
-        sed -e '
-        /^Output/d
-        /^PREPARE/d
+# An alternate and more elegent solution (19-Jun-2021) to take out only COPY statement manipulate
+        sed -n '
         /^COPY/, /^\\\./ {
           s/COPY pg_get_activity (/COPY pg_get_activity (collect_ts,/
           s/COPY pg_pid_wait (/COPY pg_pid_wait (collect_ts,/
           s/COPY pg_get_db (/COPY pg_get_db (collect_ts,/
           /^COPY\|\\\./! s/\(.*\)/'"$coll_ts"\\t'\1/g
+          p
         }' $f | psql "options='-c search_path=history -c synchronous_commit=off'"  -f - 
-#TODO : Eleminate the need for deleteting lines by printing only /^COPY/, /^\\\./ pattern space.
+#        /^Output/d
+#        /^PREPARE/d
+
     else
       echo "Full"
     fi

@@ -48,14 +48,14 @@ CREATE UNLOGGED TABLE  IF NOT EXISTS  history.pg_get_activity (
     gss_princ text,
     gss_enc boolean,
     leader_pid integer
-) WITH (fillfactor=75);
+);
 
 CREATE UNLOGGED TABLE history.pg_pid_wait(
     collect_ts timestamp with time zone,
     itr SERIAL,
     pid integer,
     wait_event text
-) WITH (fillfactor=75);
+);
 
 
 CREATE UNLOGGED TABLE history.pg_get_db (
@@ -79,7 +79,7 @@ CREATE UNLOGGED TABLE history.pg_get_db (
     db_size bigint,
     age integer,
     stats_reset timestamp with time zone
-) WITH (fillfactor=75);
+);
 
 CREATE UNLOGGED TABLE history.pg_get_block (
     collect_ts timestamp with time zone,
@@ -101,7 +101,7 @@ CREATE UNLOGGED TABLE history.pg_get_block (
     blocking_wait_event text,
     statement_in_blocking_process text,
     blocking_xact_start timestamp with time zone
-) WITH (fillfactor=75);
+);
 
 CREATE UNLOGGED TABLE history.pg_replication_stat (
     collect_ts timestamp with time zone,
@@ -114,7 +114,7 @@ CREATE UNLOGGED TABLE history.pg_replication_stat (
     flush_lsn pg_lsn,
     replay_lsn pg_lsn,
     sync_state text
-) WITH (fillfactor=75);
+);
 
 CREATE UNLOGGED TABLE history.pg_archiver_stat(
     collect_ts timestamp with time zone,
@@ -123,9 +123,8 @@ CREATE UNLOGGED TABLE history.pg_archiver_stat(
     last_archived_time timestamp with time zone,
     last_failed_wal text,
     last_failed_time timestamp with time zone
-) WITH (fillfactor=75);
+);
 
---pg_get_bgwriter
 CREATE UNLOGGED TABLE history.pg_get_bgwriter(
     collect_ts timestamp with time zone,
     checkpoints_timed bigint,
@@ -139,4 +138,4 @@ CREATE UNLOGGED TABLE history.pg_get_bgwriter(
     buffers_backend_fsync bigint,
     buffers_alloc bigint,
     stats_reset timestamp with time zone
-) WITH (fillfactor=75);
+);
