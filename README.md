@@ -27,6 +27,10 @@ Inorder to gather the configuration and Performance information, the `gather.sql
 ```
 psql <connection_parameters_if_any> -X -f gather.sql > out.txt
 ```
+OR ALTERNATIVELY a gzip file
+```
+psql <connection_parameters_if_any> -X -f gather.sql | gzip > out.txt.gz
+```
 This script may take 20+ seconds to execute as there are sleeps/delays within. <br>
 Recommended running the script as a privileged user (`superuser`, `rds_superuser` etc) or some account with `pg_monitor` privilege.  
 
@@ -40,11 +44,12 @@ This output file contains performance and configuration data for analysis
      "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
    ```
 ## Gathering data continuosly, but Partially
-One-time data collecton may not be sufficient for capturing a problem which may not be happening at the moment. The `pg_gather` (Ver.8 onwards) offers a very simple method to capture data for analysis. The idea is to schedule `gather.sql` every minute against "template1" database. The generated output files can be collected into a directory. Here is an example of scheduling in Linux/Unix systems using cron.
+One-time data collecton may not be sufficient for capturing a problem which may not be happening at the moment. The `pg_gather` (Ver.8 onwards) has special optimizations for a light-weight and continuous data gathering for analysis.  The idea is to schedule `gather.sql` every minute against "template1" database. The generated output files can be collected into a directory.  
+Following is an example of scheduling in Linux/Unix systems using cron.
 ```
-* * * * * psql -h localhost -U postgres -d template1 -X -f /path/to/gather.sql > /path/to/out/out-`date +\%a-\%H.\%M`.txt 2>&1
+* * * * * psql -U postgres -d template1 -X -f /path/to/gather.sql | gzip >  /path/to/out/out-`date +\%a-\%H.\%M`.txt.gz 2>&1
 ```
-if the connection is to `template1` database, the gather script will collect only live, dynmamic, performance related information. Which means, all the database objects specific information will be skipped. So this is referred **"Partial"** gathering.
+if the connection is to `template1` database, the gather script will collect only live, dynmamic, performance related information. Which means, all the database objects specific information will be skipped. So this is referred **"Partial"** gathering. The output is further compressed using gzip for much reduced size.
 
 # 2. Data Analysis
 ## 2.1 Importing collected data
@@ -68,7 +73,7 @@ psql -X -f history_schema.sql
 ```
 This project provides a sample `imphistory.sh` file which automates importing partial data from multiple files into the tables in `history` schema. This script can be executed from the directory which contains all the output files. Multiiple files and Wild cards are allowed. Here is an example:
 ```
-$ ~/pg_gather/imphistory.sh out-*.txt
+$ imphistory.sh out-*.gz
 ```
 # ANNEXTURE 1 : Using PostgreSQL container and wrapper script
 The above mentioned steps for data analysis appears simple. However, that needs a PostgreSQL instance where the data can be imported. As an alternate option, the `generate_report.sh` script can spin up a docker container and do everything for you. It is expected to be run from the cloned repository, or a directory that has both `gather_schema.sql` and `gather_report.sql` files available.
