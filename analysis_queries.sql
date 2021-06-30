@@ -40,3 +40,16 @@ select datname,stats_reset from pg_get_db where stats_reset is not null;
 select stats_reset from pg_get_bgwriter;
 
 
+=======================HISTORY SCHEMA ANALYSIS=========================
+set timezone=UTC;
+--Start and End time of data collection
+select min(collect_ts),max(collect_ts) from history.pg_get_activity ;
+--Top 5 active sessions
+select collect_ts,count(*) from history.pg_get_activity where state='active' group by collect_ts order by count(*) desc limit 5;
+--Idle in transactions
+select collect_ts,count(*) from history.pg_get_activity where state like 'idle in transaction%' group by collect_ts order by count(*) desc limit 5;
+
+select wait_event,count(*) from history.pg_pid_wait where collect_ts='2021-06-28 14:02:01.324049+00'
+ and pid in (select pid from history.pg_get_activity where collect_ts='2021-06-28 14:02:01.324049+00' and state like 'idle in transaction%')
+group by wait_event;
+
