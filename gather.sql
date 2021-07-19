@@ -156,10 +156,12 @@ JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_
 ) TO stdin;
 \echo '\\.'
 
---Toast
 \echo COPY pg_get_toast FROM stdin;
-COPY (
-SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
+COPY (SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
+\echo '\\.'
+
+\echo COPY pg_get_extension FROM stdin;
+COPY (select oid,extname,extowner,extnamespace,extrelocatable,extversion from pg_extension) TO stdout;
 \echo '\\.'
 
 \endif

@@ -7,6 +7,14 @@ JOIN pg_get_activity ON pg_pid_wait.pid = pg_get_activity.pid
 WHERE state='idle in transaction'
 GROUP BY 1 ORDER BY 2;
 
+--User, database, Active, Total connection (Need for pgbouncer setup)
+select 
+rolname,datname,count(*) FILTER (WHERE state='active') as active, count(*) 
+from pg_get_activity 
+  join pg_get_roles on usesysid=pg_get_roles.oid
+  join pg_get_db on pg_get_activity.datid = pg_get_db.datid
+group by 1,2;
+
 ---Which session is at the top of the blocking
 select blocking_pid,statement_in_blocking_process,count(*)
  from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
@@ -39,11 +47,22 @@ ORDER BY 3 DESC;
 select datname,stats_reset from pg_get_db where stats_reset is not null;
 select stats_reset from pg_get_bgwriter;
 
+--Cache hit on databases
+SELECT datname, 100 * blks_hit / blks_fetch as cache_hit_ratio FROM pg_get_db WHERE blks_fetch > 0;
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
 --Start and End time of data collection
 select min(collect_ts),max(collect_ts) from history.pg_get_activity ;
+---Load over a perioid of time
+select CAST(collect_ts as time),count(*) FILTER (WHERE state='active') as active,count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
+count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.pg_get_activity group by collect_ts order by 1;
+
+WITH w AS (SELECT collect_ts,wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
+SELECT * FROM w;
+
+
 --Top 5 active sessions
 select collect_ts,count(*) from history.pg_get_activity where state='active' group by collect_ts order by count(*) desc limit 5;
 --Idle in transactions

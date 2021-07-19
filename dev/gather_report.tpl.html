@@ -42,6 +42,7 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 <ol>
 <li><a href="#indexes">Index Info</a></li>
 <li><a href="#parameters">Parameter settings</a></li>
+<li><a href="#extensions">Extensions</a></li>
 <li><a href="#activiy">Session Summary</a></li>
 <li><a href="#time">Database Time</a></li>
 <li><a href="#sess">Session Details</a></li>
@@ -77,6 +78,10 @@ SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,num
 <% SELECT * FROM pg_get_confs; %>
 <% \pset tableattr%>
 <a href="#topics">Go to Topics</a>
+<h2 id="extensions">Extensions</h2>
+<% SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
+JOIN pg_get_roles on extowner=pg_get_roles.oid; %>
+<a href="#topics">Go to Topics</a>
 <h2 id="activiy">Session Summary</h2>
 <% \pset footer off
  SELECT d.datname,state,COUNT(pid) 
@@ -107,16 +112,13 @@ WITH ses AS (SELECT COUNT (*) as tot, COUNT(*) FILTER (WHERE state is not null) 
   GROUP BY 1,2,3,4,5,6) AS sess
   WHERE waits IS NOT NULL OR state != 'idle'; %>
 <a href="#topics">Go to Topics</a>
-
 <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 <% SELECT * FROM pg_get_block; %>
 <a href="#topics">Go to Topics</a>
-
 <h2 id="statements" style="clear: both">Top 10 Statements</h2>
 <p>Statements consuming highest database time. Consider information from pg_get_statements for other criteria</p>
 <% select query,total_time,calls from pg_get_statements order by 2 desc limit 10; %>
 <a href="#topics">Go to Topics</a>
-
 <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 <p>Efficiency of Background writer and Checkpointer Process</p>
 <% SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,

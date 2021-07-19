@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS pg_get_toast;
 DROP TABLE IF EXISTS pg_get_statements;
 DROP TABLE IF EXISTS pg_get_bgwriter;
 DROP TABLE IF EXISTS pg_get_roles;
+DROP TABLE IF EXISTS pg_get_extension;
 
 CREATE UNLOGGED TABLE pg_srvr (
     connstr text
@@ -230,6 +231,15 @@ CREATE UNLOGGED TABLE pg_get_bgwriter(
     buffers_backend_fsync bigint,
     buffers_alloc bigint,
     stats_reset timestamp with time zone
+);
+
+CREATE UNLOGGED TABLE pg_get_extension(
+    oid oid,
+    extname text,
+    extowner oid,
+    extnamespace oid,
+    extrelocatable boolean,
+    extversion text
 );
 
 -- psql -X -f gather.sql > out.txt
