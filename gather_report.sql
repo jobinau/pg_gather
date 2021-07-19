@@ -23,15 +23,16 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
   \q
 \endif
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text,usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V8"
+        UNNEST(ARRAY [collect_ts::text,usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V9"
 FROM pg_gather;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
 SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, blks_hit*100/blks_fetch  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db where blks_fetch != 0;
 \pset tableattr off
 
-\echo <div>
-\echo <h2 style="clear: both">Your input about host resources </h2>
+\echo <button id="tog" style="display: block;clear: both">[+]</button>
+\echo <div id="divins" style="display:none">
+\echo <h2>Manual input about host resources</h2>
 \echo <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
 \echo  <label for="cpus">CPUs</label>
 \echo  <input type="number" id="cpus" name="cpus" value="8">
@@ -160,6 +161,11 @@ FROM W;
 \echo <script type="text/javascript">
 \echo $(function() { $("#busy").hide(); });
 \echo $("input").change(function(){  alert("Number changed"); }); 
+\echo $("#tog").click(function(){
+\echo         $("#divins").toggle("slow",function(){
+\echo         if($("#divins").is(":visible")) $("#tog").text("[-]"); 
+\echo         else $("#tog").text("[+]"); 
+\echo     }) });
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
 \echo   if (bytes == 0) return "0B";
