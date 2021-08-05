@@ -60,7 +60,8 @@ select CAST(collect_ts as time),count(*) FILTER (WHERE state='active') as active
 count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.pg_get_activity group by collect_ts order by 1;
 
 WITH w AS (SELECT collect_ts,wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
-SELECT * FROM w;
+SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.wait_event ) FROM w GROUP BY w.collect_ts;
+
 
 
 --Top 5 active sessions
@@ -72,3 +73,6 @@ select wait_event,count(*) from history.pg_pid_wait where collect_ts='2021-06-28
  and pid in (select pid from history.pg_get_activity where collect_ts='2021-06-28 14:02:01.324049+00' and state like 'idle in transaction%')
 group by wait_event;
 
+
+select distinct collect_ts from history.pg_get_activity where collect_ts < '2021-07-18' order by 1;
+select 'DELETE FROM '||n.nspname||'.'||relname||' WHERE collect_ts < ''2021-07-18''' from pg_class c join pg_namespace n ON n.oid = c.relnamespace and n.nspname = 'history';

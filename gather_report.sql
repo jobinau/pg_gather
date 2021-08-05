@@ -1,7 +1,5 @@
 \set QUIET 1
 \echo <html><meta charset="utf-8" />
-\echo <script type="text/javascript" src="http://mozigo.risko.org/js/graficarBarras.js"></script>
-\echo <script type="text/javascript" src="http://mozigo.risko.org/js/tabla2array.js"></script>
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
 \echo <style>
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; }
@@ -90,14 +88,9 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="time">Database time</h2>
-\echo <canvas id="chart" width="800" height="480" style="border: 1px solid black; float:right; width:75% ">Canvas is not supported</canvas>
 \pset tableattr 'id="tableConten" name="waits"'
-WITH ses AS (SELECT COUNT (*) as tot, COUNT(*) FILTER (WHERE state is not null) working FROM pg_get_activity),
-    waits AS (SELECT wait_event ,count(*) cnt from pg_pid_wait group by wait_event)
-  SELECT '*CPU Estimate' "Event", working*2000 - (SELECT sum(cnt) FROM waits) "Count" FROM ses
-  UNION ALL
-  SELECT wait_event "Event", cnt "Count" FROM waits;
-  --session waits 
+SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
+--session waits 
 \echo <a href="#topics">Go to Topics</a>
 \pset tableattr
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
@@ -261,13 +254,17 @@ FROM W;
 \echo   IndSz.prop("title", bytesToSize(IndSz.html()));
 \echo   if (Number(IndSz.html()) > 2000000000)  IndSz.addClass("lime");
 \echo });
-\echo $(''''<thead></thead>'''').prependTo(''''#tableConten'''').append($(''''#tableConten tr:first''''));
-\echo  var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
-\echo  mysColores :[
-\echo                ["rgba(93,18,18,1)","rgba(196,19,24,1)"],  //red
-\echo                ["rgba(171,115,51,1)","rgba(251,163,1,1)"], //yellow
-\echo              ],
-\echo     anchoLinea : 2, };
-\echo    obtener_datos_tabla_convertir_en_array(''''tableConten'''',graficarBarras,''''chart'''',''''750'''',''''480'''',misParam,true);
+\echo maxevnt = Number($("#tableConten tr").eq(1).children().eq(1).text());
+\echo $("#tableConten tr").each(function(){
+\echo   evnts = $(this).children().eq(1);
+\echo   if (Number(evnts.html()) > 0 )  evnts.append(''''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'''');
+\echo });
+\echo // var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
+\echo // mysColores :[
+\echo //               ["rgba(93,18,18,1)","rgba(196,19,24,1)"],  //red
+\echo //               ["rgba(171,115,51,1)","rgba(251,163,1,1)"], //yellow
+\echo //             ],
+\echo //    anchoLinea : 2, };
+\echo //  obtener_datos_tabla_convertir_en_array(''''tableConten'''',graficarBarras,''''chart'''',''''750'''',''''480'''',misParam,true);
 \echo </script>
 \echo </html>
