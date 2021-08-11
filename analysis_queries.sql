@@ -1,4 +1,4 @@
----What is idle in transaction sessions are doing.
+--1. What is idle in transaction sessions are doing.
 SELECT 
 --   pg_get_activity.pid,pg_get_activity.query,
    pg_pid_wait.wait_event,count(*) 
@@ -7,7 +7,7 @@ JOIN pg_get_activity ON pg_pid_wait.pid = pg_get_activity.pid
 WHERE state='idle in transaction'
 GROUP BY 1 ORDER BY 2;
 
---User, database, Active, Total connection (Need for pgbouncer setup)
+--2.User, database, Active, Total connection (Need for pgbouncer setup)
 select 
 rolname,datname,count(*) FILTER (WHERE state='active') as active, count(*) 
 from pg_get_activity 
@@ -15,27 +15,27 @@ from pg_get_activity
   join pg_get_db on pg_get_activity.datid = pg_get_db.datid
 group by 1,2;
 
----Which session is at the top of the blocking
+--3.Which session is at the top of the blocking
 select blocking_pid,statement_in_blocking_process,count(*)
  from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
  group by 1,2;
 
---Biggest Blockers
+--4.Biggest Blockers
 select statement_in_blocking_process,count(*) from  pg_get_block group by 1 order by 2;
 
----What is the status of the blocking pids (This may not be accurate as there is 20 second time difference)
+--5.What is the status of the blocking pids (This may not be accurate as there is 20 second time difference)
 SELECT pid,state FROM pg_get_activity WHERE pid IN
 (SELECT blocking_pid FROM (select blocking_pid,statement_in_blocking_process,count(*)
  from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
  group by 1,2) blockers);
 
---Wait event associated with blocking session (Important)
+--6.Wait event associated with blocking session (Important)
 select blocking_pid,blocking_wait_event,count(*)
  from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
  group by 1,2;
 
 
---TOP 5 Tables which require maximum maintenace memory
+--7.TOP 5 Tables which require maximum maintenace memory
 WITH top_tabs AS (select relid,n_live_tup*0.2*6/1024/1024/1024 maint_work_mem_gb 
    from pg_get_rel order by 2 desc limit 5)
 SELECT relid, relname,maint_work_mem_gb
@@ -43,12 +43,30 @@ SELECT relid, relname,maint_work_mem_gb
  JOIN pg_get_class ON top_tabs.relid = pg_get_class.reloid
 ORDER BY 3 DESC;
 
--- Stats reset info.
+--8. Stats reset info.
 select datname,stats_reset from pg_get_db where stats_reset is not null;
 select stats_reset from pg_get_bgwriter;
 
---Cache hit on databases
+--9. Cache hit on databases
 SELECT datname, 100 * blks_hit / blks_fetch as cache_hit_ratio FROM pg_get_db WHERE blks_fetch > 0;
+
+--10. All table information
+SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
+r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
+ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
+FROM pg_get_rel r
+JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
+LEFT JOIN pg_get_toast t ON r.relid = t.relid
+LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
+LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
+ORDER BY r.tab_ind_size DESC;
+
+-- 11. All index information
+SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
+  FROM pg_get_index i 
+  JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
+  JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+ORDER BY size DESC;
 
 
 =======================HISTORY SCHEMA ANALYSIS=========================
