@@ -13,7 +13,7 @@ This is a SQL-only script for gathering performance and configuration data from 
 3. **Authentication agnostic**<br>
    Any authentication mechanism supported by PostgreSQL works for data gathering. So if `psql` is able to connect, data for analysis can be collected.
 4. **Any Operating System** <br>
-   Linux 32 / 64 bit, SunSolaris, MAC os, Windows. Works everywhere where `psql` is available
+   Linux 32 / 64 bit, SunSolaris, Apple macOS, Microsoft Windows. Works everywhere where `psql` is available
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
 6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over for analysis.

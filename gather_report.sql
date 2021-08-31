@@ -6,6 +6,7 @@
 \echo th {background-color: #d2f2ff;}
 \echo tr:nth-child(even) {background-color: #d2e2ff;}
 \echo th { cursor: pointer;}
+\echo caption { font-size: larger }
 \echo .warn { font-weight:bold; background-color: #FAA }
 \echo .lime { font-weight:bold}
 \echo .lineblk {float: left; margin:5px }
@@ -93,7 +94,7 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="time">Database time</h2>
 \pset tableattr 'id="tableConten" name="waits"'
-\C 'Where PostgreSQL is spending its time : Wait Events and CPU info'
+\C 'Wait Events and CPU info'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
 \C
 --session waits 
@@ -116,7 +117,6 @@ SELECT * FROM (
 SELECT * FROM pg_get_block;
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="statements" style="clear: both">Top 10 Statements</h2>
-\echo <p>Statements consuming highest database time. Consider information from pg_get_statements for other criteria</p>
 
 \C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
 select query,total_time,calls from pg_get_statements order by 2 desc limit 10; 
