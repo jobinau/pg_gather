@@ -169,6 +169,16 @@ SELECT CASE WHEN val > 10000
   THEN 'There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details <br>'
   ELSE NULL END
 FROM W;
+WITH W AS (
+SELECT string_agg(cnf.name ||'='||cnf.setting||' (Default:'||T.setting||')',',') as val FROM pg_get_confs cnf
+JOIN
+(VALUES ('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'),('wal_segment_size','16777216')) AS T (name,setting)
+ON cnf.name = T.name and cnf.setting != T.setting
+)
+SELECT CASE WHEN LENGTH(val) > 1
+  THEN 'Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs <br>'
+  ELSE NULL END
+FROM W;
 %>
 <a href="#topics">Go to Topics</a>
 <script type="text/javascript">

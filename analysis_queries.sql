@@ -68,6 +68,12 @@ SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,num
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 ORDER BY size DESC;
 
+-- 12. Compile time parameter changes
+SELECT * FROM pg_get_confs cnf
+JOIN
+(VALUES ('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'),('wal_segment_size','16777216')) AS T (name,setting)
+ON cnf.name = T.name and cnf.setting != T.setting;
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
