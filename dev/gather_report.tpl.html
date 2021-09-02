@@ -102,7 +102,7 @@ SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP
 <% \pset tableattr %>
 <h2 id="sess" style="clear: both">Session Details</h2>
 <% SELECT * FROM (
-  WITH w AS (SELECT pid,wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
+  WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
   g AS (SELECT collect_ts FROM pg_gather)
   SELECT a.pid,a.state, left(query,60) "Last statement", g.collect_ts - backend_start "Connection Since",  g.collect_ts - query_start "Statement since",g.collect_ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
   FROM pg_get_activity a 
