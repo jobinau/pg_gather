@@ -14,11 +14,13 @@ This is a SQL-only script for gathering performance and configuration data from 
    Any authentication mechanism supported by PostgreSQL works for data gathering. So if `psql` is able to connect, data for analysis can be collected.
 4. **Any Operating System** <br>
    Linux 32 / 64 bit, SunSolaris, Apple macOS, Microsoft Windows. Works everywhere where `psql` is available
+   Windows users may Refer the Notes section below
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
 6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over for analysis.
 7. **Any cloud** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
-   (Hiroku specific restrictions are addressed. Please see the note below)
+   (Please see Heroku and AWS Aurora specific note in Notes section below)
+8. **Zero failure** : Successful report generation with available information even if the Data collection partially fails due to permission issues  or unavailability of tables / views.
 
 # How to Use
 
@@ -37,12 +39,17 @@ Recommended running the script as a privileged user (`superuser`, `rds_superuser
 This output file contains performance and configuration data for analysis  
 
 ## Notes: 
-   1. There is a seperate `gather_old.sql` for older minimum support versions 9.5 and 9.6
-   2. Heroku like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errors during the data collection. which can be ignored
-   3. Windows users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
+   1. There is a seperate `gather_old.sql` for **older** minimum support versions 9.5 and 9.6
+   2. **Heroku** like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errors during the data collection. which can be ignored
+   3. **MS Windows** users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
    ```
      "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
    ```
+   4. **Aurora** has "PostgreSQL compatible" offering. Even though it is look-alike PostgreSQL, It is not real PostgreSQL. So please do the following to the `gather.sql` which replaces one line with "NULL"
+ ```
+     sed -i 's/^CASE WHEN pg_is_in_recovery().*/NULL/' gather.sql
+ ```
+
 ## Gathering data continuosly, but Partially
 One-time data collecton may not be sufficient for capturing a problem which may not be happening at the moment. The `pg_gather` (Ver.8 onwards) has special optimizations for a light-weight and continuous data gathering for analysis.  The idea is to schedule `gather.sql` every minute against "template1" database. The generated output files can be collected into a directory.  
 Following is an example of scheduling in Linux/Unix systems using cron.
