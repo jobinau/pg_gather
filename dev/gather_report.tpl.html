@@ -290,12 +290,12 @@ $("#tableConten tr").each(function(){
   evnts = $(this).children().eq(1);
   if (Number(evnts.html()) > 0 )  evnts.append(''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'');
 });
-// var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
-// mysColores :[
-//               ["rgba(93,18,18,1)","rgba(196,19,24,1)"],  //red
-//               ["rgba(171,115,51,1)","rgba(251,163,1,1)"], //yellow
-//             ],
-//    anchoLinea : 2, };
-//  obtener_datos_tabla_convertir_en_array(''tableConten'',graficarBarras,''chart'',''750'',''480'',misParam,true);
+$(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
+    if (event.altKey && event.which === 73)
+    {
+      $("#topics").get(0).scrollIntoView();
+      e.preventDefault();
+    }
+});
 </script>
 </html>

@@ -138,8 +138,8 @@ round(buffers_alloc::numeric/total_buffers,3)  "New buffers ratio",
 round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
 round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
 round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
-round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts per runs(%)",
-coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halts due to LRU hit (%)"
+round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs (**1)",
+coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit (**2)"
 FROM pg_get_bgwriter
 CROSS JOIN 
 (SELECT 
@@ -149,6 +149,7 @@ CROSS JOIN
     FROM pg_get_bgwriter) AS bg
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
+\echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 \echo <a href="#topics">Go to Topics</a>
 
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
@@ -289,12 +290,12 @@ FROM W;
 \echo   evnts = $(this).children().eq(1);
 \echo   if (Number(evnts.html()) > 0 )  evnts.append(''''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'''');
 \echo });
-\echo // var misParam ={ miMargen : 0.80, separZonas : 0.05, tituloGraf : "Database Time", tituloEjeX : "Event",  tituloEjeY : "Count", nLineasDiv : 10,
-\echo // mysColores :[
-\echo //               ["rgba(93,18,18,1)","rgba(196,19,24,1)"],  //red
-\echo //               ["rgba(171,115,51,1)","rgba(251,163,1,1)"], //yellow
-\echo //             ],
-\echo //    anchoLinea : 2, };
-\echo //  obtener_datos_tabla_convertir_en_array(''''tableConten'''',graficarBarras,''''chart'''',''''750'''',''''480'''',misParam,true);
+\echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
+\echo     if (event.altKey && event.which === 73)
+\echo     {
+\echo       $("#topics").get(0).scrollIntoView();
+\echo       e.preventDefault();
+\echo     }
+\echo });
 \echo </script>
 \echo </html>
