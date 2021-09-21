@@ -83,8 +83,8 @@ select min(collect_ts),max(collect_ts) from history.pg_get_activity ;
 select CAST(collect_ts as time),count(*) FILTER (WHERE state='active') as active,count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
 count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.pg_get_activity group by collect_ts order by 1;
 
-WITH w AS (SELECT collect_ts,wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
-SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.wait_event ) FROM w GROUP BY w.collect_ts;
+WITH w AS (SELECT collect_ts,COALESCE(wait_event,'CPU') as wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
+SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.cnt DESC) FROM w GROUP BY w.collect_ts;
 
 
 

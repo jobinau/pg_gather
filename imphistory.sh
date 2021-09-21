@@ -26,7 +26,7 @@ do
           s/COPY pg_get_db (/COPY pg_get_db (collect_ts,/
           /^[[:space:]]*$/d
           s/^\?column?|\(.*\)/\1/
-          /^COPY\|\\\./! s/\(.*\)/'"$coll_ts"\\t'\1/g
+          /^\(COPY\|\\\.\)/! s/^/'"$coll_ts"\\t'/ # All lines other than those starting with COPY or \. should have coll_ts inserted
           p
         }' | psql "options='-c search_path=history -c synchronous_commit=off'"  -f - 
     else
