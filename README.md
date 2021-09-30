@@ -80,8 +80,10 @@ psql -X -f history_schema.sql
 ```
 This project provides a sample `imphistory.sh` file which automates importing partial data from multiple files into the tables in `history` schema. This script can be executed from the directory which contains all the output files. Multiiple files and Wild cards are allowed. Here is an example:
 ```
-$ imphistory.sh out-*.gz
+$ imphistory.sh out-*.gz > log.txt
 ```
+Collecting the log file of the import is a good practice as shown above.
+
 # ANNEXTURE 1 : Using PostgreSQL container and wrapper script
 The above mentioned steps for data analysis appears simple. However, that needs a PostgreSQL instance where the data can be imported. As an alternate option, the `generate_report.sh` script can spin up a docker container and do everything for you. It is expected to be run from the cloned repository, or a directory that has both `gather_schema.sql` and `gather_report.sql` files available.
 ### How it works
