@@ -24,9 +24,9 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
   \q
 \endif
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text,usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V10"
+        UNNEST(ARRAY [collect_ts::text,usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V11"
 FROM pg_gather;
-SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr;
+SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
 SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, blks_hit*100/blks_fetch  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db where blks_fetch != 0;
 \pset tableattr off
@@ -59,12 +59,13 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 \pset tableattr 'id="tabInfo"'
 SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
-ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
+ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age", CASE WHEN tb.relpages > 0 THEN (tb.relpages-tb.est_pages)*100/tb.relpages ELSE NULL END "pct bloat" 
 FROM pg_get_rel r
 JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
 LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
+LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 ORDER BY r.tab_ind_size DESC LIMIT 10000; 
 \pset tableattr
 \echo <a href="#topics">Go to Topics</a>
@@ -103,15 +104,15 @@ SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 SELECT * FROM (
   WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
-  g AS (SELECT collect_ts FROM pg_gather)
-  SELECT a.pid,a.state, left(query,60) "Last statement", g.collect_ts - backend_start "Connection Since",  g.collect_ts - query_start "Statement since",g.collect_ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
+  g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
+  SELECT a.pid,a.state, left(query,60) "Last statement", g.ts - backend_start "Connection Since",  g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
    LEFT JOIN g ON true
   WHERE a.state IS NOT NULL
   GROUP BY 1,2,3,4,5,6) AS sess
-  WHERE waits IS NOT NULL OR state != 'idle'; 
+WHERE waits IS NOT NULL OR state != 'idle'; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 SELECT * FROM pg_get_block;
