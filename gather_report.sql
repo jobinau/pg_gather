@@ -4,8 +4,9 @@
 \echo <style>
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; }
 \echo th {background-color: #d2f2ff;}
-\echo tr:nth-child(even) {background-color: #d2e2ff;}
+\echo tr:nth-child(even) {background-color: #DAEDff}
 \echo th { cursor: pointer;}
+\echo tr:hover { background-color: #FFFFCA}
 \echo caption { font-size: larger }
 \echo .warn { font-weight:bold; background-color: #FAA }
 \echo .lime { font-weight:bold}
@@ -54,12 +55,14 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 \echo <li><a href="#findings">Important Findings</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>
-\echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes</p>
+\echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
+\echo Objects other than tables will be marked with their relkind in brackets</p>
 \pset footer on
 \pset tableattr 'id="tabInfo"'
-SELECT c.relname "Name",c.relkind "Kind",r.relnamespace "Schema",r.blks,r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
+SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN tb.relpages > 999 AND tb.relpages > tb.est_pages THEN ' ('||(tb.relpages-tb.est_pages)*100/tb.relpages||'% bloat*)' ELSE '' END "Name" ,
+r.relnamespace "Schema",r.blks,r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
-ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age", CASE WHEN tb.relpages > 0 THEN (tb.relpages-tb.est_pages)*100/tb.relpages ELSE NULL END "pct bloat" 
+ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
 FROM pg_get_rel r
 JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
 LEFT JOIN pg_get_toast t ON r.relid = t.relid
