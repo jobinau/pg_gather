@@ -60,9 +60,9 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 \echo Objects other than tables will be marked with their relkind in brackets</p>
 \pset footer on
 \pset tableattr 'id="tabInfo"'
-SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN tb.relpages > 999 AND tb.relpages > tb.est_pages THEN ' ('||(tb.relpages-tb.est_pages)*100/tb.relpages||'% bloat*)' ELSE '' END "Name" ,
+SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN ' ('||(r.blks-tb.est_pages)*100/r.blks||'% bloat*)' ELSE '' END "Name" ,
 r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
-r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,r.last_vac "Last vacuum",r.last_anlyze "Last analyze",r.vac_nos,
+r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
 FROM pg_get_rel r
 JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')

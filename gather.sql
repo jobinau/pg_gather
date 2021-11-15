@@ -32,7 +32,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 \endif
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user||' - pg_gather.V10',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V11',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),
 CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END
 ) TO stdin;
 
@@ -137,10 +137,11 @@ COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid
  FROM pg_class WHERE relkind in ('r','t','p','m','')) TO stdin;
 \echo '\\.'
 
---Bloat estimate on a 64bit machine with PG version above 9.0. 
-\echo COPY pg_tab_bloat FROM stdin;
+--Bloat estimate on a 64bit machine with PG version above 9.0. TODO://Remove unwanted columns from the pg_tab_bloat
+\echo COPY pg_tab_bloat(table_oid,est_pages) FROM stdin;
 COPY ( SELECT
-table_oid, cc.relname AS tablename, cc.relpages,
+table_oid, 
+--cc.relname AS tablename, cc.relpages,
 CEIL((cc.reltuples*((datahdr+ma- (CASE WHEN datahdr%ma=0 THEN ma ELSE datahdr%ma END))+nullhdr2+4))/(bs-20::float)) AS est_pages
 FROM (
 SELECT
