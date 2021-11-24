@@ -249,15 +249,15 @@ $("#params tr").each(function(){
 }
 checkpars();
 $("#tabInfo tr").each(function(){
-    $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){ // Age >  autovacuum_freeze_max_age
+    $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
     if( Number($(this).html()) > autovacuum_freeze_max_age )
         $(this).addClass("warn").prop("title", "Age :" + Number($(this).html().trim()).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
     });
-    TotTab = $(this).children().eq(8);
+    TotTab = $(this).children().eq(6);   //counting from 0
     TotTabSize = Number(TotTab.html());
     if( TotTabSize > 5000000000 ) TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
     else TotTab.prop("title",bytesToSize(TotTabSize));
-    TabInd = $(this).children().eq(9);
+    TabInd = $(this).children().eq(7);  //counting from 0
     TabIndSize = Number(TabInd.html());
     if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 )   //Tab above 20MB and with Index bigger than Tab
       TabInd.addClass("warn").prop("title", "Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " +  bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));

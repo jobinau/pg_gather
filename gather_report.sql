@@ -249,15 +249,15 @@ FROM W;
 \echo }
 \echo checkpars();
 \echo $("#tabInfo tr").each(function(){
-\echo     $(this).find("td:nth-child(11),td:nth-child(18)").each(function(){ // Age >  autovacuum_freeze_max_age
+\echo     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
 \echo     if( Number($(this).html()) > autovacuum_freeze_max_age )
 \echo         $(this).addClass("warn").prop("title", "Age :" + Number($(this).html().trim()).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
 \echo     });
-\echo     TotTab = $(this).children().eq(8);
+\echo     TotTab = $(this).children().eq(6);   //counting from 0
 \echo     TotTabSize = Number(TotTab.html());
 \echo     if( TotTabSize > 5000000000 ) TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
 \echo     else TotTab.prop("title",bytesToSize(TotTabSize));
-\echo     TabInd = $(this).children().eq(9);
+\echo     TabInd = $(this).children().eq(7);  //counting from 0
 \echo     TabIndSize = Number(TabInd.html());
 \echo     if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 )   //Tab above 20MB and with Index bigger than Tab
 \echo       TabInd.addClass("warn").prop("title", "Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " +  bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
