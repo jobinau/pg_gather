@@ -1,6 +1,8 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
-
+-- pg_gather version
+\set ver 12
+\echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( current_database() != 'template1' ) as fullgather \gset
 
@@ -32,7 +34,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 \endif
 
 \echo COPY pg_gather FROM stdin;
-COPY (SELECT current_timestamp,current_user||' - pg_gather.V11',current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),
 CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END
 ) TO stdin;
 
@@ -209,7 +211,7 @@ WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
 \echo '\\.'
 
 --select * from pg_stat_replication;
-\echo COPY pg_replication_stat FROM stdin;
+\echo COPY pg_replication_stat(usename,client_addr,client_hostname,state,sent_lsn,write_lsn,flush_lsn,replay_lsn,sync_state) FROM stdin;
 COPY ( 
    SELECT usename, client_addr, client_hostname, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state  FROM pg_stat_replication
 ) TO stdin;
