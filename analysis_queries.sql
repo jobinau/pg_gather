@@ -79,14 +79,29 @@ ON cnf.name = T.name and cnf.setting != T.setting;
 set timezone=UTC;
 --Start and End time of data collection
 select min(collect_ts),max(collect_ts) from history.pg_get_activity ;
+--min and max of a particular hour : WHERE DATE_TRUNC('hour',collect_ts) = '2022-01-03 18:00:00+00';
+
+--Inspect the continuity of data collection, whether there is any gap
+SELECT DATE_TRUNC('hour',collect_ts) date_hour,count(*) cnt from history.pg_get_activity GROUP BY DATE_TRUNC('hour',collect_ts) ORDER BY 1;
+
 ---Load over a perioid of time
-select CAST(collect_ts as time),count(*) FILTER (WHERE state='active') as active,count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
+select collect_ts,count(*) FILTER (WHERE state='active') as active,count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
 count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.pg_get_activity group by collect_ts order by 1;
+--Or use CAST(collect_ts as time) if data is for a single day
+
+
+
 
 WITH w AS (SELECT collect_ts,COALESCE(wait_event,'CPU') as wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
 SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.cnt DESC) FROM w GROUP BY w.collect_ts;
 
-
+--
+select rolname,datname,state,count(*) from 
+ history.pg_get_activity a 
+ left join pg_get_roles r on a.usesysid = r.oid
+ left join pg_get_db d USING (datid)
+where collect_ts between '2021-12-27 16:32:01' and '2021-12-27 16:36:01' group by rolname,datname,state
+order by count(*);
 
 --Top 5 active sessions
 select collect_ts,count(*) from history.pg_get_activity where state='active' group by collect_ts order by count(*) desc limit 5;
@@ -100,3 +115,5 @@ group by wait_event;
 
 select distinct collect_ts from history.pg_get_activity where collect_ts < '2021-07-18' order by 1;
 select 'DELETE FROM '||n.nspname||'.'||relname||' WHERE collect_ts < ''2021-07-18''' from pg_class c join pg_namespace n ON n.oid = c.relnamespace and n.nspname = 'history';
+
+

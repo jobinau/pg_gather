@@ -26,7 +26,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V11"
+        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V12"
 FROM pg_gather JOIN TZ ON TRUE;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
@@ -183,6 +183,12 @@ ON cnf.name = T.name and cnf.setting != T.setting
 )
 SELECT CASE WHEN LENGTH(val) > 1
   THEN 'Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs <br>'
+  ELSE NULL END
+FROM W;
+WITH W AS (
+SELECT count(*) cnt FROM pg_get_confs WHERE source IS NOT NULL )
+SELECT CASE WHEN cnt < 1
+  THEN 'Couldn''t detect values from configuration files. Possibly corrupt Parameter file(s)'
   ELSE NULL END
 FROM W;
 

@@ -115,8 +115,9 @@ COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,rolconfig from pg_
 \echo '\\.'
 
 --pg_settings
-\echo COPY pg_get_confs (name,setting,unit) FROM stdin;
-COPY ( SELECT name,setting,unit FROM pg_settings ) TO stdin;
+\echo COPY pg_get_confs (name,setting,unit,source) FROM stdin;
+COPY ( SELECT s.name,s.setting,s.unit,f.sourcefile 
+ FROM pg_settings s LEFT JOIN pg_file_settings f ON f.name = s.name and f.applied = TRUE) TO stdin;
 \echo '\\.'
 
 --Major tables and indexes in current schema

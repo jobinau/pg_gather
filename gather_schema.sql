@@ -125,7 +125,8 @@ CREATE UNLOGGED TABLE pg_get_roles (
 CREATE UNLOGGED TABLE pg_get_confs (
     name text,
     setting text,
-    unit text
+    unit text,
+    source text
 );
 
 CREATE UNLOGGED TABLE pg_get_class (
@@ -190,6 +191,7 @@ CREATE UNLOGGED TABLE pg_replication_stat (
     client_addr text,
     client_hostname text,
     state text,
+    --xmin_age int,
     sent_lsn pg_lsn,
     write_lsn pg_lsn,
     flush_lsn pg_lsn,
