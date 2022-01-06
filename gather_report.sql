@@ -84,7 +84,9 @@ ORDER BY size DESC LIMIT 10000;
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="parameters">Parameters & settings</h2>
 \pset tableattr 'id="params"'
-SELECT * FROM pg_get_confs;
+SELECT s.*,string_agg(f.sourcefile ||' - '|| f.setting,chr(10)) As "Other locations" FROM pg_get_confs s
+LEFT JOIN pg_get_file_confs f ON s.name = f.name AND  s.source <> f.sourcefile
+GROUP BY 1,2,3,4; 
 \pset tableattr
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="extensions">Extensions</h2>
@@ -191,7 +193,9 @@ SELECT CASE WHEN cnt < 1
   THEN 'Couldn''t detect values from configuration files. Possibly corrupt Parameter file(s)'
   ELSE NULL END
 FROM W;
+SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 
+\echo <br />
 \echo <a href="#topics">Go to Topics</a>
 \echo <script type="text/javascript">
 \echo $(function() { $("#busy").hide(); });

@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS pg_gather;
 DROP TABLE IF EXISTS pg_get_activity;
 DROP TABLE IF EXISTS pg_get_class;
 DROP TABLE IF EXISTS pg_get_confs;
+DROP TABLE IF EXISTS pg_get_file_confs;
 DROP TABLE IF EXISTS pg_get_db;
 DROP TABLE IF EXISTS pg_get_index;
 DROP TABLE IF EXISTS pg_get_rel;
@@ -127,6 +128,14 @@ CREATE UNLOGGED TABLE pg_get_confs (
     setting text,
     unit text,
     source text
+);
+
+CREATE UNLOGGED TABLE pg_get_file_confs (
+    sourcefile text,
+    name text,
+    setting text,
+    applied boolean,
+    error text
 );
 
 CREATE UNLOGGED TABLE pg_get_class (
