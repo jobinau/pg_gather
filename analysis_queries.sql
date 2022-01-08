@@ -90,10 +90,11 @@ count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.
 --Or use CAST(collect_ts as time) if data is for a single day
 
 
-
-
-WITH w AS (SELECT collect_ts,COALESCE(wait_event,'CPU') as wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
-SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.cnt DESC) FROM w GROUP BY w.collect_ts;
+  WITH w AS (SELECT collect_ts,COALESCE(wait_event,'CPU') as wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
+  SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.cnt DESC) "wait events" 
+  FROM w 
+  WHERE w.collect_ts between '2022-01-03 16:46:01.213361+00' AND '2022-01-03 16:48:01.657648+00 '
+  GROUP BY w.collect_ts;
 
 --
 select rolname,datname,state,count(*) from 
