@@ -16,7 +16,14 @@
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
 
-\echo <h1>pg_gather Report <b id="busy" class="warn"> Loading... </b></h1>
+\echo <h1>
+\echo   <svg width="10em" viewBox="0 0 140 80">
+\echo     <path fill="none" stroke="#000000" stroke-linecap="round" stroke-width="2"  d="m 21.2,46.7 c 1,2 0.67,4 -0.3,5.1 c -1.1,1 -2,1.5 -4,1 c -10,-3 -4,-25 -4 -25 c 0.6,-10 8,-9 8 -9 s 7,-4.5 11,0.2 c 1.2,1.4 1.7,3.3 1.7,5.17 c -0.1,3 3,7 -2,10 c-2,2 -1,5 -8,5.5 m -2 -12 c 0,0 -1,1 -0.2,0.2 m -4 12 c 0,0 0,10 -12,11"/>
+\echo     <text x="30" y="50" style="font:25px arial">g_gather</text>
+\echo     <text x="75" y="62" style="fill:red; font:15px arial">Report</text>
+\echo    </svg>
+\echo    <b id="busy" class="warn"> Loading... </b>
+\echo </h1>
 \pset tableattr 'class="lineblk"'
 SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines \gset
 \if :conlines
