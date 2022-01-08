@@ -1,5 +1,6 @@
 # pg_gather
-This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases 
+This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases.  
+And another SQL script for generating detailed HTML report from the collected data. Yes SQL-Only!
 
 **Supported Versions** : PostgreSQL 10, 11, 12 & 13  
 **Minimum support versions** : PostgreSQL 9.5, 9.6
