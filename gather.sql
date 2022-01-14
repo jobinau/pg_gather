@@ -22,7 +22,13 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 --    \set FULL true
 --\endif
 
-\pset tuples_only
+\set QUIET on
+SET statement_timeout=60000;
+\t on
+PREPARE pidevents AS
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
+\a
+\set QUIET off
 \echo '\\t'
 \echo '\\r'
 
@@ -36,8 +42,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 \echo COPY pg_gather FROM stdin;
 COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),
 CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END
-) TO stdin;
-
+) TO stdin; 
 \echo '\\.'
 
 \if :pg13
@@ -64,9 +69,6 @@ CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal
 
 --Wait Event Analysis
 --A much lightweight implimentation 26/12/2020
-PREPARE pidevents AS
-SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
-\a
 \o /dev/null
 SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
