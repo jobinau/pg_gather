@@ -1,6 +1,7 @@
 #!/bin/bash
 # Bulk Import to history schema from continuous data gathering output files
 # This is a new version of imphistory.sh to support parallel execution (Beta - 15-Jan-22)
+# USAGE : imphistory_parallel.sh out*.gz
 
 #Deside on the number of parallelism you need
 PARALLEL=4
