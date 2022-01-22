@@ -1,6 +1,6 @@
 \set QUIET 1
 \echo <html><meta charset="utf-8" />
-\echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+\echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; }
 \echo th {background-color: #d2f2ff;}
