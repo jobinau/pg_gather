@@ -89,12 +89,25 @@ select collect_ts,count(*) FILTER (WHERE state='active') as active,count(*) FILT
 count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.pg_get_activity group by collect_ts order by 1;
 --Or use CAST(collect_ts as time) if data is for a single day
 
+--More details about the connections
+select rolname,datname,state,client_addr,count(*) from 
+ pg_get_activity a 
+ left join pg_get_roles r on a.usesysid = r.oid
+ left join pg_get_db d USING (datid)
+group by rolname,datname,state,client_addr
+order by count(*);
 
-  WITH w AS (SELECT collect_ts,COALESCE(wait_event,'CPU') as wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
-  SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.cnt DESC) "wait events" 
-  FROM w 
-  WHERE w.collect_ts between '2022-01-03 16:46:01.213361+00' AND '2022-01-03 16:48:01.657648+00 '
-  GROUP BY w.collect_ts;
+
+
+
+
+--HISTORY (BULK DATA IMPORT)
+
+WITH w AS (SELECT collect_ts,COALESCE(wait_event,'CPU') as wait_event,count(*) cnt FROM history.pg_pid_wait GROUP BY 1,2 ORDER BY 1,2)
+SELECT w.collect_ts,string_agg( w.wait_event ||':'|| w.cnt,',' ORDER BY w.cnt DESC) "wait events" 
+FROM w 
+WHERE w.collect_ts between '2022-01-03 16:46:01.213361+00' AND '2022-01-03 16:48:01.657648+00 '
+GROUP BY w.collect_ts;
 
 --
 select rolname,datname,state,count(*) from 
