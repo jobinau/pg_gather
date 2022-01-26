@@ -93,7 +93,7 @@ ORDER BY size DESC LIMIT 10000;
 <% \pset tableattr 'id="params"'%>
 <% SELECT s.*,string_agg(f.sourcefile ||' - '|| f.setting,chr(10)) As "Other locations" FROM pg_get_confs s
 LEFT JOIN pg_get_file_confs f ON s.name = f.name AND  s.source <> f.sourcefile
-GROUP BY 1,2,3,4; %>
+GROUP BY 1,2,3,4 ORDER BY 1; %>
 <% \pset tableattr%>
 <a href="#topics">Go to Topics</a>
 <h2 id="extensions">Extensions</h2>
@@ -222,44 +222,50 @@ function bytesToSize(bytes,divisor = 1000) {
 autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
 function checkpars(){   //parameter checking
 $("#params tr").each(function(){
+  let val=$(this).children().eq(1)
   switch($(this).children().eq(0).text()) {
+    case "autovacuum" :
+      if(val.text() != "on") val.addClass("warn");
+      break;
     case "autovacuum_max_workers" :
-      console.log($(this).children().eq(1).text());
+      if(val.text() > 5) val.addClass("warn");
       break;
     case "autovacuum_vacuum_cost_limit" :
-      console.log($(this).children().eq(1).text());
+      if(val.text() > 500) val.addClass("warn");
+      //console.log(val.text());
       break;
     case "autovacuum_freeze_max_age" :
-      autovacuum_freeze_max_age = Number($(this).children().eq(1).text());
+      autovacuum_freeze_max_age = Number(val.text());
+      if (autovacuum_freeze_max_age > 800000000) val.addClass("warn");
       break;
     case "deadlock_timeout":
-      $(this).children().eq(1).addClass("lime").prop("title",$(this).children().eq(2).text());
+      val.addClass("lime").prop("title",$(this).children().eq(2).text());
       break;
     case "effective_cache_size":
-      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*8*1024,1024));
+      val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
       break;
     case "maintenance_work_mem":
-      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024,1024));
+      val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
       break;
     case "work_mem":
-      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024,1024));
+      val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
       break;
     case "shared_buffers":
-      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*8*1024,1024));
+      val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
       break;
     case "max_connections":
-      $(this).children().eq(1).addClass("lime").prop("title",$(this).children().eq(1).text());
-      if($(this).children().eq(1).text() > 500) $(this).children().eq(1).addClass("warn");
+      val.addClass("lime").prop("title",val.text());
+      if(val.text() > 500) val.addClass("warn");
       break;
     case "max_wal_size":
-      $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024*1024,1024));
-      if($(this).children().eq(1).text() < 10240) $(this).children().eq(1).addClass("warn");
+      val.addClass("lime").prop("title",bytesToSize(val.text()*1024*1024,1024));
+      if(val.text() < 10240) val.addClass("warn");
       break;
     case "random_page_cost":
-      if($(this).children().eq(1).text() > 1.2) $(this).children().eq(1).addClass("warn");
+      if(val.text() > 1.2) val.addClass("warn");
       break;
     case "server_version":
-      $(this).children().eq(1).addClass("lime");
+      val.addClass("lime");
       break;
   }
 });

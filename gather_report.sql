@@ -93,7 +93,7 @@ ORDER BY size DESC LIMIT 10000;
 \pset tableattr 'id="params"'
 SELECT s.*,string_agg(f.sourcefile ||' - '|| f.setting,chr(10)) As "Other locations" FROM pg_get_confs s
 LEFT JOIN pg_get_file_confs f ON s.name = f.name AND  s.source <> f.sourcefile
-GROUP BY 1,2,3,4; 
+GROUP BY 1,2,3,4 ORDER BY 1; 
 \pset tableattr
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="extensions">Extensions</h2>
@@ -222,44 +222,50 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
 \echo function checkpars(){   //parameter checking
 \echo $("#params tr").each(function(){
+\echo   let val=$(this).children().eq(1)
 \echo   switch($(this).children().eq(0).text()) {
+\echo     case "autovacuum" :
+\echo       if(val.text() != "on") val.addClass("warn");
+\echo       break;
 \echo     case "autovacuum_max_workers" :
-\echo       console.log($(this).children().eq(1).text());
+\echo       if(val.text() > 5) val.addClass("warn");
 \echo       break;
 \echo     case "autovacuum_vacuum_cost_limit" :
-\echo       console.log($(this).children().eq(1).text());
+\echo       if(val.text() > 500) val.addClass("warn");
+\echo       //console.log(val.text());
 \echo       break;
 \echo     case "autovacuum_freeze_max_age" :
-\echo       autovacuum_freeze_max_age = Number($(this).children().eq(1).text());
+\echo       autovacuum_freeze_max_age = Number(val.text());
+\echo       if (autovacuum_freeze_max_age > 800000000) val.addClass("warn");
 \echo       break;
 \echo     case "deadlock_timeout":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",$(this).children().eq(2).text());
+\echo       val.addClass("lime").prop("title",$(this).children().eq(2).text());
 \echo       break;
 \echo     case "effective_cache_size":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*8*1024,1024));
+\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
 \echo       break;
 \echo     case "maintenance_work_mem":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024,1024));
+\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
 \echo       break;
 \echo     case "work_mem":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024,1024));
+\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
 \echo       break;
 \echo     case "shared_buffers":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*8*1024,1024));
+\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
 \echo       break;
 \echo     case "max_connections":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",$(this).children().eq(1).text());
-\echo       if($(this).children().eq(1).text() > 500) $(this).children().eq(1).addClass("warn");
+\echo       val.addClass("lime").prop("title",val.text());
+\echo       if(val.text() > 500) val.addClass("warn");
 \echo       break;
 \echo     case "max_wal_size":
-\echo       $(this).children().eq(1).addClass("lime").prop("title",bytesToSize($(this).children().eq(1).text()*1024*1024,1024));
-\echo       if($(this).children().eq(1).text() < 10240) $(this).children().eq(1).addClass("warn");
+\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024*1024,1024));
+\echo       if(val.text() < 10240) val.addClass("warn");
 \echo       break;
 \echo     case "random_page_cost":
-\echo       if($(this).children().eq(1).text() > 1.2) $(this).children().eq(1).addClass("warn");
+\echo       if(val.text() > 1.2) val.addClass("warn");
 \echo       break;
 \echo     case "server_version":
-\echo       $(this).children().eq(1).addClass("lime");
+\echo       val.addClass("lime");
 \echo       break;
 \echo   }
 \echo });
