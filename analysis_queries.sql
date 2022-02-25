@@ -9,11 +9,15 @@ GROUP BY 1 ORDER BY 2;
 
 --2.User, database, Active, Total connection (Need for pgbouncer setup)
 select 
-rolname,datname,count(*) FILTER (WHERE state='active') as active, count(*) 
+rolname,datname,count(*) FILTER (WHERE state='active') as active,
+count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
+count(*) FILTER (WHERE state='idle') as idle,
+count(*) 
 from pg_get_activity 
   join pg_get_roles on usesysid=pg_get_roles.oid
   join pg_get_db on pg_get_activity.datid = pg_get_db.datid
-group by 1,2;
+group by rollup(1,2)
+ORDER BY 1,2;
 
 --3.Which session is at the top of the blocking
 select blocking_pid,statement_in_blocking_process,count(*)
