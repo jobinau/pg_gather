@@ -8,48 +8,48 @@ WHERE state='idle in transaction'
 GROUP BY 1 ORDER BY 2;
 
 --2.User, database, Active, Total connection (Need for pgbouncer setup)
-select 
+SELECT 
 rolname,datname,count(*) FILTER (WHERE state='active') as active,
 count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
 count(*) FILTER (WHERE state='idle') as idle,
 count(*) 
-from pg_get_activity 
+FROM pg_get_activity 
   join pg_get_roles on usesysid=pg_get_roles.oid
   join pg_get_db on pg_get_activity.datid = pg_get_db.datid
-group by rollup(1,2)
+GROUP BY ROLLUP(1,2)
 ORDER BY 1,2;
 
 --3.Which session is at the top of the blocking
-select blocking_pid,statement_in_blocking_process,count(*)
- from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
- group by 1,2;
+SELECT blocking_pid,statement_in_blocking_process,count(*)
+ FROM pg_get_block WHERE blocking_pid not in (SELECT blocked_pid FROM pg_get_block)
+ GROUP by 1,2;
 
 --4.Biggest Blockers
-select statement_in_blocking_process,count(*) from  pg_get_block group by 1 order by 2;
+SELECT statement_in_blocking_process,count(*) FROM  pg_get_block GROUP BY 1 ORDER BY 2;
 
 --5.What is the status of the blocking pids (This may not be accurate as there is 20 second time difference)
 SELECT pid,state FROM pg_get_activity WHERE pid IN
-(SELECT blocking_pid FROM (select blocking_pid,statement_in_blocking_process,count(*)
- from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
- group by 1,2) blockers);
+(SELECT blocking_pid FROM (SELECT blocking_pid,statement_in_blocking_process,count(*)
+ from pg_get_block WHERE blocking_pid not in (SELECT blocked_pid FROM pg_get_block)
+ GROUP by 1,2) blockers);
 
 --6.Wait event associated with blocking session (Important)
-select blocking_pid,blocking_wait_event,count(*)
- from pg_get_block where blocking_pid not in (select blocked_pid from pg_get_block)
- group by 1,2;
+SELECT blocking_pid,blocking_wait_event,count(*)
+ from pg_get_block WHERE blocking_pid not in (SELECT blocked_pid FROM pg_get_block)
+ GROUP BY 1,2;
 
 
 --7.TOP 5 Tables which require maximum maintenace memory
-WITH top_tabs AS (select relid,n_live_tup*0.2*6/1024/1024/1024 maint_work_mem_gb 
-   from pg_get_rel order by 2 desc limit 5)
+WITH top_tabs AS (SELECT relid,n_live_tup*0.2*6/1024/1024/1024 maint_work_mem_gb 
+   from pg_get_rel ORDER BY 2 DESC LIMIT 5)
 SELECT relid, relname,maint_work_mem_gb
  FROM top_tabs
  JOIN pg_get_class ON top_tabs.relid = pg_get_class.reloid
 ORDER BY 3 DESC;
 
 --8. Stats reset info.
-select datname,stats_reset from pg_get_db where stats_reset is not null;
-select stats_reset from pg_get_bgwriter;
+SELECT datname,stats_reset FROM pg_get_db WHERE stats_reset is not null;
+SELECT stats_reset FROM pg_get_bgwriter;
 
 --9. Cache hit on databases
 SELECT datname, 100 * blks_hit / blks_fetch as cache_hit_ratio FROM pg_get_db WHERE blks_fetch > 0;
@@ -82,24 +82,24 @@ ON cnf.name = T.name and cnf.setting != T.setting;
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
 --Start and End time of data collection
-select min(collect_ts),max(collect_ts) from history.pg_get_activity ;
+SELECT min(collect_ts),max(collect_ts) FROM history.pg_get_activity ;
 --min and max of a particular hour : WHERE DATE_TRUNC('hour',collect_ts) = '2022-01-03 18:00:00+00';
 
 --Inspect the continuity of data collection, whether there is any gap
-SELECT DATE_TRUNC('hour',collect_ts) date_hour,count(*) cnt from history.pg_get_activity GROUP BY DATE_TRUNC('hour',collect_ts) ORDER BY 1;
+SELECT DATE_TRUNC('hour',collect_ts) date_hour,count(*) cnt FROM history.pg_get_activity GROUP BY DATE_TRUNC('hour',collect_ts) ORDER BY 1;
 
 ---Load over a perioid of time
-select collect_ts,count(*) FILTER (WHERE state='active') as active,count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
-count(*) FILTER (WHERE state='idle') as idle,count(*) connections  from history.pg_get_activity group by collect_ts order by 1;
+SELECT collect_ts,count(*) FILTER (WHERE state='active') as active,count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
+count(*) FILTER (WHERE state='idle') as idle,count(*) connections  FROM history.pg_get_activity GROUP by collect_ts ORDER BY 1;
 --Or use CAST(collect_ts as time) if data is for a single day
 
 --More details about the connections
-select rolname,datname,state,client_addr,count(*) from 
+SELECT rolname,datname,state,client_addr,count(*) FROM 
  pg_get_activity a 
  left join pg_get_roles r on a.usesysid = r.oid
  left join pg_get_db d USING (datid)
-group by rolname,datname,state,client_addr
-order by count(*);
+GROUP BY rolname,datname,state,client_addr
+ORDER BY count(*);
 
 
 
@@ -114,24 +114,24 @@ WHERE w.collect_ts between '2022-01-03 16:46:01.213361+00' AND '2022-01-03 16:48
 GROUP BY w.collect_ts;
 
 --
-select rolname,datname,state,count(*) from 
+SELECT rolname,datname,state,count(*) from 
  history.pg_get_activity a 
  left join pg_get_roles r on a.usesysid = r.oid
  left join pg_get_db d USING (datid)
-where collect_ts between '2021-12-27 16:32:01' and '2021-12-27 16:36:01' group by rolname,datname,state
-order by count(*);
+WHERE collect_ts between '2021-12-27 16:32:01' and '2021-12-27 16:36:01' GROUP BY rolname,datname,state
+ORDER BY count(*);
 
 --Top 5 active sessions
-select collect_ts,count(*) from history.pg_get_activity where state='active' group by collect_ts order by count(*) desc limit 5;
+SELECT collect_ts,count(*) FROM history.pg_get_activity WHERE state='active' GROUP BY collect_ts ORDER BY count(*) DESC LIMIT 5;
 --Idle in transactions
-select collect_ts,count(*) from history.pg_get_activity where state like 'idle in transaction%' group by collect_ts order by count(*) desc limit 5;
+SELECT collect_ts,count(*) FROM history.pg_get_activity WHERE state like 'idle in transaction%' GROUP by collect_ts ORDER BY count(*) DESC LIMIT 5;
 
-select wait_event,count(*) from history.pg_pid_wait where collect_ts='2021-06-28 14:02:01.324049+00'
- and pid in (select pid from history.pg_get_activity where collect_ts='2021-06-28 14:02:01.324049+00' and state like 'idle in transaction%')
-group by wait_event;
+SELECT wait_event,count(*) FROM history.pg_pid_wait WHERE collect_ts='2021-06-28 14:02:01.324049+00'
+ and pid in (SELECT pid FROM history.pg_get_activity WHERE collect_ts='2021-06-28 14:02:01.324049+00' and state like 'idle in transaction%')
+GROUP BY wait_event;
 
 
-select distinct collect_ts from history.pg_get_activity where collect_ts < '2021-07-18' order by 1;
-select 'DELETE FROM '||n.nspname||'.'||relname||' WHERE collect_ts < ''2021-07-18''' from pg_class c join pg_namespace n ON n.oid = c.relnamespace and n.nspname = 'history';
+SELECT distinct collect_ts FROM history.pg_get_activity WHERE collect_ts < '2021-07-18' ORDER BY 1;
+SELECT 'DELETE FROM '||n.nspname||'.'||relname||' WHERE collect_ts < ''2021-07-18''' FROM pg_class c join pg_namespace n ON n.oid = c.relnamespace and n.nspname = 'history';
 
 
