@@ -33,7 +33,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V12"
+        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V13"
 FROM pg_gather JOIN TZ ON TRUE;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
@@ -113,9 +113,9 @@ SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP
 \C
 --session waits 
 \echo <a href="#topics">Go to Topics</a>
-\pset tableattr
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
-SELECT * FROM (
+\pset tableattr 'id="tblsess"' 
+  SELECT * FROM (
   WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
   g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
   SELECT a.pid,a.state, left(query,60) "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since",  g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
@@ -128,16 +128,18 @@ SELECT * FROM (
 WHERE waits IS NOT NULL OR state != 'idle'; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
-SELECT * FROM pg_get_block;
+\pset tableattr 'id="tblblk"'
+SELECT * FROM pg_get_block; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="statements" style="clear: both">Top 10 Statements</h2>
-
+\pset tableattr 'id="tblstmnt"'
 \C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
 select query,total_time,calls from pg_get_statements order by 2 desc limit 10; 
 \C 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 \echo <p>Efficiency of Background writer and Checkpointer Process</p>
+\pset tableattr 'id="tblchkpnt"'
 SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
 round(min_since_reset/tot_cp,2) "avg mins between CP",
 round(checkpoint_write_time::numeric/(tot_cp*1000),4) "Avg CP write time (s)",
@@ -219,6 +221,10 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   if (i === 0) return bytes + sizes[i];
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 \echo }
+\echo function DurationtoSeconds(duration){
+\echo     const [hours, minutes, seconds] = duration.split(":");
+\echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
+\echo };
 \echo autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
 \echo function checkpars(){   //parameter checking
 \echo $("#params tr").each(function(){
@@ -317,6 +323,18 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo $("#tableConten tr").each(function(){
 \echo   evnts = $(this).children().eq(1);
 \echo   if (Number(evnts.html()) > 0 )  evnts.append(''''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'''');
+\echo });
+\echo let blokers = []
+\echo $("#tblblk tr").each(function(){
+\echo   blkr =$(this).children().eq(9).text();
+\echo   if (blkr > 0) blokers.push(blkr);
+\echo });
+\echo //Session information.
+\echo $("#tblsess tr").each(function(){
+\echo   pid = $(this).children().eq(0);
+\echo   stime = $(this).children().eq(6);
+\echo   if (blokers.indexOf(pid.text()) > -1) pid.addClass("warn").prop("title","Blocker");
+\echo   if(DurationtoSeconds(stime.text()) > 300) stime.addClass("warn").prop("title","Busy");
 \echo });
 \echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
 \echo     if (event.altKey && event.which === 73)
