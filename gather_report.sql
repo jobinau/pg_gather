@@ -9,6 +9,7 @@
 \echo tr:hover { background-color: #FFFFCA}
 \echo caption { font-size: larger }
 \echo .warn { font-weight:bold; background-color: #FAA }
+\echo .high { border: 5px solid red;}
 \echo .lime { font-weight:bold}
 \echo .lineblk {float: left; margin:5px }
 \echo </style>
@@ -115,16 +116,17 @@ SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess"' 
-  SELECT * FROM (
+SELECT * FROM (
   WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
-  g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
-  SELECT a.pid,a.state, left(query,60) "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since",  g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
+  g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
+  SELECT a.pid,a.state, left(query,60) "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+   g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
    LEFT JOIN g ON true
   WHERE a.state IS NOT NULL
-  GROUP BY 1,2,3,4,5,6,7) AS sess
+  GROUP BY 1,2,3,4,5,6,7,8 ) AS sess
 WHERE waits IS NOT NULL OR state != 'idle'; 
 \echo <a href="#topics">Go to Topics</a>
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
@@ -325,15 +327,23 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   if (Number(evnts.html()) > 0 )  evnts.append(''''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'''');
 \echo });
 \echo let blokers = []
+\echo let blkvictims = []
 \echo $("#tblblk tr").each(function(){
+\echo   victim =$(this).children().eq(0).text();
 \echo   blkr =$(this).children().eq(9).text();
+\echo   if (victim > 0) blkvictims.push(victim);
 \echo   if (blkr > 0) blokers.push(blkr);
 \echo });
 \echo //Session information.
 \echo $("#tblsess tr").each(function(){
 \echo   pid = $(this).children().eq(0);
-\echo   stime = $(this).children().eq(6);
-\echo   if (blokers.indexOf(pid.text()) > -1) pid.addClass("warn").prop("title","Blocker");
+\echo   stime = $(this).children().eq(7);
+\echo   xidage = $(this).children().eq(5);
+\echo   if (xidage.text() > 20) xidage.addClass("warn");
+\echo   if (blokers.indexOf(pid.text()) > -1){ 
+\echo      pid.addClass("warn").prop("title","Blocker")
+\echo      if (blkvictims.indexOf(pid.text()) == -1) pid.addClass("high");
+\echo   };
 \echo   if(DurationtoSeconds(stime.text()) > 300) stime.addClass("warn").prop("title","Busy");
 \echo });
 \echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
