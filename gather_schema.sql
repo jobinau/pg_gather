@@ -68,7 +68,8 @@ CREATE UNLOGGED TABLE pg_get_activity (
     gss_auth boolean,
     gss_princ text,
     gss_enc boolean,
-    leader_pid integer
+    leader_pid integer,
+    query_id bigint
 );
 
 CREATE UNLOGGED TABLE pg_get_statements(
@@ -138,6 +139,7 @@ CREATE UNLOGGED TABLE pg_get_file_confs (
     error text
 );
 
+--TODO : Add relpersistence to the table for identifying the temporary tables
 CREATE UNLOGGED TABLE pg_get_class (
     reloid oid,
     relname text,
