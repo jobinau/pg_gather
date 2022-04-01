@@ -78,6 +78,21 @@ JOIN
 (VALUES ('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'),('wal_segment_size','16777216')) AS T (name,setting)
 ON cnf.name = T.name and cnf.setting != T.setting;
 
+-- 13. Unused Indexes
+--Create a index history table using the data from the first pg_gather
+CREATE TABLE pg_get_index_hist AS SELECT * FROM pg_get_index;
+--Add the data from the second, thired pg_gather to it
+INSERT INTO  pg_get_index_hist  SELECT * FROM pg_get_index;
+--finally query the data
+SELECT ct.relname AS "Table", ci.relname as "Index",minscan,maxscan
+FROM
+(SELECT indexrelid,indrelid,min(numscans) minscan,max(numscans) maxscan FROM pg_get_index_hist
+WHERE indisprimary != true
+GROUP BY indexrelid,indrelid) i
+JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
+JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+WHERE maxscan-minscan = 0;
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
