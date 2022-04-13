@@ -47,7 +47,8 @@ CREATE UNLOGGED TABLE  IF NOT EXISTS  history.pg_get_activity (
     gss_auth boolean,
     gss_princ text,
     gss_enc boolean,
-    leader_pid integer
+    leader_pid integer,
+    query_id bigint
 );
 
 CREATE UNLOGGED TABLE history.pg_pid_wait(
