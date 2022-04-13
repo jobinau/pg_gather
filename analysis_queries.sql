@@ -138,3 +138,34 @@ SELECT distinct collect_ts FROM history.pg_get_activity WHERE collect_ts < '2021
 SELECT 'DELETE FROM '||n.nspname||'.'||relname||' WHERE collect_ts < ''2021-07-18''' FROM pg_class c join pg_namespace n ON n.oid = c.relnamespace and n.nspname = 'history';
 
 
+======= Import a particular snapshot from history and generate report.
+TRUNCATE TABLE pg_gather;
+TRUNCATE TABLE pg_get_activity;
+TRUNCATE TABLE pg_pid_wait;
+TRUNCATE TABLE pg_get_db;
+TRUNCATE TABLE pg_get_block;
+TRUNCATE TABLE pg_replication_stat;
+TRUNCATE TABLE pg_archiver_stat;
+TRUNCATE TABLE pg_get_bgwriter;
+
+
+SET pg_gather.ts = '2022-04-12 16:48:01.721693+00';
+INSERT INTO pg_gather SELECT collect_ts,usr,db,ver,pg_start_ts,recovery,client,server,reload_ts,current_wal FROM history.pg_gather where collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_get_activity SELECT datid,pid,usesysid,application_name,state,query,wait_event_type,wait_event,xact_start,query_start,backend_start,state_change,
+     client_addr,client_hostname,client_port,backend_xid,backend_xmin,backend_type,ssl,sslversion,sslcipher,sslbits,sslcompression,ssl_client_dn,ssl_client_serial,ssl_issuer_dn,gss_auth,gss_princ,gss_enc,leader_pid,query_id
+     FROM history.pg_get_activity WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_pid_wait SELECT itr,pid,wait_event FROM history.pg_pid_wait WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_get_db SELECT datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age,stats_reset 
+     FROM history.pg_get_db WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_get_block SELECT blocked_pid,blocked_user,blocked_client_addr,blocked_client_hostname,blocked_application_name,blocked_wait_event_type,blocked_wait_event,blocked_statement,blocked_xact_start,
+    blocking_pid,blocking_user,blocking_user_addr,blocking_client_hostname,blocking_application_name,blocking_wait_event_type,blocking_wait_event,statement_in_blocking_process,blocking_xact_start
+    FROM history.pg_get_block WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_replication_stat SELECT usename,client_addr,client_hostname,state,sent_lsn,write_lsn,flush_lsn,replay_lsn,sync_state 
+    FROM history.pg_replication_stat WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_archiver_stat SELECT archived_count,last_archived_wal,last_archived_time,last_failed_wal,last_failed_time
+    FROM history.pg_archiver_stat WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+INSERT INTO pg_get_bgwriter SELECT checkpoints_timed,checkpoints_req,checkpoint_write_time,checkpoint_sync_time,buffers_checkpoint,buffers_clean,maxwritten_clean,
+    buffers_backend,buffers_backend_fsync,buffers_alloc,stats_reset FROM history.pg_get_bgwriter WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
+
+--And generate report like
+--psql -X -f report.sql > GatherReport_ts.html
