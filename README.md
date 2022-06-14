@@ -15,12 +15,12 @@ And another SQL script for generating detailed HTML report from the collected da
    Any authentication mechanism supported by PostgreSQL works for data gathering. So if `psql` is able to connect, data for analysis can be collected.
 4. **Any Operating System** <br>
    Linux 32 / 64 bit, SunSolaris, Apple macOS, Microsoft Windows. Works everywhere where `psql` is available  
-   Windows users may Refer the Notes section below
+   (Windows users may Refer the Notes section below)
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
 6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over for analysis.
-7. **Any cloud** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
-   (Please see Heroku and AWS Aurora specific note in Notes section below)
+7. **Any cloud/container/k8s** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
+   (Please see Heroku, AWS Aurora, Docker and K8s specific note in Notes section below)
 8. **Zero failure design** : A Successful report generation with available information happens even if the Data collection is partial or there was failures due to permission issues  or unavailability of tables / views or other reasons.
 
 # How to Use
