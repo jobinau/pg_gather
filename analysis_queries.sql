@@ -174,5 +174,26 @@ INSERT INTO pg_archiver_stat SELECT archived_count,last_archived_wal,last_archiv
 INSERT INTO pg_get_bgwriter SELECT checkpoints_timed,checkpoints_req,checkpoint_write_time,checkpoint_sync_time,buffers_checkpoint,buffers_clean,maxwritten_clean,
     buffers_backend,buffers_backend_fsync,buffers_alloc,stats_reset FROM history.pg_get_bgwriter WHERE collect_ts = current_setting('pg_gather.ts')::timestamptz;
 
+
+--Compare autovacuum runs
+ALTER TABLE pg_get_rel RENAME TO pg_get_rel_old;
+ALTER TABLE pg_gather RENAME TO pg_gather_old;
+select EXTRACT(EPOCH FROM ('2022-06-07 22:11:11'::timestamp - '2022-06-01 21:18:13'::timestamp))/86400;
+
+SELECT c.relname "Name" ,
+--r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
+--r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",
+r.vac_nos - o.vac_nos "vacs", (r.vac_nos - o.vac_nos)/dys "vacs_day"
+--ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
+FROM pg_get_rel r
+JOIN pg_get_rel_old o ON r.relid = o.relid
+JOIN (SELECT EXTRACT(EPOCH FROM (g.collect_ts - go.collect_ts))/86400 "dys" FROM pg_gather g JOIN pg_gather_old go ON true) d ON true
+JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
+LEFT JOIN pg_get_toast t ON r.relid = t.relid
+LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
+LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
+LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
+ORDER BY 3 DESC LIMIT 100;
+
 --And generate report like
 --psql -X -f report.sql > GatherReport_ts.html
