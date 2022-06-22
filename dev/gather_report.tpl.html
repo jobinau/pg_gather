@@ -346,6 +346,14 @@ $("#tblsess tr").each(function(){
   };
   if(DurationtoSeconds(stime.text()) > 300) stime.addClass("warn").prop("title","Busy");
 });
+if ($("#tblblk tr").length < 2){
+  $("#tblblk").remove();
+  $("#blocking").text("No Blocking Sessions Found");
+}
+if ($("#tblstmnt tr").length < 2){
+  $("#tblstmnt").remove();
+  $("#statements").text("pg_stat_statements info is not available");
+}
 $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
     if (event.altKey && event.which === 73)
     {

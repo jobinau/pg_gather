@@ -346,6 +346,14 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   };
 \echo   if(DurationtoSeconds(stime.text()) > 300) stime.addClass("warn").prop("title","Busy");
 \echo });
+\echo if ($("#tblblk tr").length < 2){
+\echo   $("#tblblk").remove();
+\echo   $("#blocking").text("No Blocking Sessions Found");
+\echo }
+\echo if ($("#tblstmnt tr").length < 2){
+\echo   $("#tblstmnt").remove();
+\echo   $("#statements").text("pg_stat_statements info is not available");
+\echo }
 \echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
 \echo     if (event.altKey && event.which === 73)
 \echo     {
