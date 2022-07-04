@@ -9,7 +9,7 @@
 \echo tr:hover { background-color: #FFFFCA}
 \echo caption { font-size: larger }
 \echo .warn { font-weight:bold; background-color: #FAA }
-\echo .high { border: 5px solid red;}
+\echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold}
 \echo .lineblk {float: left; margin:5px }
 \echo </style>
@@ -353,6 +353,29 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo if ($("#tblstmnt tr").length < 2){
 \echo   $("#tblstmnt").remove();
 \echo   $("#statements").text("pg_stat_statements info is not available");
+\echo }
+\echo if ($("#tblchkpnt tr").length > 1){
+\echo   row=$("#tblchkpnt tr").eq(1)
+\echo   if (row.children().eq(0).text() > 10){
+\echo     row.children().eq(0).addClass("high").prop("title","More than 10% of forced checkpoints is not desirable, increase max_wal_size");
+\echo   }
+\echo   if(row.children().eq(1).text() < 10 ){
+\echo     row.children().eq(1).addClass("high").prop("title","checkpoints are too frequent. consider checkpoint_timeout=1800");
+\echo   }
+\echo   if(row.children().eq(13).text() > 25){
+\echo     row.children().eq(13).addClass("high").prop("title","too many dirty pages cleaned by backends");
+\echo     if(row.children().eq(12).text() < 30){
+\echo       row.children().eq(12).addClass("high").prop("title","bgwriter is not efficient");
+\echo       if(row.children().eq(14).text() < 30){
+\echo         row.children().eq(14).addClass("high").prop("title","bgwriter could run more frequently. reduce bgwriter_delay");
+\echo       }
+\echo       if(row.children().eq(15).text() > 30){
+\echo         row.children().eq(15).addClass("high").prop("title","bgwriter halts too frequently. increase bgwriter_lru_maxpages");
+\echo       }
+\echo     }
+\echo   }
+\echo   //console.log(''AVG CP Writes :'' + row.children().eq(2).text());
+\echo   //console.log(''Cleaned by Backends :'' + row.children().eq(13).text());
 \echo }
 \echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
 \echo     if (event.altKey && event.which === 73)

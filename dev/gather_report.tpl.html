@@ -9,7 +9,7 @@ th { cursor: pointer;}
 tr:hover { background-color: #FFFFCA}
 caption { font-size: larger }
 .warn { font-weight:bold; background-color: #FAA }
-.high { border: 5px solid red;}
+.high { border: 5px solid red;font-weight:bold}
 .lime { font-weight:bold}
 .lineblk {float: left; margin:5px }
 </style>
@@ -353,6 +353,29 @@ if ($("#tblblk tr").length < 2){
 if ($("#tblstmnt tr").length < 2){
   $("#tblstmnt").remove();
   $("#statements").text("pg_stat_statements info is not available");
+}
+if ($("#tblchkpnt tr").length > 1){
+  row=$("#tblchkpnt tr").eq(1)
+  if (row.children().eq(0).text() > 10){
+    row.children().eq(0).addClass("high").prop("title","More than 10% of forced checkpoints is not desirable, increase max_wal_size");
+  }
+  if(row.children().eq(1).text() < 10 ){
+    row.children().eq(1).addClass("high").prop("title","checkpoints are too frequent. consider checkpoint_timeout=1800");
+  }
+  if(row.children().eq(13).text() > 25){
+    row.children().eq(13).addClass("high").prop("title","too many dirty pages cleaned by backends");
+    if(row.children().eq(12).text() < 30){
+      row.children().eq(12).addClass("high").prop("title","bgwriter is not efficient");
+      if(row.children().eq(14).text() < 30){
+        row.children().eq(14).addClass("high").prop("title","bgwriter could run more frequently. reduce bgwriter_delay");
+      }
+      if(row.children().eq(15).text() > 30){
+        row.children().eq(15).addClass("high").prop("title","bgwriter halts too frequently. increase bgwriter_lru_maxpages");
+      }
+    }
+  }
+  //console.log('AVG CP Writes :' + row.children().eq(2).text());
+  //console.log('Cleaned by Backends :' + row.children().eq(13).text());
 }
 $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
     if (event.altKey && event.which === 73)
