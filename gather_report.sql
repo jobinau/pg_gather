@@ -50,7 +50,7 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 \echo  <label for="mem">Memory in GB</label>
 \echo  <input type="number" id="mem" name="mem" value="32">
 \echo </div>
-\echo <h2 id="topics">Go to Topics</h2>
+\echo <h2 id="topics">Sections</h2>
 \echo <ol>
 \echo <li><a href="#indexes">Index Info</a></li>
 \echo <li><a href="#parameters">Parameter settings</a></li>
@@ -60,8 +60,9 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 \echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#blocking">Blocking Sessions</a></li>
 \echo <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
+\echo <li><a href="#replstat">Replication Stat</a></li>
 \echo <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
-\echo <li><a href="#findings">Important Findings</a></li>
+\echo <li><a href="#findings">Findings</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
@@ -80,7 +81,7 @@ LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 ORDER BY r.tab_ind_size DESC LIMIT 10000; 
 \pset tableattr
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="indexes">Index Info</h2>
 \pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
@@ -89,31 +90,31 @@ SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,num
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 ORDER BY size DESC LIMIT 10000;
 \pset tableattr 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="parameters">Parameters & settings</h2>
 \pset tableattr 'id="params"'
 SELECT s.*,string_agg(f.sourcefile ||' - '|| f.setting,chr(10)) As "Other locations" FROM pg_get_confs s
 LEFT JOIN pg_get_file_confs f ON s.name = f.name AND  s.source <> f.sourcefile
 GROUP BY 1,2,3,4 ORDER BY 1; 
 \pset tableattr
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="extensions">Extensions</h2>
 SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="activiy">Session Summary</h2>
 \pset footer off
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="time">Database time</h2>
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
 \C
 --session waits 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
@@ -128,17 +129,35 @@ SELECT * FROM (
   WHERE a.state IS NOT NULL
   GROUP BY 1,2,3,4,5,6,7,8 ORDER BY 6 DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle'; 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 \pset tableattr 'id="tblblk"'
 SELECT * FROM pg_get_block; 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="statements" style="clear: both">Top 10 Statements</h2>
 \pset tableattr 'id="tblstmnt"'
 \C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
 select query,total_time,calls from pg_get_statements order by 2 desc limit 10; 
 \C 
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
+\echo <h2 id="replstat" style="clear: both">Replication Status</h2>
+\pset tableattr 'id="tblreplstat"'
+SELECT  usename AS "Replication User",client_addr AS "Replica Address",state,
+sent_offset - (write_offset - (sent_lsn - write_lsn) * 255 * 16 ^ 6 ) AS "Transmission Lag (Byte)",
+sent_offset - (flush_offset - (sent_lsn - flush_lsn) * 255 * 16 ^ 6 ) AS "Flush Ack Lag (Byte)",
+sent_offset - (replay_offset - (sent_lsn - replay_lsn) * 255 * 16 ^ 6 ) AS "Replay at Replica Lag (Byte)"
+FROM ( SELECT usename,client_addr,state,
+   ('x' || lpad(split_part(sent_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS sent_lsn,
+   ('x' || lpad(split_part(write_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS write_lsn,
+   ('x' || lpad(split_part(flush_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS flush_lsn,
+   ('x' || lpad(split_part(replay_lsn::TEXT, '/', 1), 8, '0'))::bit(32)::bigint AS replay_lsn,
+   ('x' || lpad(split_part(sent_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS sent_offset,
+   ('x' || lpad(split_part(write_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS write_offset,
+   ('x' || lpad(split_part(flush_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS flush_offset,
+   ('x' || lpad(split_part(replay_lsn::TEXT, '/', 2), 8, '0'))::bit(32)::bigint AS replay_offset
+FROM pg_replication_stat ) AS g;
+
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 \echo <p>Efficiency of Background writer and Checkpointer Process</p>
 \pset tableattr 'id="tblchkpnt"'
@@ -168,7 +187,7 @@ CROSS JOIN
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
 \echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
 \pset format aligned
@@ -207,7 +226,7 @@ FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 
 \echo <br />
-\echo <a href="#topics">Go to Topics</a>
+\echo <a href="#topics">Sections (Alt+I)</a>
 \echo <script type="text/javascript">
 \echo $(function() { $("#busy").hide(); });
 \echo $("input").change(function(){  alert("Number changed"); }); 
@@ -376,6 +395,16 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   }
 \echo   //console.log(''AVG CP Writes :'' + row.children().eq(2).text());
 \echo   //console.log(''Cleaned by Backends :'' + row.children().eq(13).text());
+\echo }
+\echo if ($("#tblreplstat tr").length > 1){
+\echo   $("#tblreplstat tr").each(function(){
+\echo     $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
+\echo     $(this).children().eq(4).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(4).html()),1024));
+\echo     $(this).children().eq(5).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(5).html()),1024));
+\echo   });
+\echo }else{
+\echo   $("#tblreplstat").remove();
+\echo   $("#replstat").text("No Replication found");
 \echo }
 \echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
 \echo     if (event.altKey && event.which === 73)
