@@ -60,7 +60,7 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 \echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#blocking">Blocking Sessions</a></li>
 \echo <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
-\echo <li><a href="#bgcp" >Background Writer and Checkpointer</a></li>
+\echo <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 \echo <li><a href="#findings">Important Findings</a></li>
 \echo </ol>
 \echo <h2>Tables Info</h2>

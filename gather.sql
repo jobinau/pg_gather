@@ -1,7 +1,7 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 -- pg_gather version
-\set ver 13
+\set ver 14
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( current_database() != 'template1' ) as fullgather \gset
@@ -58,19 +58,7 @@ CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal
 \echo '\\.'
 
 
---INSERT statements
---SELECT 'SELECT pg_sleep(1);  SELECT ''INSERT INTO pg_get_wait VALUES (' || g ||',''|| pid || '','' || CASE WHEN wait_event IS NULL THEN ''NULL);'' ELSE ''''''''|| wait_event ||'''''');'' END  FROM pg_stat_activity WHERE state != ''idle'';' FROM generate_series(1,10) g;
---\gexec
--- SELECT pg_stat_get_backend_pid(s.backendid) AS pid, pg_stat_get_backend_wait_event(s.backendid) AS wait_event FROM (SELECT pg_stat_get_backend_idset() AS backendid) AS s WHERE pg_stat_get_backend_pid(s.backendid) is not null;
-
---\echo COPY pg_get_wait (itr,pid,wait_event) FROM stdin;
---SELECT 'SELECT pg_sleep(1);  SELECT ''' || g ||'''||E''\t''|| pid || E''\t'' || CASE WHEN wait_event IS NULL THEN ''\N'' ELSE  wait_event END  FROM pg_stat_get_activity(NULL) WHERE state != ''idle'';' FROM generate_series(1,10) g;
---\gexec
---\echo '\\.'
---\a
-
---Wait Event Analysis
---A much lightweight implimentation 26/12/2020
+--A lightweight implimentation of wait event data capture
 \o /dev/null
 SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
