@@ -4,7 +4,7 @@
 <style>
 table, th, td { border: 1px solid black; border-collapse: collapse; }
 th {background-color: #d2f2ff;}
-tr:nth-child(even) {background-color: #DAEDff}
+tr:nth-child(even) {background-color: #eef8ff}
 th { cursor: pointer;}
 tr:hover { background-color: #FFFFCA}
 caption { font-size: larger }
@@ -12,6 +12,7 @@ caption { font-size: larger }
 .high { border: 5px solid red;font-weight:bold}
 .lime { font-weight:bold}
 .lineblk {float: left; margin:5px }
+.bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 </style>
 <% \H
 \pset footer off 
@@ -52,19 +53,23 @@ SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_u
 </div>
 <h2 id="topics">Sections</h2>
 <ol>
-<li><a href="#indexes">Index Info</a></li>
-<li><a href="#parameters">Parameter settings</a></li>
+<li><a href="#tables">Tables</a></li>
+<li><a href="#indexes">Indexes</a></li>
+<li><a href="#parameters">Parameters / Settings</a></li>
 <li><a href="#extensions">Extensions</a></li>
-<li><a href="#activiy">Session Summary</a></li>
+<li><a href="#activiy">Sessions Summary</a></li>
 <li><a href="#time">Database Time</a></li>
 <li><a href="#sess">Session Details</a></li>
 <li><a href="#blocking">Blocking Sessions</a></li>
 <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
-<li><a href="#replstat">Replication Stat</a></li>
+<li><a href="#replstat">Replications</a></li>
 <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 <li><a href="#findings">Findings</a></li>
 </ol>
-<h2>Tables Info</h2>
+<div class="bottomright">
+  <a href="#topics">Sections (Alt+I)</a>
+</div>
+<h2 id="tables">Tables</h2>
 <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
 Objects other than tables will be marked with their relkind in brackets</p>
 <% \pset footer on
@@ -81,8 +86,7 @@ LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 ORDER BY r.tab_ind_size DESC LIMIT 10000; %>
 <% \pset tableattr%>
-<a href="#topics">Sections (Alt+I)</a>
-<h2 id="indexes">Index Info</h2>
+<h2 id="indexes">Indexes</h2>
 <% \pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
   FROM pg_get_index i 
@@ -90,31 +94,26 @@ SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,num
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 ORDER BY size DESC LIMIT 10000;
 \pset tableattr %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="parameters">Parameters & settings</h2>
 <% \pset tableattr 'id="params"'%>
 <% SELECT s.*,string_agg(f.sourcefile ||' - '|| f.setting,chr(10)) As "Other locations" FROM pg_get_confs s
 LEFT JOIN pg_get_file_confs f ON s.name = f.name AND  s.source <> f.sourcefile
 GROUP BY 1,2,3,4 ORDER BY 1; %>
 <% \pset tableattr%>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="extensions">Extensions</h2>
 <% SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="activiy">Session Summary</h2>
 <% \pset footer off
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="time">Database time</h2>
 <% \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
 \C
 --session waits %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="sess" style="clear: both">Session Details</h2>
 <% \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
@@ -129,17 +128,14 @@ SELECT * FROM (
   WHERE a.state IS NOT NULL
   GROUP BY 1,2,3,4,5,6,7,8 ORDER BY 6 DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle'; %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 <% \pset tableattr 'id="tblblk"'
 SELECT * FROM pg_get_block; %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="statements" style="clear: both">Top 10 Statements</h2>
 <% \pset tableattr 'id="tblstmnt"'
 \C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
 select query,total_time,calls from pg_get_statements order by 2 desc limit 10; 
 \C %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="replstat" style="clear: both">Replication Status</h2>
 <% \pset tableattr 'id="tblreplstat"'
 SELECT  usename AS "Replication User",client_addr AS "Replica Address",state,
@@ -157,7 +153,6 @@ FROM ( SELECT usename,client_addr,state,
    ('x' || lpad(split_part(replay_lsn::TEXT, '/', 2), 8, '0'))::bit(32)::bigint AS replay_offset
 FROM pg_replication_stat ) AS g;
 %>
-<a href="#topics">Sections (Alt+I)</a>
 <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 <p>Efficiency of Background writer and Checkpointer Process</p>
 <% \pset tableattr 'id="tblchkpnt"'
@@ -187,8 +182,6 @@ CROSS JOIN
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; %>
 <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
-<a href="#topics">Sections (Alt+I)</a>
-
 <h2 id="findings" style="clear: both">Important Findings</h2>
 <% \pset format aligned
 \pset tuples_only on
@@ -226,7 +219,6 @@ FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 %>
 <br />
-<a href="#topics">Sections (Alt+I)</a>
 <script type="text/javascript">
 $(function() { $("#busy").hide(); });
 $("input").change(function(){  alert("Number changed"); }); 
