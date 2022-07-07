@@ -35,7 +35,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V14"
+        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
 FROM pg_gather JOIN TZ ON TRUE;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
@@ -119,7 +119,7 @@ SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP
 SELECT * FROM (
   WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state, left(query,60) "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+  SELECT a.pid,a.state, CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE left(query,60) END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
@@ -268,6 +268,7 @@ $("#params tr").each(function(){
       break;
     case "work_mem":
       val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
+      if(val.text() > 98304) val.addClass("warn");
       break;
     case "shared_buffers":
       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));

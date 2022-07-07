@@ -119,7 +119,7 @@ SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP
 SELECT * FROM (
   WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state, left(query,60) "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+  SELECT a.pid,a.state, CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE left(query,60) END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
@@ -268,6 +268,7 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo       break;
 \echo     case "work_mem":
 \echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
+\echo       if(val.text() > 98304) val.addClass("warn");
 \echo       break;
 \echo     case "shared_buffers":
 \echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
