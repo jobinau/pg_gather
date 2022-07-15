@@ -1,4 +1,5 @@
 \set QUIET 1
+\echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
@@ -35,7 +36,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V14"
+        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
 FROM pg_gather JOIN TZ ON TRUE;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
@@ -219,8 +220,23 @@ FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 
 \echo <br />
+\echo <div id="analdata" hidden>
+\pset format unaligned
+--Ability to pass SQL ananlysis to report 
+SELECT to_jsonb(r) FROM
+(SELECT 
+   (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS "tabs",
+   (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS "tab"
+) r;
+
+\echo </div>
 \echo <script type="text/javascript">
-\echo $(function() { $("#busy").hide(); });
+\echo obj={};
+\echo $(function() { 
+\echo $("#busy").hide();
+\echo obj=JSON.parse($("#analdata").html());
+\echo checkpars();
+\echo });
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo $("#tog").click(function(){
 \echo         $("#divins").toggle("slow",function(){
@@ -238,8 +254,8 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo     const [hours, minutes, seconds] = duration.split(":");
 \echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
-\echo autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
-\echo function checkpars(){   //parameter checking
+\echo autovacuum_freeze_max_age = 0;
+\echo function checkpars(){
 \echo $("#params tr").each(function(){
 \echo   let val=$(this).children().eq(1)
 \echo   switch($(this).children().eq(0).text()) {
@@ -251,7 +267,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo       break;
 \echo     case "autovacuum_vacuum_cost_limit" :
 \echo       if(val.text() > 500) val.addClass("warn");
-\echo       //console.log(val.text());
 \echo       break;
 \echo     case "autovacuum_freeze_max_age" :
 \echo       autovacuum_freeze_max_age = Number(val.text());
@@ -290,7 +305,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   }
 \echo });
 \echo }
-\echo checkpars();
 \echo $("#tabInfo tr").each(function(){
 \echo     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
 \echo     if( Number($(this).html()) > autovacuum_freeze_max_age )
@@ -307,13 +321,11 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo     else  TabInd.prop("title",bytesToSize(TabIndSize));
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
-\echo //Inspect database level info
 \echo $("#dbs tr").each(function(){
 \echo   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
 \echo     if( Number($(this).html()) > 1048576 )  //more than 1 MB
 \echo       $(this).addClass("lime").prop("title",bytesToSize(Number($(this).html())));
 \echo   });
-\echo   //console.log($(this).children().eq(8).html());
 \echo   if (Number($(this).children().eq(8).html()) > 400000000) $(this).children().eq(8).addClass("warn").prop("title", "Age :" + Number($(this).children().eq(8).html()).toLocaleString("en-US"));
 \echo });
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
@@ -346,7 +358,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   if (victim > 0) blkvictims.push(victim);
 \echo   if (blkr > 0) blokers.push(blkr);
 \echo });
-\echo //Session information.
 \echo $("#tblsess tr").each(function(){
 \echo   pid = $(this).children().eq(0);
 \echo   stime = $(this).children().eq(7);
@@ -386,8 +397,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo       }
 \echo     }
 \echo   }
-\echo   //console.log(''AVG CP Writes :'' + row.children().eq(2).text());
-\echo   //console.log(''Cleaned by Backends :'' + row.children().eq(13).text());
 \echo }
 \echo if ($("#tblreplstat tr").length > 1){
 \echo   $("#tblreplstat tr").each(function(){
@@ -399,7 +408,7 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   $("#tblreplstat").remove();
 \echo   $("#replstat").text("No Replication found");
 \echo }
-\echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
+\echo $(document).keydown(function(event) {
 \echo     if (event.altKey && event.which === 73)
 \echo     {
 \echo       $("#topics").get(0).scrollIntoView();

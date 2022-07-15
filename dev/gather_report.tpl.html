@@ -1,4 +1,5 @@
 <% \set QUIET 1 %>
+<!DOCTYPE html>
 <html><meta charset="utf-8" />
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <style>
@@ -219,14 +220,36 @@ FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 %>
 <br />
+<div id="analdata" hidden>
+<% \pset format unaligned
+--Ability to pass SQL ananlysis to report 
+SELECT to_jsonb(r) FROM
+(SELECT 
+   (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS "tabs",
+   (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS "tab"
+) r;
+%>
+</div>
 <script type="text/javascript">
-$(function() { $("#busy").hide(); });
+//Global object to hold json values passed from the SQL analysis
+obj={};
+
+//when the document is ready
+$(function() { 
+$("#busy").hide();
+obj=JSON.parse($("#analdata").html());
+checkpars();
+});
+
+//Event handlers
 $("input").change(function(){  alert("Number changed"); }); 
 $("#tog").click(function(){
         $("#divins").toggle("slow",function(){
         if($("#divins").is(":visible")) $("#tog").text("[-]"); 
         else $("#tog").text("[+]"); 
     }) });
+
+//Convert bytes into human readable formats
 function bytesToSize(bytes,divisor = 1000) {
   const sizes = ["B","KB","MB","GB","TB"];
   if (bytes == 0) return "0B";
@@ -234,14 +257,22 @@ function bytesToSize(bytes,divisor = 1000) {
   if (i === 0) return bytes + sizes[i];
   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 }
+
+//Convert time format seperated by colon (:) to seconds for comparision
 function DurationtoSeconds(duration){
     const [hours, minutes, seconds] = duration.split(":");
     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 };
-autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
-function checkpars(){   //parameter checking
+
+//Global variable to hold autovacuum_max_age
+autovacuum_freeze_max_age = 0;
+
+//parameter checking
+function checkpars(){
 $("#params tr").each(function(){
   let val=$(this).children().eq(1)
+//console.log("going to print tabs");
+//console.log(obj.tabs);
   switch($(this).children().eq(0).text()) {
     case "autovacuum" :
       if(val.text() != "on") val.addClass("warn");
@@ -251,7 +282,7 @@ $("#params tr").each(function(){
       break;
     case "autovacuum_vacuum_cost_limit" :
       if(val.text() > 500) val.addClass("warn");
-      //console.log(val.text());
+//console.log(val.text());
       break;
     case "autovacuum_freeze_max_age" :
       autovacuum_freeze_max_age = Number(val.text());
@@ -290,7 +321,8 @@ $("#params tr").each(function(){
   }
 });
 }
-checkpars();
+
+
 $("#tabInfo tr").each(function(){
     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
     if( Number($(this).html()) > autovacuum_freeze_max_age )
@@ -307,15 +339,18 @@ $("#tabInfo tr").each(function(){
     else  TabInd.prop("title",bytesToSize(TabIndSize));
     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 });
+
 //Inspect database level info
 $("#dbs tr").each(function(){
   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
     if( Number($(this).html()) > 1048576 )  //more than 1 MB
       $(this).addClass("lime").prop("title",bytesToSize(Number($(this).html())));
   });
-  //console.log($(this).children().eq(8).html());
+//console.log($(this).children().eq(8).html());
   if (Number($(this).children().eq(8).html()) > 400000000) $(this).children().eq(8).addClass("warn").prop("title", "Age :" + Number($(this).children().eq(8).html()).toLocaleString("en-US"));
 });
+
+//Sort logic
 const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== ''' && v2 !== ''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (() => {
@@ -326,6 +361,8 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
   setTimeout(function(){th.style.cursor = "pointer";},10);
   },50);
 })));
+
+//Index analysis
 $("#IndInfo tr").each(function(){
   Scans = $(this).children().eq(4);
   if(Number(Scans.html()) == 0 ) Scans.addClass("warn").prop("title","Unused Index");
@@ -386,9 +423,8 @@ if ($("#tblchkpnt tr").length > 1){
       }
     }
   }
-  //console.log('AVG CP Writes :' + row.children().eq(2).text());
-  //console.log('Cleaned by Backends :' + row.children().eq(13).text());
 }
+
 if ($("#tblreplstat tr").length > 1){
   $("#tblreplstat tr").each(function(){
     $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
@@ -399,7 +435,9 @@ if ($("#tblreplstat tr").length > 1){
   $("#tblreplstat").remove();
   $("#replstat").text("No Replication found");
 }
-$(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
+
+//Scroll to Index/Topics if Alt+I is pressed
+$(document).keydown(function(event) {
     if (event.altKey && event.which === 73)
     {
       $("#topics").get(0).scrollIntoView();

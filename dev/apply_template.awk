@@ -36,8 +36,10 @@ BEGIN {
       tpl = 1;
       sub(/<%\s*/, "");
       print
-    } else if ( /^\s*$/ ) {  ## Empty lines
-      print
+    } else if ( /^\s*$/ ) {  ## Empty lines for readability can be removed
+      #print
+    } else if ( /^\/\// ) {  ## Comments with double slash can be removed
+
     } else {                 ## Remaining lines (HTML tags) echo as it is
       sub(/^/, "\\echo ");
       psql_echo_escape()     ## Replace single quotes outside double quotes with escaped value
