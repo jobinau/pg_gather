@@ -184,21 +184,22 @@ JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
 \echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
+\echo <ol id="finditem">
 \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
 SELECT CASE WHEN val > 0 
-  THEN 'There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also<br>' 
-  ELSE 'No idle in transactions. Which is good <br>' END 
+  THEN '<li>There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also</li>' 
+  ELSE '<li>No idle in transactions. Which is good </li>' END 
 FROM W; 
 WITH W AS (SELECT count(*) AS val from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p'))
 SELECT CASE WHEN val > 10000
-  THEN 'There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details <br>'
+  THEN '<li>There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
 SELECT CASE WHEN val > 10000
-  THEN 'There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details <br>'
+  THEN '<li>There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -208,7 +209,7 @@ JOIN
 ON cnf.name = T.name and cnf.setting != T.setting
 )
 SELECT CASE WHEN LENGTH(val) > 1
-  THEN 'Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs <br>'
+  THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -219,14 +220,20 @@ SELECT CASE WHEN cnt < 1
 FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 
-\echo <br />
+\echo </ol>
 \echo <div id="analdata" hidden>
 \pset format unaligned
 --Ability to pass SQL ananlysis to report 
 SELECT to_jsonb(r) FROM
 (SELECT 
-   (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS "tabs",
-   (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS "tab"
+  (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
+  (SELECT to_jsonb(ROW(COUNT(*),COUNT(*) FILTER (WHERE CONN < interval '15 minutes' ) )) FROM 
+  (WITH g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
+  SELECT pid,g.ts - backend_start CONN
+    FROM pg_get_activity
+    LEFT JOIN g ON true
+    WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
+    AND backend_type='client backend') cn) AS cn
 ) r;
 
 \echo </div>
@@ -238,7 +245,19 @@ SELECT to_jsonb(r) FROM
 \echo obj=JSON.parse($("#analdata").html());
 \echo checkpars();
 \echo checktabs();
+\echo checkfindings();
 \echo });
+\echo function checkfindings(){
+\echo   if (obj.cn.f1 > 0){
+\echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
+\echo     if (obj.cn.f2/obj.cn.f1 > 0.7 ){
+\echo       str=str+"<b> Poor Connection Persistance.</b> Please improve connection pooling"
+\echo     } else {
+\echo       str=str+"Good connection Persinstance."
+\echo     }
+\echo   }
+\echo   $("#finditem").append("<li>"+ str +"</li>")
+\echo }
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo $("#tog").click(function(){
 \echo         $("#divins").toggle("slow",function(){

@@ -1,4 +1,5 @@
 \set QUIET 1
+\echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
@@ -35,8 +36,8 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V14"
-FROM pg_gather JOIN TZ ON TRUE;
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
+FROM pg_gather LEFT JOIN TZ ON TRUE;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
 SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db;
@@ -183,21 +184,22 @@ JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
 \echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 \echo <h2 id="findings" style="clear: both">Important Findings</h2>
+\echo <ol id="finditem">
 \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
 SELECT CASE WHEN val > 0 
-  THEN 'There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also<br>' 
-  ELSE 'No idle in transactions. Which is good <br>' END 
+  THEN '<li>There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also</li>' 
+  ELSE '<li>No idle in transactions. Which is good </li>' END 
 FROM W; 
 WITH W AS (SELECT count(*) AS val from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p'))
 SELECT CASE WHEN val > 10000
-  THEN 'There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details <br>'
+  THEN '<li>There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
 SELECT CASE WHEN val > 10000
-  THEN 'There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details <br>'
+  THEN '<li>There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -207,7 +209,7 @@ JOIN
 ON cnf.name = T.name and cnf.setting != T.setting
 )
 SELECT CASE WHEN LENGTH(val) > 1
-  THEN 'Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs <br>'
+  THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -218,9 +220,44 @@ SELECT CASE WHEN cnt < 1
 FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
 
-\echo <br />
+\echo </ol>
+\echo <div id="analdata" hidden>
+\pset format unaligned
+--Ability to pass SQL ananlysis to report 
+SELECT to_jsonb(r) FROM
+(SELECT 
+  (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
+  (SELECT to_jsonb(ROW(COUNT(*),COUNT(*) FILTER (WHERE CONN < interval '15 minutes' ) )) FROM 
+  (WITH g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
+  SELECT pid,g.ts - backend_start CONN
+    FROM pg_get_activity
+    LEFT JOIN g ON true
+    WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
+    AND backend_type='client backend') cn) AS cn
+) r;
+
+\echo </div>
 \echo <script type="text/javascript">
-\echo $(function() { $("#busy").hide(); });
+\echo obj={};
+\echo autovacuum_freeze_max_age = 0;
+\echo $(function() { 
+\echo $("#busy").hide();
+\echo obj=JSON.parse($("#analdata").html());
+\echo checkpars();
+\echo checktabs();
+\echo checkfindings();
+\echo });
+\echo function checkfindings(){
+\echo   if (obj.cn.f1 > 0){
+\echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
+\echo     if (obj.cn.f2/obj.cn.f1 > 0.7 ){
+\echo       str=str+"<b> Poor Connection Persistance.</b> Please improve connection pooling"
+\echo     } else {
+\echo       str=str+"Good connection Persinstance."
+\echo     }
+\echo   }
+\echo   $("#finditem").append("<li>"+ str +"</li>")
+\echo }
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo $("#tog").click(function(){
 \echo         $("#divins").toggle("slow",function(){
@@ -238,8 +275,7 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo     const [hours, minutes, seconds] = duration.split(":");
 \echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
-\echo autovacuum_freeze_max_age = 0; //Number($("#params td:contains('autovacuum_freeze_max_age')").parent().children().eq(1).text());
-\echo function checkpars(){   //parameter checking
+\echo function checkpars(){
 \echo $("#params tr").each(function(){
 \echo   let val=$(this).children().eq(1)
 \echo   switch($(this).children().eq(0).text()) {
@@ -251,7 +287,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo       break;
 \echo     case "autovacuum_vacuum_cost_limit" :
 \echo       if(val.text() > 500) val.addClass("warn");
-\echo       //console.log(val.text());
 \echo       break;
 \echo     case "autovacuum_freeze_max_age" :
 \echo       autovacuum_freeze_max_age = Number(val.text());
@@ -290,7 +325,7 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   }
 \echo });
 \echo }
-\echo checkpars();
+\echo function checktabs(){
 \echo $("#tabInfo tr").each(function(){
 \echo     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
 \echo     if( Number($(this).html()) > autovacuum_freeze_max_age )
@@ -307,13 +342,12 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo     else  TabInd.prop("title",bytesToSize(TabIndSize));
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
-\echo //Inspect database level info
+\echo }
 \echo $("#dbs tr").each(function(){
 \echo   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
 \echo     if( Number($(this).html()) > 1048576 )  //more than 1 MB
 \echo       $(this).addClass("lime").prop("title",bytesToSize(Number($(this).html())));
 \echo   });
-\echo   //console.log($(this).children().eq(8).html());
 \echo   if (Number($(this).children().eq(8).html()) > 400000000) $(this).children().eq(8).addClass("warn").prop("title", "Age :" + Number($(this).children().eq(8).html()).toLocaleString("en-US"));
 \echo });
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
@@ -346,7 +380,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   if (victim > 0) blkvictims.push(victim);
 \echo   if (blkr > 0) blokers.push(blkr);
 \echo });
-\echo //Session information.
 \echo $("#tblsess tr").each(function(){
 \echo   pid = $(this).children().eq(0);
 \echo   stime = $(this).children().eq(7);
@@ -386,8 +419,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo       }
 \echo     }
 \echo   }
-\echo   //console.log(''AVG CP Writes :'' + row.children().eq(2).text());
-\echo   //console.log(''Cleaned by Backends :'' + row.children().eq(13).text());
 \echo }
 \echo if ($("#tblreplstat tr").length > 1){
 \echo   $("#tblreplstat tr").each(function(){
@@ -399,7 +430,7 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo   $("#tblreplstat").remove();
 \echo   $("#replstat").text("No Replication found");
 \echo }
-\echo $(document).keydown(function(event) {  //Scroll to Index/Topics if Alt+I is pressed
+\echo $(document).keydown(function(event) {
 \echo     if (event.altKey && event.which === 73)
 \echo     {
 \echo       $("#topics").get(0).scrollIntoView();
