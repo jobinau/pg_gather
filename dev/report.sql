@@ -36,8 +36,8 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [collect_ts::text||' ('||TZ.val||')',usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
-FROM pg_gather JOIN TZ ON TRUE;
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
+FROM pg_gather LEFT JOIN TZ ON TRUE;
 SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
 \pset tableattr 'id="dbs"'
 SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db;
@@ -232,10 +232,12 @@ SELECT to_jsonb(r) FROM
 \echo </div>
 \echo <script type="text/javascript">
 \echo obj={};
+\echo autovacuum_freeze_max_age = 0;
 \echo $(function() { 
 \echo $("#busy").hide();
 \echo obj=JSON.parse($("#analdata").html());
 \echo checkpars();
+\echo checktabs();
 \echo });
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo $("#tog").click(function(){
@@ -254,7 +256,6 @@ SELECT to_jsonb(r) FROM
 \echo     const [hours, minutes, seconds] = duration.split(":");
 \echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
-\echo autovacuum_freeze_max_age = 0;
 \echo function checkpars(){
 \echo $("#params tr").each(function(){
 \echo   let val=$(this).children().eq(1)
@@ -305,6 +306,7 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo });
 \echo }
+\echo function checktabs(){
 \echo $("#tabInfo tr").each(function(){
 \echo     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
 \echo     if( Number($(this).html()) > autovacuum_freeze_max_age )
@@ -321,6 +323,7 @@ SELECT to_jsonb(r) FROM
 \echo     else  TabInd.prop("title",bytesToSize(TabIndSize));
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
+\echo }
 \echo $("#dbs tr").each(function(){
 \echo   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
 \echo     if( Number($(this).html()) > 1048576 )  //more than 1 MB
