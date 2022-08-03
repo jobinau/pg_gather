@@ -130,7 +130,13 @@ FROM w
 WHERE w.collect_ts between '2022-01-03 16:46:01.213361+00' AND '2022-01-03 16:48:01.657648+00 '
 GROUP BY w.collect_ts;
 
---Session infomration
+--Major wait events
+SELECT COALESCE(wait_event,'CPU'),COUNT(*) FROM history.pg_pid_wait GROUP BY 1 ORDER BY 2;
+
+--Dump wait events over a time to CSV format
+psql "options='-c timezone=UTC'" -c "COPY (SELECT to_char(collect_ts,'YYYY-MM-DD HH24:MI'),COUNT(*) FROM history.pg_pid_wait WHERE wait_event='DataFileRead' GROUP BY 1 ORDER BY 1) TO stdout with CSV  DELIMITER ','" > datafileread.csv
+
+--Session information
 SELECT rolname,datname,state,count(*) from 
  history.pg_get_activity a 
  left join pg_get_roles r on a.usesysid = r.oid
