@@ -109,6 +109,7 @@ CREATE UNLOGGED TABLE history.pg_replication_stat (
     usename text,
     client_addr text,
     client_hostname text,
+    pid int,
     state text,
     sent_lsn pg_lsn,
     write_lsn pg_lsn,

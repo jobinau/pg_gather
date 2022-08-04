@@ -209,9 +209,9 @@ WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
 \echo '\\.'
 
 --select * from pg_stat_replication;
-\echo COPY pg_replication_stat(usename,client_addr,client_hostname,state,sent_lsn,write_lsn,flush_lsn,replay_lsn,sync_state) FROM stdin;
+\echo COPY pg_replication_stat(usename,client_addr,client_hostname, pid, state,sent_lsn,write_lsn,flush_lsn,replay_lsn,sync_state) FROM stdin;
 COPY ( 
-   SELECT usename, client_addr, client_hostname, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state  FROM pg_stat_replication
+   SELECT usename, client_addr, client_hostname, pid, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state  FROM pg_stat_replication
 ) TO stdin;
 \echo '\\.'
 
