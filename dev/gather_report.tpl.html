@@ -257,9 +257,9 @@ function checkfindings(){
   if (obj.cn.f1 > 0){
     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
     if (obj.cn.f2/obj.cn.f1 > 0.7 ){
-      str=str+"<b> Poor Connection Persistance.</b> Please improve connection pooling"
+      str=str+"<b> Poor Connection Persistence.</b> Please improve connection pooling"
     } else {
-      str=str+"Good connection Persinstance."
+      str=str+"Good connection Persistence."
     }
   }
   $("#finditem").append("<li>"+ str +"</li>")

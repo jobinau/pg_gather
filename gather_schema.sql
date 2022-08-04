@@ -227,8 +227,6 @@ CREATE UNLOGGED TABLE pg_get_toast(
 
 CREATE UNLOGGED TABLE pg_tab_bloat (
     table_oid oid,
-    tablename text,
-    relpages bigint,
     est_pages bigint
 );
 
