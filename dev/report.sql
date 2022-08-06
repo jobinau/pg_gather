@@ -3,7 +3,7 @@
 \echo <html><meta charset="utf-8" />
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
-\echo table, th, td { border: 1px solid black; border-collapse: collapse; }
+\echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
 \echo th {background-color: #d2f2ff;}
 \echo tr:nth-child(even) {background-color: #eef8ff}
 \echo th { cursor: pointer;}
@@ -14,6 +14,8 @@
 \echo .lime { font-weight:bold}
 \echo .lineblk {float: left; margin:5px }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
+\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
+\echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo </style>
 \H
 \pset footer off 
@@ -359,6 +361,12 @@ SELECT to_jsonb(r) FROM
 \echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
 \echo   const table = th.closest(''''table'''');
 \echo   th.style.cursor = "progress";
+\echo   var el=document.createElement("div");
+\echo   el.setAttribute("id", "cur");
+\echo   if (this.asc) el.textContent = "⬆";
+\echo   else el.textContent = "⬇";
+\echo   th.appendChild(el);
+\echo   setTimeout(() => { el.remove();},1000);
 \echo   setTimeout(function (){
 \echo   Array.from(table.querySelectorAll(''''tr:nth-child(n+2)'''')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
 \echo   setTimeout(function(){th.style.cursor = "pointer";},10);

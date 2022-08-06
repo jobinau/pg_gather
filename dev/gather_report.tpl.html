@@ -3,7 +3,7 @@
 <html><meta charset="utf-8" />
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <style>
-table, th, td { border: 1px solid black; border-collapse: collapse; }
+table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
 th {background-color: #d2f2ff;}
 tr:nth-child(even) {background-color: #eef8ff}
 th { cursor: pointer;}
@@ -14,6 +14,8 @@ caption { font-size: larger }
 .lime { font-weight:bold}
 .lineblk {float: left; margin:5px }
 .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
+#cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
+@keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 </style>
 <% \H
 \pset footer off 
@@ -385,6 +387,12 @@ const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== ''' && v2 !== '''
 document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (() => {
   const table = th.closest(''table'');
   th.style.cursor = "progress";
+  var el=document.createElement("div");
+  el.setAttribute("id", "cur");
+  if (this.asc) el.textContent = "⬆";
+  else el.textContent = "⬇";
+  th.appendChild(el);
+  setTimeout(() => { el.remove();},1000);
   setTimeout(function (){
   Array.from(table.querySelectorAll(''tr:nth-child(n+2)'')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
 //console.log(this.asc);
