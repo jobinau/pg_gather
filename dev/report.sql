@@ -233,7 +233,8 @@ SELECT to_jsonb(r) FROM
     FROM pg_get_activity
     LEFT JOIN g ON true
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
-    AND backend_type='client backend') cn) AS cn
+    AND backend_type='client backend') cn) AS cn,
+  (select count(*) from pg_get_class where relkind='p') as ptabs
 ) r;
 
 \echo </div>
@@ -251,12 +252,15 @@ SELECT to_jsonb(r) FROM
 \echo   if (obj.cn.f1 > 0){
 \echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
 \echo     if (obj.cn.f2/obj.cn.f1 > 0.7 ){
-\echo       str=str+"<b> Poor Connection Persistance.</b> Please improve connection pooling"
+\echo       str=str+"<b> Poor Connection Persistence.</b> Please improve connection pooling"
 \echo     } else {
-\echo       str=str+"Good connection Persinstance."
+\echo       str=str+"Good connection Persistence."
 \echo     }
+\echo     $("#finditem").append("<li>"+ str +"</li>")
 \echo   }
-\echo   $("#finditem").append("<li>"+ str +"</li>")
+\echo   if (obj.ptabs > 0){
+\echo     $("#finditem").append("<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>")
+\echo   }
 \echo }
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo $("#tog").click(function(){

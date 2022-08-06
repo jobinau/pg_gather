@@ -233,7 +233,8 @@ SELECT to_jsonb(r) FROM
     FROM pg_get_activity
     LEFT JOIN g ON true
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
-    AND backend_type='client backend') cn) AS cn
+    AND backend_type='client backend') cn) AS cn,
+  (select count(*) from pg_get_class where relkind='p') as ptabs
 ) r;
 %>
 </div>
@@ -261,8 +262,11 @@ function checkfindings(){
     } else {
       str=str+"Good connection Persistence."
     }
+    $("#finditem").append("<li>"+ str +"</li>")
   }
-  $("#finditem").append("<li>"+ str +"</li>")
+  if (obj.ptabs > 0){
+    $("#finditem").append("<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>")
+  }
 }
 
 //Event handlers
