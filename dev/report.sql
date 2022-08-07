@@ -4,7 +4,7 @@
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
-\echo th {background-color: #d2f2ff;}
+\echo th {background-color: #d2f2ff }
 \echo tr:nth-child(even) {background-color: #eef8ff}
 \echo th { cursor: pointer;}
 \echo tr:hover { background-color: #FFFFCA}
@@ -36,13 +36,15 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
   "SOMETHING WENT WRONG WHILE IMPORTING THE DATA. PLEASE MAKE SURE THAT ALL TABLES ARE DROPPED AND RECREATED AS PART OF IMPORTING";
   \q
 \endif
-WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
+SELECT * FROM 
+(WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
-FROM pg_gather LEFT JOIN TZ ON TRUE;
-SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
+FROM pg_gather LEFT JOIN TZ ON TRUE 
+UNION
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a ORDER BY 1;
 \pset tableattr 'id="dbs"'
-SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db;
+SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",temp_files "Temp Files",temp_bytes "Temp Bytes",db_size "DB size",age "Age" FROM pg_get_db;
 \pset tableattr off
 
 \echo <button id="tog" style="display: block;clear: both">[+]</button>
@@ -108,6 +110,7 @@ SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion F
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
 \echo <h2 id="activiy">Session Summary</h2>
 \pset footer off
+\pset tableattr 'id="tblss"'
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
@@ -236,13 +239,18 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN g ON true
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
     AND backend_type='client backend') cn) AS cn,
-  (select count(*) from pg_get_class where relkind='p') as ptabs
+  (select count(*) from pg_get_class where relkind='p') as ptabs,
+  (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
+   count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
+   count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
+  FROM pg_get_activity) as sess
 ) r;
 
 \echo </div>
 \echo <script type="text/javascript">
 \echo obj={};
 \echo autovacuum_freeze_max_age = 0;
+\echo totdb=0;
 \echo $(function() { 
 \echo $("#busy").hide();
 \echo obj=JSON.parse($("#analdata").html());
@@ -263,6 +271,16 @@ SELECT to_jsonb(r) FROM
 \echo   if (obj.ptabs > 0){
 \echo     $("#finditem").append("<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>")
 \echo   }
+\echo   //Add footer to database details table at the top
+\echo   var el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='9'>Total DB size : "+ bytesToSize(totdb) +"</th>";
+\echo   dbs=document.getElementById("dbs");
+\echo   dbs.appendChild(el);
+\echo   //Add footer to Sessions Summary table
+\echo   el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
+\echo   tblss=document.getElementById("tblss");
+\echo   tblss.appendChild(el);
 \echo }
 \echo $("input").change(function(){  alert("Number changed"); }); 
 \echo $("#tog").click(function(){
@@ -350,11 +368,13 @@ SELECT to_jsonb(r) FROM
 \echo });
 \echo }
 \echo $("#dbs tr").each(function(){
-\echo   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
-\echo     if( Number($(this).html()) > 1048576 )  //more than 1 MB
-\echo       $(this).addClass("lime").prop("title",bytesToSize(Number($(this).html())));
-\echo   });
-\echo   if (Number($(this).children().eq(8).html()) > 400000000) $(this).children().eq(8).addClass("warn").prop("title", "Age :" + Number($(this).children().eq(8).html()).toLocaleString("en-US"));
+\echo   $tr=$(this).children();
+\echo   if ($tr.eq(7).html() > 0 ) { 
+\echo    totdb=totdb+Number($tr.eq(7).html());
+\echo    if($tr.eq(6).html() > 1048576 ) $tr.eq(6).addClass("lime").prop("title",bytesToSize(Number($tr.eq(6).html())));
+\echo    if($tr.eq(7).html() > 1048576 ) $tr.eq(7).addClass("lime").prop("title",bytesToSize(Number($tr.eq(7).html())));
+\echo    if (Number($tr.eq(8).html()) > 400000000) $tr.eq(8).addClass("warn").prop("title", "Age :" + Number($tr.eq(8).html()).toLocaleString("en-US"));
+\echo   }
 \echo });
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
