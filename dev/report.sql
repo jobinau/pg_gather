@@ -12,7 +12,7 @@
 \echo .warn { font-weight:bold; background-color: #FAA }
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold}
-\echo .lineblk {float: left; margin:5px }
+\echo .lineblk {float: left; margin:0 9px 4px 0 }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
@@ -39,10 +39,10 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 SELECT * FROM 
 (WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v15"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v15" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs"'
 SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",temp_files "Temp Files",temp_bytes "Temp Bytes",db_size "DB size",age "Age" FROM pg_get_db;
 \pset tableattr off
@@ -256,6 +256,7 @@ SELECT to_jsonb(r) FROM
 \echo obj=JSON.parse($("#analdata").html());
 \echo checkpars();
 \echo checktabs();
+\echo checkdbs();
 \echo checkfindings();
 \echo });
 \echo function checkfindings(){
@@ -367,15 +368,17 @@ SELECT to_jsonb(r) FROM
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
 \echo }
+\echo function checkdbs(){
 \echo $("#dbs tr").each(function(){
 \echo   $tr=$(this).children();
 \echo   if ($tr.eq(7).html() > 0 ) { 
 \echo    totdb=totdb+Number($tr.eq(7).html());
 \echo    if($tr.eq(6).html() > 1048576 ) $tr.eq(6).addClass("lime").prop("title",bytesToSize(Number($tr.eq(6).html())));
 \echo    if($tr.eq(7).html() > 1048576 ) $tr.eq(7).addClass("lime").prop("title",bytesToSize(Number($tr.eq(7).html())));
-\echo    if (Number($tr.eq(8).html()) > 400000000) $tr.eq(8).addClass("warn").prop("title", "Age :" + Number($tr.eq(8).html()).toLocaleString("en-US"));
+\echo    if (Number($tr.eq(8).html()) > autovacuum_freeze_max_age ) $tr.eq(8).addClass("warn").prop("title", "Age :" + Number($tr.eq(8).html()).toLocaleString("en-US"));
 \echo   }
 \echo });
+\echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
