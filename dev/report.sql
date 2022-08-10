@@ -455,16 +455,27 @@ SELECT to_jsonb(r) FROM
 \echo     }
 \echo   }
 \echo }
-\echo if ($("#tblreplstat tr").length > 1){
-\echo   $("#tblreplstat tr").each(function(){
-\echo     $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
-\echo     $(this).children().eq(4).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(4).html()),1024));
-\echo     $(this).children().eq(5).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(5).html()),1024));
-\echo   });
+\echo tab=document.getElementById("tblreplstat")
+\echo if (tab.rows.length > 1){
+\echo   for(var i=1;i<tab.rows.length;i++){
+\echo     row=tab.rows[i]
+\echo     for(var j=3;j<6;j++){
+\echo       cell=row.cells[j]; cell.classList.add("lime")
+\echo       cell.title=bytesToSize(Number(cell.innerText),1024)
+\echo    }
+\echo   }
 \echo }else{
-\echo   $("#tblreplstat").remove();
-\echo   $("#replstat").text("No Replication found");
+\echo   tab.remove()
+\echo   h2=document.getElementById("replstat")
+\echo   h2.innerText="No Replication found"
 \echo }
+\echo   // $("#tblreplstat tr").each(function(){
+\echo     // $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
+\echo     // $(this).children().eq(4).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(4).html()),1024));
+\echo     // $(this).children().eq(5).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(5).html()),1024));
+\echo   // });
+\echo   // $("#tblreplstat").remove();
+\echo   // $("#replstat").text("No Replication found");
 \echo $(document).keydown(function(event) {
 \echo     if (event.altKey && event.which === 73)
 \echo     {

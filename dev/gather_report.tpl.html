@@ -490,16 +490,22 @@ if ($("#tblchkpnt tr").length > 1){
   }
 }
 
-if ($("#tblreplstat tr").length > 1){
-  $("#tblreplstat tr").each(function(){
-    $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
-    $(this).children().eq(4).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(4).html()),1024));
-    $(this).children().eq(5).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(5).html()),1024));
-  });
+//Iterate though table without jquery
+tab=document.getElementById("tblreplstat")
+if (tab.rows.length > 1){
+  for(var i=1;i<tab.rows.length;i++){
+    row=tab.rows[i]
+    for(var j=3;j<6;j++){
+      cell=row.cells[j]; cell.classList.add("lime")
+      cell.title=bytesToSize(Number(cell.innerText),1024)
+   }
+  }
 }else{
-  $("#tblreplstat").remove();
-  $("#replstat").text("No Replication found");
+  tab.remove()
+  h2=document.getElementById("replstat")
+  h2.innerText="No Replication found"
 }
+
 
 //Scroll to Index/Topics if Alt+I is pressed
 $(document).keydown(function(event) {
