@@ -4,9 +4,8 @@
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
-\echo th {background-color: #d2f2ff }
+\echo th {background-color: #d2f2ff;cursor: pointer; }
 \echo tr:nth-child(even) {background-color: #eef8ff}
-\echo th { cursor: pointer;}
 \echo tr:hover { background-color: #FFFFCA}
 \echo caption { font-size: larger }
 \echo .warn { font-weight:bold; background-color: #FAA }
@@ -16,6 +15,7 @@
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
+\echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo </style>
 \H
 \pset footer off 
@@ -47,15 +47,17 @@ SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr )
 SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",temp_files "Temp Files",temp_bytes "Temp Bytes",db_size "DB size",age "Age" FROM pg_get_db;
 \pset tableattr off
 
-\echo <button id="tog" style="display: block;clear: both">[+]</button>
-\echo <div id="divins" style="display:none">
-\echo <h2>Manual input about host resources</h2>
-\echo <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
-\echo  <label for="cpus">CPUs</label>
-\echo  <input type="number" id="cpus" name="cpus" value="8">
-\echo  <label for="mem">Memory in GB</label>
-\echo  <input type="number" id="mem" name="mem" value="32">
-\echo </div>
+\echo <details>
+\echo   <summary>Tune PostgreSQL Parameters(beta)</summary>
+\echo   <p>Please input the CPU and Memory available on the host machine for evaluating the current parameter settings</p>
+\echo   <label for="cpus">CPUs:
+\echo   <input type="number" id="cpus" name="cpus" value="8">
+\echo   </label>
+\echo   <label for="mem" style="padding-left: 3em;">Memory(GB):
+\echo   <input type="number" id="mem" name="mem" value="32">
+\echo  </label>
+\echo   <p>*Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
+\echo </details>
 \echo <h2 id="topics">Sections</h2>
 \echo <ol>
 \echo <li><a href="#tables">Tables</a></li>
@@ -283,12 +285,6 @@ SELECT to_jsonb(r) FROM
 \echo   tblss=document.getElementById("tblss");
 \echo   tblss.appendChild(el);
 \echo }
-\echo $("input").change(function(){  alert("Number changed"); }); 
-\echo $("#tog").click(function(){
-\echo         $("#divins").toggle("slow",function(){
-\echo         if($("#divins").is(":visible")) $("#tog").text("[-]"); 
-\echo         else $("#tog").text("[+]"); 
-\echo     }) });
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
 \echo   if (bytes == 0) return "0B";
@@ -469,13 +465,6 @@ SELECT to_jsonb(r) FROM
 \echo   h2=document.getElementById("replstat")
 \echo   h2.innerText="No Replication found"
 \echo }
-\echo   // $("#tblreplstat tr").each(function(){
-\echo     // $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
-\echo     // $(this).children().eq(4).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(4).html()),1024));
-\echo     // $(this).children().eq(5).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(5).html()),1024));
-\echo   // });
-\echo   // $("#tblreplstat").remove();
-\echo   // $("#replstat").text("No Replication found");
 \echo $(document).keydown(function(event) {
 \echo     if (event.altKey && event.which === 73)
 \echo     {
