@@ -51,17 +51,19 @@ SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr )
 SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",temp_files "Temp Files",temp_bytes "Temp Bytes",db_size "DB size",age "Age" FROM pg_get_db;
 \pset tableattr off
 
-\echo <details>
-\echo   <summary>Tune PostgreSQL Parameters(beta)</summary>
-\echo   <p>Please input the CPU and Memory available on the host machine for evaluating the current parameter settings</p>
+\echo <div>
+\echo <details style="clear: left; width: fit-content;">
+\echo   <summary>Tune PostgreSQL Parameters (beta)</summary>
 \echo   <label for="cpus">CPUs:
-\echo   <input type="number" id="cpus" name="cpus" value="8">
+\echo   <input type="number" id="cpus" name="cpus" value="0">
 \echo   </label>
 \echo   <label for="mem" style="padding-left: 3em;">Memory(GB):
-\echo   <input type="number" id="mem" name="mem" value="32">
+\echo   <input type="number" id="mem" name="mem" value="0">
 \echo  </label>
-\echo   <p>*Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
+\echo  <p style="border: 2px solid blue; border-radius: 5px; padding: 1em;">Please input the CPU and Memory available on the host machine for evaluating the current parameter settings<br />
+\echo   Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
 \echo </details>
+\echo </div>
 \echo <h2 id="topics">Sections</h2>
 \echo <ol>
 \echo <li><a href="#tables">Tables</a></li>
@@ -257,6 +259,8 @@ SELECT to_jsonb(r) FROM
 \echo obj={};
 \echo autovacuum_freeze_max_age = 0;
 \echo totdb=0;
+\echo totCPU=0;
+\echo totMem=0;
 \echo $(function() { 
 \echo $("#busy").hide();
 \echo obj=JSON.parse($("#analdata").html());
@@ -289,6 +293,14 @@ SELECT to_jsonb(r) FROM
 \echo   tblss=document.getElementById("tblss");
 \echo   tblss.appendChild(el);
 \echo }
+\echo document.getElementById("cpus").addEventListener("change", (event) => {
+\echo   totCPU = event.target.value;
+\echo   checkpars();
+\echo });
+\echo document.getElementById("mem").addEventListener("change", (event) => {
+\echo   totMem = event.target.value;
+\echo   checkpars();
+\echo });
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
 \echo   if (bytes == 0) return "0B";
@@ -332,9 +344,12 @@ SELECT to_jsonb(r) FROM
 \echo       break;
 \echo     case "shared_buffers":
 \echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
+\echo       if( totMem > 0 && ( totMem < val.text()*8*0.2/1048576 || totMem > val.text()*8*0.3/1048576 )) 
+\echo         val.addClass("warn").prop("title","Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.text()*8192,1024) + " appears to be off" )
 \echo       break;
 \echo     case "max_connections":
-\echo       val.addClass("lime").prop("title",val.text());
+\echo       val.addClass("lime").prop("title","Avoid value exceeding 10x of the CPUs")
+\echo       if( totCPU > 0 && val.text() > 10 * totCPU ) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
 \echo       if(val.text() > 500) val.addClass("warn");
 \echo       break;
 \echo     case "max_wal_size":
