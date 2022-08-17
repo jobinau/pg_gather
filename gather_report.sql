@@ -3,17 +3,19 @@
 \echo <html><meta charset="utf-8" />
 \echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
-\echo table, th, td { border: 1px solid black; border-collapse: collapse; }
-\echo th {background-color: #d2f2ff;}
+\echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
+\echo th {background-color: #d2f2ff;cursor: pointer; }
 \echo tr:nth-child(even) {background-color: #eef8ff}
-\echo th { cursor: pointer;}
 \echo tr:hover { background-color: #FFFFCA}
 \echo caption { font-size: larger }
 \echo .warn { font-weight:bold; background-color: #FAA }
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold}
-\echo .lineblk {float: left; margin:5px }
+\echo .lineblk {float: left; margin:0 9px 4px 0 }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
+\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
+\echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
+\echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo </style>
 \H
 \pset footer off 
@@ -34,23 +36,33 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
   "SOMETHING WENT WRONG WHILE IMPORTING THE DATA. PLEASE MAKE SURE THAT ALL TABLES ARE DROPPED AND RECREATED AS PART OF IMPORTING";
   \q
 \endif
-WITH TZ AS (SELECT set_config('timezone',setting,false) AS val FROM  pg_get_confs WHERE name='log_timezone')
+\set tzone `echo "$PG_GATHER_TIMEZONE"`
+SELECT * FROM 
+(WITH TZ AS (SELECT CASE WHEN :'tzone' = ''
+    THEN (SELECT set_config('timezone',setting,false) FROM pg_get_confs WHERE name='log_timezone')
+    ELSE  set_config('timezone',:'tzone',false) 
+  END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report Version V15"
-FROM pg_gather LEFT JOIN TZ ON TRUE;
-SELECT replace(connstr,'You are connected to ','') "pg_gather Connection and PostgreSQL Server info" FROM pg_srvr; 
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v15"
+FROM pg_gather LEFT JOIN TZ ON TRUE 
+UNION
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v15" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs"'
-SELECT datname DB,xact_commit commits,xact_rollback rollbacks,tup_inserted+tup_updated+tup_deleted transactions, CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  hit_ratio,temp_files,temp_bytes,db_size,age FROM pg_get_db;
+SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",temp_files "Temp Files",temp_bytes "Temp Bytes",db_size "DB size",age "Age" FROM pg_get_db;
 \pset tableattr off
 
-\echo <button id="tog" style="display: block;clear: both">[+]</button>
-\echo <div id="divins" style="display:none">
-\echo <h2>Manual input about host resources</h2>
-\echo <p>You may input CPU and Memory in the host machine / vm which will be used for analysis</p>
-\echo  <label for="cpus">CPUs</label>
-\echo  <input type="number" id="cpus" name="cpus" value="8">
-\echo  <label for="mem">Memory in GB</label>
-\echo  <input type="number" id="mem" name="mem" value="32">
+\echo <div>
+\echo <details style="clear: left; width: fit-content;">
+\echo   <summary>Tune PostgreSQL Parameters (beta)</summary>
+\echo   <label for="cpus">CPUs:
+\echo   <input type="number" id="cpus" name="cpus" value="0">
+\echo   </label>
+\echo   <label for="mem" style="padding-left: 3em;">Memory(GB):
+\echo   <input type="number" id="mem" name="mem" value="0">
+\echo  </label>
+\echo  <p style="border: 2px solid blue; border-radius: 5px; padding: 1em;">Please input the CPU and Memory available on the host machine for evaluating the current parameter settings<br />
+\echo   Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
+\echo </details>
 \echo </div>
 \echo <h2 id="topics">Sections</h2>
 \echo <ol>
@@ -106,6 +118,7 @@ SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion F
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
 \echo <h2 id="activiy">Session Summary</h2>
 \pset footer off
+\pset tableattr 'id="tblss"'
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
@@ -233,37 +246,61 @@ SELECT to_jsonb(r) FROM
     FROM pg_get_activity
     LEFT JOIN g ON true
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
-    AND backend_type='client backend') cn) AS cn
+    AND backend_type='client backend') cn) AS cn,
+  (select count(*) from pg_get_class where relkind='p') as ptabs,
+  (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
+   count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
+   count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
+  FROM pg_get_activity) as sess
 ) r;
 
 \echo </div>
 \echo <script type="text/javascript">
 \echo obj={};
 \echo autovacuum_freeze_max_age = 0;
+\echo totdb=0;
+\echo totCPU=0;
+\echo totMem=0;
 \echo $(function() { 
 \echo $("#busy").hide();
 \echo obj=JSON.parse($("#analdata").html());
 \echo checkpars();
 \echo checktabs();
+\echo checkdbs();
 \echo checkfindings();
 \echo });
 \echo function checkfindings(){
 \echo   if (obj.cn.f1 > 0){
 \echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
 \echo     if (obj.cn.f2/obj.cn.f1 > 0.7 ){
-\echo       str=str+"<b> Poor Connection Persistance.</b> Please improve connection pooling"
+\echo       str=str+"<b> Poor Connection Persistence.</b> Please improve connection pooling"
 \echo     } else {
-\echo       str=str+"Good connection Persinstance."
+\echo       str=str+"Good connection Persistence."
 \echo     }
+\echo     $("#finditem").append("<li>"+ str +"</li>")
 \echo   }
-\echo   $("#finditem").append("<li>"+ str +"</li>")
+\echo   if (obj.ptabs > 0){
+\echo     $("#finditem").append("<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>")
+\echo   }
+\echo   //Add footer to database details table at the top
+\echo   var el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='9'>Total DB size : "+ bytesToSize(totdb) +"</th>";
+\echo   dbs=document.getElementById("dbs");
+\echo   dbs.appendChild(el);
+\echo   //Add footer to Sessions Summary table
+\echo   el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
+\echo   tblss=document.getElementById("tblss");
+\echo   tblss.appendChild(el);
 \echo }
-\echo $("input").change(function(){  alert("Number changed"); }); 
-\echo $("#tog").click(function(){
-\echo         $("#divins").toggle("slow",function(){
-\echo         if($("#divins").is(":visible")) $("#tog").text("[-]"); 
-\echo         else $("#tog").text("[+]"); 
-\echo     }) });
+\echo document.getElementById("cpus").addEventListener("change", (event) => {
+\echo   totCPU = event.target.value;
+\echo   checkpars();
+\echo });
+\echo document.getElementById("mem").addEventListener("change", (event) => {
+\echo   totMem = event.target.value;
+\echo   checkpars();
+\echo });
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
 \echo   if (bytes == 0) return "0B";
@@ -307,10 +344,16 @@ SELECT to_jsonb(r) FROM
 \echo       break;
 \echo     case "shared_buffers":
 \echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
+\echo       if( totMem > 0 && ( totMem < val.text()*8*0.2/1048576 || totMem > val.text()*8*0.3/1048576 )) 
+\echo         val.addClass("warn").prop("title","Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.text()*8192,1024) + " appears to be off" )
 \echo       break;
 \echo     case "max_connections":
-\echo       val.addClass("lime").prop("title",val.text());
-\echo       if(val.text() > 500) val.addClass("warn");
+\echo       val.prop("title","Avoid value exceeding 10x of the CPUs")
+\echo       if( totCPU > 0 ){
+\echo         if(val.text() > 10 * totCPU) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
+\echo         else val.removeClass("warn").addClass("lime").prop("title","Current value is good")
+\echo       } else if (val.text() > 500) val.addClass("warn")
+\echo       else val.addClass("lime")
 \echo       break;
 \echo     case "max_wal_size":
 \echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024*1024,1024));
@@ -343,18 +386,28 @@ SELECT to_jsonb(r) FROM
 \echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
 \echo });
 \echo }
+\echo function checkdbs(){
 \echo $("#dbs tr").each(function(){
-\echo   $(this).find("td:nth-child(7),td:nth-child(8)").each(function(){
-\echo     if( Number($(this).html()) > 1048576 )  //more than 1 MB
-\echo       $(this).addClass("lime").prop("title",bytesToSize(Number($(this).html())));
-\echo   });
-\echo   if (Number($(this).children().eq(8).html()) > 400000000) $(this).children().eq(8).addClass("warn").prop("title", "Age :" + Number($(this).children().eq(8).html()).toLocaleString("en-US"));
+\echo   $tr=$(this).children();
+\echo   if ($tr.eq(7).html() > 0 ) { 
+\echo    totdb=totdb+Number($tr.eq(7).html());
+\echo    if($tr.eq(6).html() > 1048576 ) $tr.eq(6).addClass("lime").prop("title",bytesToSize(Number($tr.eq(6).html())));
+\echo    if($tr.eq(7).html() > 1048576 ) $tr.eq(7).addClass("lime").prop("title",bytesToSize(Number($tr.eq(7).html())));
+\echo    if (Number($tr.eq(8).html()) > autovacuum_freeze_max_age ) $tr.eq(8).addClass("warn").prop("title", "Age :" + Number($tr.eq(8).html()).toLocaleString("en-US"));
+\echo   }
 \echo });
+\echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
 \echo   const table = th.closest(''''table'''');
 \echo   th.style.cursor = "progress";
+\echo   var el=document.createElement("div");
+\echo   el.setAttribute("id", "cur");
+\echo   if (this.asc) el.textContent = "⬆";
+\echo   else el.textContent = "⬇";
+\echo   th.appendChild(el);
+\echo   setTimeout(() => { el.remove();},1000);
 \echo   setTimeout(function (){
 \echo   Array.from(table.querySelectorAll(''''tr:nth-child(n+2)'''')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
 \echo   setTimeout(function(){th.style.cursor = "pointer";},10);
@@ -420,15 +473,19 @@ SELECT to_jsonb(r) FROM
 \echo     }
 \echo   }
 \echo }
-\echo if ($("#tblreplstat tr").length > 1){
-\echo   $("#tblreplstat tr").each(function(){
-\echo     $(this).children().eq(3).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(3).html()),1024));
-\echo     $(this).children().eq(4).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(4).html()),1024));
-\echo     $(this).children().eq(5).addClass("lime").prop("title",bytesToSize(Number($(this).children().eq(5).html()),1024));
-\echo   });
+\echo tab=document.getElementById("tblreplstat")
+\echo if (tab.rows.length > 1){
+\echo   for(var i=1;i<tab.rows.length;i++){
+\echo     row=tab.rows[i]
+\echo     for(var j=3;j<6;j++){
+\echo       cell=row.cells[j]; cell.classList.add("lime")
+\echo       cell.title=bytesToSize(Number(cell.innerText),1024)
+\echo    }
+\echo   }
 \echo }else{
-\echo   $("#tblreplstat").remove();
-\echo   $("#replstat").text("No Replication found");
+\echo   tab.remove()
+\echo   h2=document.getElementById("replstat")
+\echo   h2.innerText="No Replication found"
 \echo }
 \echo $(document).keydown(function(event) {
 \echo     if (event.altKey && event.which === 73)
