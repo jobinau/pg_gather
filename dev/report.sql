@@ -348,9 +348,12 @@ SELECT to_jsonb(r) FROM
 \echo         val.addClass("warn").prop("title","Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.text()*8192,1024) + " appears to be off" )
 \echo       break;
 \echo     case "max_connections":
-\echo       val.addClass("lime").prop("title","Avoid value exceeding 10x of the CPUs")
-\echo       if( totCPU > 0 && val.text() > 10 * totCPU ) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
-\echo       if(val.text() > 500) val.addClass("warn");
+\echo       val.prop("title","Avoid value exceeding 10x of the CPUs")
+\echo       if( totCPU > 0 ){
+\echo         if(val.text() > 10 * totCPU) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
+\echo         else val.removeClass("warn").addClass("lime").prop("title","Current value is good")
+\echo       } else if (val.text() > 500) val.addClass("warn")
+\echo       else val.addClass("lime")
 \echo       break;
 \echo     case "max_wal_size":
 \echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024*1024,1024));

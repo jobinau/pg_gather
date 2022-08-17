@@ -385,9 +385,12 @@ $("#params tr").each(function(){
         val.addClass("warn").prop("title","Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.text()*8192,1024) + " appears to be off" )
       break;
     case "max_connections":
-      val.addClass("lime").prop("title","Avoid value exceeding 10x of the CPUs")
-      if( totCPU > 0 && val.text() > 10 * totCPU ) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
-      if(val.text() > 500) val.addClass("warn");
+      val.prop("title","Avoid value exceeding 10x of the CPUs")
+      if( totCPU > 0 ){
+        if(val.text() > 10 * totCPU) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
+        else val.removeClass("warn").addClass("lime").prop("title","Current value is good")
+      } else if (val.text() > 500) val.addClass("warn")
+      else val.addClass("lime")
       break;
     case "max_wal_size":
       val.addClass("lime").prop("title",bytesToSize(val.text()*1024*1024,1024));
