@@ -269,14 +269,21 @@ totMem=0;
 
 
 //when the DOM is ready
-$(function() { 
-$("#busy").hide();
+document.addEventListener("DOMContentLoaded", () => {
 obj=JSON.parse($("#analdata").html());
 checkpars();
 checktabs();
 checkdbs();
 checkfindings();
 });
+
+window.onload = function() {
+// can also use window.addEventListener('load', (event) => {
+  document.getElementById("busy").style="display:none";
+//  $("#busy").hide();
+};
+
+
 
 //check the obj content and display findings messages accordingly
 function checkfindings(){
@@ -318,15 +325,6 @@ document.getElementById("mem").addEventListener("change", (event) => {
 });
 
 
-
-//Event handlers
-// $("input").change(function(){  alert("Number changed"); }); 
-// $("#tog").click(function(){
-//         $("#divins").toggle("slow",function(){
-//         if($("#divins").is(":visible")) $("#tog").text("[-]"); 
-//         else $("#tog").text("[+]"); 
-//     }) });
-
 //Convert bytes into human readable formats
 function bytesToSize(bytes,divisor = 1000) {
   const sizes = ["B","KB","MB","GB","TB"];
@@ -342,11 +340,72 @@ function DurationtoSeconds(duration){
     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 };
 
-//Global variable to hold autovacuum_max_age
+
+function checkpars(){
+  const startTime =new Date().getTime();
+  trs=document.getElementById("params").rows
+  for(var i=1;i<trs.length;i++){
+    tr=trs[i]; nm=tr.cells[0]; val=tr.cells[1];
+    switch(nm.innerText){
+      case "autovacuum" :
+        if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
+        break;
+      case "autovacuum_max_workers" :
+        if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
+        break;
+      case "autovacuum_vacuum_cost_limit" :
+        if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Consider a value less than 800" }
+        break;
+      case "autovacuum_freeze_max_age" :
+        autovacuum_freeze_max_age = Number(val.innerText);
+        if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
+        break;
+      case "deadlock_timeout":
+        val.classList.add("lime");
+        break;
+      case "effective_cache_size":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+        break;
+      case "maintenance_work_mem":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+        break;
+      case "work_mem":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+        if(val.innerText > 98304) val.classList.add("warn");
+        break;
+      case "shared_buffers":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+        if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+          { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+        break;
+      case "max_connections":
+        val.title="Avoid value exceeding 10x of the CPUs"
+        if( totCPU > 0 ){
+          if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
+          else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+        } else if (val.innerText > 500) val.classList.add("warn")
+        else val.classList.add("lime")
+        break;
+      case "max_wal_size":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
+        if(val.innerText < 10240) val.classList.add("warn");
+        break;
+      case "random_page_cost":
+        if(val.innerText > 1.2) val.classList.add("warn");
+        break;
+      case "server_version":
+        val.classList.add("lime");
+        break;
+    }
+  }
+const endTime = new Date().getTime();
+console.log("time taken :" + (endTime - startTime));
+}
 
 
 //parameter checking
-function checkpars(){
+function checkpars1(){
+const startTime =new Date().getTime();
 $("#params tr").each(function(){
   let val=$(this).children().eq(1)
 //console.log("going to print tabs");
@@ -404,6 +463,8 @@ $("#params tr").each(function(){
       break;
   }
 });
+const endTime = new Date().getTime();
+console.log("time taken :" + (endTime - startTime));
 }
 
 function checktabs(){

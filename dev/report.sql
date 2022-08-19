@@ -261,14 +261,16 @@ SELECT to_jsonb(r) FROM
 \echo totdb=0;
 \echo totCPU=0;
 \echo totMem=0;
-\echo $(function() { 
-\echo $("#busy").hide();
+\echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse($("#analdata").html());
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
 \echo checkfindings();
 \echo });
+\echo window.onload = function() {
+\echo   document.getElementById("busy").style="display:none";
+\echo };
 \echo function checkfindings(){
 \echo   if (obj.cn.f1 > 0){
 \echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
@@ -313,6 +315,67 @@ SELECT to_jsonb(r) FROM
 \echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
 \echo function checkpars(){
+\echo   const startTime =new Date().getTime();
+\echo   trs=document.getElementById("params").rows
+\echo   for(var i=1;i<trs.length;i++){
+\echo     tr=trs[i]; nm=tr.cells[0]; val=tr.cells[1];
+\echo     switch(nm.innerText){
+\echo       case "autovacuum" :
+\echo         if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
+\echo         break;
+\echo       case "autovacuum_max_workers" :
+\echo         if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
+\echo         break;
+\echo       case "autovacuum_vacuum_cost_limit" :
+\echo         if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Consider a value less than 800" }
+\echo         break;
+\echo       case "autovacuum_freeze_max_age" :
+\echo         autovacuum_freeze_max_age = Number(val.innerText);
+\echo         if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
+\echo         break;
+\echo       case "deadlock_timeout":
+\echo         val.classList.add("lime");
+\echo         break;
+\echo       case "effective_cache_size":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo         break;
+\echo       case "maintenance_work_mem":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         break;
+\echo       case "work_mem":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         if(val.innerText > 98304) val.classList.add("warn");
+\echo         break;
+\echo       case "shared_buffers":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo         if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+\echo           { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+\echo         break;
+\echo       case "max_connections":
+\echo         val.title="Avoid value exceeding 10x of the CPUs"
+\echo         if( totCPU > 0 ){
+\echo           if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
+\echo           else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+\echo         } else if (val.innerText > 500) val.classList.add("warn")
+\echo         else val.classList.add("lime")
+\echo         break;
+\echo       case "max_wal_size":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
+\echo         if(val.innerText < 10240) val.classList.add("warn");
+\echo         break;
+\echo       case "random_page_cost":
+\echo         if(val.innerText > 1.2) val.classList.add("warn");
+\echo         break;
+\echo       case "server_version":
+\echo         val.classList.add("lime");
+\echo         break;
+\echo     }
+\echo   }
+\echo const endTime = new Date().getTime();
+\echo console.log("time taken :" + (endTime - startTime));
+\echo }
+\echo function checkpars1(){
+\echo const startTime =new Date().getTime();
 \echo $("#params tr").each(function(){
 \echo   let val=$(this).children().eq(1)
 \echo   switch($(this).children().eq(0).text()) {
@@ -367,6 +430,8 @@ SELECT to_jsonb(r) FROM
 \echo       break;
 \echo   }
 \echo });
+\echo const endTime = new Date().getTime();
+\echo console.log("time taken :" + (endTime - startTime));
 \echo }
 \echo function checktabs(){
 \echo $("#tabInfo tr").each(function(){

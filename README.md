@@ -119,11 +119,11 @@ Finished generating report in /tmp/custom-name.html
 ```
 # Advanced configurations
 ## Timezone 
-By default, the `g_gather` report will be on the same time zone as the server. because it considers the `log_timezone` paramter for generating the report. This helps to compare the PostgreSQL log entries with `pg_gather` report.
-However, this many not be right timezone for few users. especially when they use cloud hostings. `pg_gather` allows to have a custom timezone by setting the environment variable `PG_GATHER_TIMEZONE` to override the default. For example,
+By default, the `g_gather` report uses the same timezone of the server from the data is collected, because it considers the `log_timezone` paramter for generating the report. This helps to compare the PostgreSQL log entries with `pg_gather` report.
+However, this many not be right timezone for few users. especially when they use cloud hostings. The `pg_gather` allows to have a custom timezone by setting the environment variable `PG_GATHER_TIMEZONE` to override the default. For example,
 ```
 export PG_GATHER_TIMEZONE='UTC'
 ```
-
+Please use the timezone name or abbriviation available from `pg_timezone_names`
 # Demonstration
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/k1pnXuJAl40/0.jpg)](https://www.youtube.com/watch?v=k1pnXuJAl40)
