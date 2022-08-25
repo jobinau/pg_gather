@@ -86,7 +86,7 @@ SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_ins
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
 \echo Objects other than tables will be marked with their relkind in brackets</p>
 \pset footer on
-\pset tableattr 'id="tabInfo"'
+\pset tableattr 'id="tabInfo" style="display:none"'
 SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN ' ('||(r.blks-tb.est_pages)*100/r.blks||'% bloat*)' ELSE '' END "Name" ,
 r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
@@ -101,7 +101,7 @@ ORDER BY r.tab_ind_size DESC LIMIT 10000;
 \pset tableattr
 \echo <h2 id="indexes">Indexes</h2>
 \pset tableattr 'id="IndInfo"'
-SELECT ct.relname AS "Table", ci.relname as "Index",indisunique,indisprimary,numscans,size
+SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size
   FROM pg_get_index i 
   JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
@@ -261,14 +261,17 @@ SELECT to_jsonb(r) FROM
 \echo totdb=0;
 \echo totCPU=0;
 \echo totMem=0;
-\echo $(function() { 
-\echo $("#busy").hide();
+\echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse($("#analdata").html());
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
 \echo checkfindings();
 \echo });
+\echo window.onload = function() {
+\echo   document.getElementById("tabInfo").style="display:table";
+\echo   document.getElementById("busy").style="display:none";
+\echo };
 \echo function checkfindings(){
 \echo   if (obj.cn.f1 > 0){
 \echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
@@ -313,62 +316,90 @@ SELECT to_jsonb(r) FROM
 \echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
 \echo function checkpars(){
-\echo $("#params tr").each(function(){
-\echo   let val=$(this).children().eq(1)
-\echo   switch($(this).children().eq(0).text()) {
-\echo     case "autovacuum" :
-\echo       if(val.text() != "on") val.addClass("warn");
-\echo       break;
-\echo     case "autovacuum_max_workers" :
-\echo       if(val.text() > 5) val.addClass("warn");
-\echo       break;
-\echo     case "autovacuum_vacuum_cost_limit" :
-\echo       if(val.text() > 500) val.addClass("warn");
-\echo       break;
-\echo     case "autovacuum_freeze_max_age" :
-\echo       autovacuum_freeze_max_age = Number(val.text());
-\echo       if (autovacuum_freeze_max_age > 800000000) val.addClass("warn");
-\echo       break;
-\echo     case "deadlock_timeout":
-\echo       val.addClass("lime").prop("title",$(this).children().eq(2).text());
-\echo       break;
-\echo     case "effective_cache_size":
-\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
-\echo       break;
-\echo     case "maintenance_work_mem":
-\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
-\echo       break;
-\echo     case "work_mem":
-\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024,1024));
-\echo       if(val.text() > 98304) val.addClass("warn");
-\echo       break;
-\echo     case "shared_buffers":
-\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*8192,1024));
-\echo       if( totMem > 0 && ( totMem < val.text()*8*0.2/1048576 || totMem > val.text()*8*0.3/1048576 )) 
-\echo         val.addClass("warn").prop("title","Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.text()*8192,1024) + " appears to be off" )
-\echo       break;
-\echo     case "max_connections":
-\echo       val.prop("title","Avoid value exceeding 10x of the CPUs")
-\echo       if( totCPU > 0 ){
-\echo         if(val.text() > 10 * totCPU) val.addClass("warn").prop("title","If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability")
-\echo         else val.removeClass("warn").addClass("lime").prop("title","Current value is good")
-\echo       } else if (val.text() > 500) val.addClass("warn")
-\echo       else val.addClass("lime")
-\echo       break;
-\echo     case "max_wal_size":
-\echo       val.addClass("lime").prop("title",bytesToSize(val.text()*1024*1024,1024));
-\echo       if(val.text() < 10240) val.addClass("warn");
-\echo       break;
-\echo     case "random_page_cost":
-\echo       if(val.text() > 1.2) val.addClass("warn");
-\echo       break;
-\echo     case "server_version":
-\echo       val.addClass("lime");
-\echo       break;
+\echo   const startTime =new Date().getTime();
+\echo   trs=document.getElementById("params").rows
+\echo   for(var i=1;i<trs.length;i++){
+\echo     tr=trs[i]; nm=tr.cells[0]; val=tr.cells[1];
+\echo     switch(nm.innerText){
+\echo       case "autovacuum" :
+\echo         if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
+\echo         break;
+\echo       case "autovacuum_max_workers" :
+\echo         if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
+\echo         break;
+\echo       case "autovacuum_vacuum_cost_limit" :
+\echo         if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Consider a value less than 800" }
+\echo         break;
+\echo       case "autovacuum_freeze_max_age" :
+\echo         autovacuum_freeze_max_age = Number(val.innerText);
+\echo         if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
+\echo         break;
+\echo       case "deadlock_timeout":
+\echo         val.classList.add("lime");
+\echo         break;
+\echo       case "effective_cache_size":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo         break;
+\echo       case "maintenance_work_mem":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         break;
+\echo       case "work_mem":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         if(val.innerText > 98304) val.classList.add("warn");
+\echo         break;
+\echo       case "shared_buffers":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo         if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+\echo           { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+\echo         break;
+\echo       case "max_connections":
+\echo         val.title="Avoid value exceeding 10x of the CPUs"
+\echo         if( totCPU > 0 ){
+\echo           if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
+\echo           else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+\echo         } else if (val.innerText > 500) val.classList.add("warn")
+\echo         else val.classList.add("lime")
+\echo         break;
+\echo       case "max_wal_size":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
+\echo         if(val.innerText < 10240) val.classList.add("warn");
+\echo         break;
+\echo       case "random_page_cost":
+\echo         if(val.innerText > 1.2) val.classList.add("warn");
+\echo         break;
+\echo       case "server_version":
+\echo         val.classList.add("lime");
+\echo         break;
+\echo     }
 \echo   }
-\echo });
+\echo const endTime = new Date().getTime();
+\echo console.log("time taken :" + (endTime - startTime));
+\echo }
+\echo function aged(cell){
+\echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US"); }
 \echo }
 \echo function checktabs(){
+\echo   const startTime =new Date().getTime();
+\echo   const trs=document.getElementById("tabInfo").rows
+\echo   const len=trs.length;
+\echo   for(var i=1;i<len;i++){
+\echo   //TODO : trs.forEach (convert the for loop to forEach if possible)
+\echo     tr=trs[i]; let TotTab=tr.cells[6]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[7]; TabIndSize=(TabInd.innerHTML);
+\echo     if(TotTabSize > 5000000000 ) { TotTab.classList.add("lime"); TotTab.title = bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge"; 
+\echo     } else TotTab.title=bytesToSize(TotTabSize);
+\echo     //Tab above 20MB and with Index bigger than Tab
+\echo     if( TabIndSize > 2*TotTabSize && TotTabSize > 2000000 ){ TabInd.classList.add("warn"); TabInd.title="Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize)
+\echo     } else TabInd.title=bytesToSize(TabIndSize); 
+\echo     //Tab+Ind > 10GB
+\echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
+\echo     aged(tr.cells[8]);
+\echo     aged(tr.cells[14]);
+\echo     aged(tr.cells[15]);
+\echo   }
+\echo const endTime = new Date().getTime();
+\echo console.log("time taken for checktabs :" + (endTime - startTime));
+\echo }
+\echo function checktabs1(){
 \echo $("#tabInfo tr").each(function(){
 \echo     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
 \echo     if( Number($(this).html()) > autovacuum_freeze_max_age )
