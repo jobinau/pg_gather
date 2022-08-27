@@ -6,8 +6,8 @@ Data Security is an area of paramount importance when it comes to information co
 Please refer the "information collected" section of this document for understading th data points 
 
 # Information masking
-Even though `pg_gather` collects only very minimal information from  **system catalog**, **performance**, **current session activity** and **configuration/parameter**, One might want to mask more information, especially on a highly secured enviroment. Since the `pg_gather` uses the TSV (Tab Seperated Value) frormat for the collected,  any tool or editor whith regular expression can  be used for data masking / trimming.  berfore transmitting the data.  
-For example,  
+Even though `pg_gather` collects only very minimal information from  **system catalog**, **performance**, **current session activity** and **configuration/parameter**, One might want to mask more information, especially on a highly secured enviroment. Since the `pg_gather` uses the TSV (Tab Seperated Value) frormat for the collected,  any tool or editor whith regular expression will be good for data masking / trimming berfore transmitting the data. Plase see the examples below. Just making sure that the "tab" characters which is used as the seperator is preserved is sufficient.
+
 ## 1. Masking SQL query statements
 By default, PostgreSQL removes bind values from query string bfore it is displayed in views like `pg_stat_activity`. So there is no visibility to data by default. Still a user may not want give full query string. Following is an example for truncating query string to 50 characters using `sed` utility before handing over the output file for analysis.
 ```

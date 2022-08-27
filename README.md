@@ -8,9 +8,9 @@ And another SQL script for generating detailed HTML report from the collected da
 
 # Highlights
 1. **Secure by Open :** Simple, Transperent, Fully auditable code.<br>
-   A SQL-only data collection script. Programs with control structures are avoided for improving the readabilty and code auditability.
+   A SQL-only data collection script. Ensures full transperancy about what is collected, transmitted and analyzed. Programs with control structures are avoided for improving the readabilty and auditability.
 2. **No Executables :** No executables need to be deployed on the database host<br>
-    Usage of executables on a secured environments posses risks and not acceptable in many environments
+    Usage of executables on a secured environments posses risks and not acceptable in many highly secure environments
 3. **Authentication agnostic**<br>
    Any authentication mechanism supported by PostgreSQL works for data gathering. So if `psql` is able to connect, data for analysis can be collected.
 4. **Any Operating System** <br>
@@ -18,7 +18,7 @@ And another SQL script for generating detailed HTML report from the collected da
    (Windows users may Refer the Notes section below)
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
-6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over for analysis.
+6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over or transmitting for analysis. Additional masking or trimming is also possible in [easy steps](docs/security.md)
 7. **Any cloud/container/k8s** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
    (Please see Heroku, AWS Aurora, Docker and K8s specific note in Notes section below)
 8. **Zero failure design** : A Successful report generation with available information happens even if the Data collection is partial or there was failures due to permission issues  or unavailability of tables / views or other reasons.
