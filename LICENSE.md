@@ -1,4 +1,4 @@
-Postgres License
+Postgres License  
 pg_gather is released under the PostgreSQL Licence. a liberal Open Source license, similar to the MIT license
 
 Copyright (c) 2020-2022 Jobin Augustine
