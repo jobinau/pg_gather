@@ -20,7 +20,7 @@ And another SQL script available for analyzing and generating detailed HTML repo
    x86-64 bit, ARM, Sparc, Power etc
 6. **Auditable and optionally maskable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over or transmitting for analysis. Additional masking or trimming is also possible in [easy steps](docs/security.md)
 7. **Any cloud/container/k8s** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
-   (Please see Heroku, AWS Aurora, Docker and K8s specific notes in the [Notes section](##Notes:) below)
+   (Please see Heroku, AWS Aurora, Docker and K8s specific notes in the [Notes section](#notes) below)
 8. **Zero failure design** : A Successful generation of a report with the available information happens even if the Data collection is partial or there were failures due to permission issues, unavailability of tables/views, or any other reasons.
 9. **Low overhead for data collection** :  Complex queries with join or sort operations is avoided for the data collection.  
 Data collection is separated from Data analysis by the very design itself. Analysis can happens on an independent system so that load of analysis queries won't adversely impact. Overhead of data collection is negligible in most of cases.
@@ -43,8 +43,7 @@ Recommended running the script as a privileged user (`superuser`, `rds_superuser
 
 This output file contains performance and configuration data for analysis  
 <a name="notes">
-## Notes: 
-</a>
+## Notes:</a> 
    1. There is a seperate `gather_old.sql` for **older** minimum support versions 9.5 and 9.6
    2. **Heroku** like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errosrs during the data collection. which can be ignored
    3. **MS Windows** users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
