@@ -1,36 +1,40 @@
 # pg_gather
-This is a SQL-only script for gathering performance and configuration data from PostgreSQL databases.  
-And another SQL script for generating detailed HTML report from the collected data. Yes SQL-Only!
+This is a single SQL-only script for gathering performance and configuration data from PostgreSQL databases.  
+And another SQL script available for analyzing and generating detailed HTML reports from the collected data. Yes, everything SQL-Only!, leveraging the features of `psql`-The command-line utility of PostgreSQL
 
-**Supported Versions** : PostgreSQL 10, 11, 12, 13 & 14  
+**Supported Versions** : PostgreSQL 10, 11, 12, 13, 14 & 15  
 **Minimum support versions** : PostgreSQL 9.5, 9.6
 
 
 # Highlights
 1. **Secure by Open :** Simple, Transperent, Fully auditable code.<br>
-   A SQL-only data collection script. Ensures full transperancy about what is collected, transmitted and analyzed. Programs with control structures are avoided for improving the readabilty and auditability.
+   A SQL-only data collection script. Ensures full transperancy about what is collected, transmitted and analyzed. Programs with control structures are avoided for improving the readabilty and auditability of the data collection.
 2. **No Executables :** No executables need to be deployed on the database host<br>
-    Usage of executables on a secured environments posses risks and not acceptable in many highly secure environments
+   Usage of executables in secured environments poses risks. It is not acceptable in many highly secure environments. `pg_gather` requires only the PostgreSQL command line utility `psql`
 3. **Authentication agnostic**<br>
-   Any authentication mechanism supported by PostgreSQL works for data gathering. So if `psql` is able to connect, data for analysis can be collected.
+   Any authentication mechanism supported by PostgreSQL works for data gathering of `pg_gather`. 
 4. **Any Operating System** <br>
-   Linux 32 / 64 bit, SunSolaris, Apple macOS, Microsoft Windows. Works everywhere where `psql` is available  
+   Linux 32 / 64 bit, SunSolaris, Apple macOS, Microsoft Windows. Works everywhere `psql` is available  
    (Windows users may Refer the Notes section below)
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
-6. **Auditable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over or transmitting for analysis. Additional masking or trimming is also possible in [easy steps](docs/security.md)
+6. **Auditable and optionally maskable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over or transmitting for analysis. Additional masking or trimming is also possible in [easy steps](docs/security.md)
 7. **Any cloud/container/k8s** : Works with AWS RDS, Google Cloud SQL, On-Prim etc<br> 
-   (Please see Heroku, AWS Aurora, Docker and K8s specific note in Notes section below)
-8. **Zero failure design** : A Successful report generation with available information happens even if the Data collection is partial or there was failures due to permission issues  or unavailability of tables / views or other reasons.
+   (Please see Heroku, AWS Aurora, Docker and K8s specific notes in the [Notes section](##Notes:) below)
+8. **Zero failure design** : A Successful generation of a report with the available information happens even if the Data collection is partial or there were failures due to permission issues, unavailability of tables/views, or any other reasons.
+9. **Low overhead for data collection** :  Complex queries with join or sort operations is avoided for the data collection.  
+Data collection is separated from Data analysis by the very design itself. Analysis can happens on an independent system so that load of analysis queries won't adversely impact. Overhead of data collection is negligible in most of cases.
+10. **Small, single file data dump** : Data reundancy is avoied as much as possible to generate smallest file possible, which can be further compressable by `gzip` to few kilobytes or MBs for easy transmission.
+  
 
 # How to Use
 
 # 1. Data Gathering.
-Inorder to gather the configuration and Performance information, the `gather.sql` script need be executed against the database using `psql` as follows
+Inorder to gather the configuration and Performance information, the `gather.sql` script need be executed against the database using `psql` as follows:
 ```
 psql <connection_parameters_if_any> -X -f gather.sql > out.txt
 ```
-OR ALTERNATIVELY a gzip file
+OR ALTERNATIVELY pipe to a compression utilty to get a compressed output as follows:
 ```
 psql <connection_parameters_if_any> -X -f gather.sql | gzip > out.txt.gz
 ```
@@ -38,10 +42,11 @@ This script may take 20+ seconds to execute as there are sleeps/delays within. <
 Recommended running the script as a privileged user (`superuser`, `rds_superuser` etc) or some account with `pg_monitor` privilege.  
 
 This output file contains performance and configuration data for analysis  
-
+<a name="notes">
 ## Notes: 
+</a>
    1. There is a seperate `gather_old.sql` for **older** minimum support versions 9.5 and 9.6
-   2. **Heroku** like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errors during the data collection. which can be ignored
+   2. **Heroku** like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errosrs during the data collection. which can be ignored
    3. **MS Windows** users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
    ```
      "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
