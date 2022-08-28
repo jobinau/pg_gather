@@ -431,33 +431,17 @@ const endTime = new Date().getTime();
 console.log("time taken for checktabs :" + (endTime - startTime));
 }
 
-//New checkdbs
+//Inspect database level info
 function checkdbs(){
   const trs=document.getElementById("dbs").rows
   const len=trs.length;
-  trs[0].cells[5].title="Average Temp generation Per Day";
-  trs[0].cells[6].title="Average Temp generation Per Day";
+  trs[0].cells[5].title="Average Temp generation Per Day"; trs[0].cells[6].title="Average Temp generation Per Day";
   for(var i=1;i<len;i++){
     tr=trs[i];
     [6,7].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
     totdb=totdb+Number(tr.cells[7].innerText);
     aged(tr.cells[8]);
   }  
-}
-
-
-//Inspect database level info
-//TODO : Use the "aged" for checking age of database
-function checkdbs1(){
-$("#dbs tr").each(function(){
-  $tr=$(this).children();
-  if ($tr.eq(7).html() > 0 ) { 
-   totdb=totdb+Number($tr.eq(7).html());
-   if($tr.eq(6).html() > 1048576 ) $tr.eq(6).addClass("lime").prop("title",bytesToSize(Number($tr.eq(6).html())));
-   if($tr.eq(7).html() > 1048576 ) $tr.eq(7).addClass("lime").prop("title",bytesToSize(Number($tr.eq(7).html())));
-   if (Number($tr.eq(8).html()) > autovacuum_freeze_max_age ) $tr.eq(8).addClass("warn").prop("title", "Age :" + Number($tr.eq(8).html()).toLocaleString("en-US"));
-  }
-});
 }
 
 //Sort logic

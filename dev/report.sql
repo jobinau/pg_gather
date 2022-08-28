@@ -405,25 +405,13 @@ SELECT to_jsonb(r) FROM
 \echo function checkdbs(){
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
-\echo   trs[0].cells[5].title="Average Temp generation Per Day";
-\echo   trs[0].cells[6].title="Average Temp generation Per Day";
+\echo   trs[0].cells[5].title="Average Temp generation Per Day"; trs[0].cells[6].title="Average Temp generation Per Day";
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     [6,7].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
 \echo     totdb=totdb+Number(tr.cells[7].innerText);
 \echo     aged(tr.cells[8]);
 \echo   }  
-\echo }
-\echo function checkdbs1(){
-\echo $("#dbs tr").each(function(){
-\echo   $tr=$(this).children();
-\echo   if ($tr.eq(7).html() > 0 ) { 
-\echo    totdb=totdb+Number($tr.eq(7).html());
-\echo    if($tr.eq(6).html() > 1048576 ) $tr.eq(6).addClass("lime").prop("title",bytesToSize(Number($tr.eq(6).html())));
-\echo    if($tr.eq(7).html() > 1048576 ) $tr.eq(7).addClass("lime").prop("title",bytesToSize(Number($tr.eq(7).html())));
-\echo    if (Number($tr.eq(8).html()) > autovacuum_freeze_max_age ) $tr.eq(8).addClass("warn").prop("title", "Age :" + Number($tr.eq(8).html()).toLocaleString("en-US"));
-\echo   }
-\echo });
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
