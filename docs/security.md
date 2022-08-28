@@ -21,7 +21,7 @@ sed -r -i 's/([0-9]{1,3}\.){3}([0-9]{1,3})/0.0.0.\2/g' out.txt
 ```
 ** IP addresess or the clients connecting to PostreSQL is important to understand those clients which are abusive. IP addresses gives vital information about application servers which has poor connection pooling. Masking the IP addresss can prevent many such analysis.
 
-## Information collected  
+## Information collected  (incomplete, work-in-progress)
 
 1. The name of the database to which user is connected  
    uses built-in function of PostgreSQL : `current_database()`

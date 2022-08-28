@@ -43,12 +43,15 @@ SELECT * FROM
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v15"
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v16b"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v15" IS NOT NULL ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16b" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs"'
-SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",temp_files "Temp Files",temp_bytes "Temp Bytes",db_size "DB size",age "Age" FROM pg_get_db;
+WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
+SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
+(temp_files/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint  "Avg.Temp Files",(temp_bytes/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
+FROM pg_get_db LEFT JOIN cts ON TRUE;
 \pset tableattr off
 
 \echo <div>
@@ -399,25 +402,19 @@ SELECT to_jsonb(r) FROM
 \echo const endTime = new Date().getTime();
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
 \echo }
-\echo function checktabs1(){
-\echo $("#tabInfo tr").each(function(){
-\echo     $(this).find("td:nth-child(9),td:nth-child(16)").each(function(){ // Age >  autovacuum_freeze_max_age, count column from 1
-\echo     if( Number($(this).html()) > autovacuum_freeze_max_age )
-\echo         $(this).addClass("warn").prop("title", "Age :" + Number($(this).html().trim()).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US") );
-\echo     });
-\echo     TotTab = $(this).children().eq(6);   //counting from 0
-\echo     TotTabSize = Number(TotTab.html());
-\echo     if( TotTabSize > 5000000000 ) TotTab.addClass("lime").prop("title", bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge" );
-\echo     else TotTab.prop("title",bytesToSize(TotTabSize));
-\echo     TabInd = $(this).children().eq(7);  //counting from 0
-\echo     TabIndSize = Number(TabInd.html());
-\echo     if(TabIndSize > TotTabSize*2 && TotTabSize > 2000000 )   //Tab above 20MB and with Index bigger than Tab
-\echo       TabInd.addClass("warn").prop("title", "Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " +  bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize));
-\echo     else  TabInd.prop("title",bytesToSize(TabIndSize));
-\echo     if (TabIndSize > 10000000000) TabInd.addClass("lime");  //Tab+Ind > 10GB
-\echo });
-\echo }
 \echo function checkdbs(){
+\echo   const trs=document.getElementById("dbs").rows
+\echo   const len=trs.length;
+\echo   trs[0].cells[5].title="Average Temp generation Per Day";
+\echo   trs[0].cells[6].title="Average Temp generation Per Day";
+\echo   for(var i=1;i<len;i++){
+\echo     tr=trs[i];
+\echo     [6,7].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
+\echo     totdb=totdb+Number(tr.cells[7].innerText);
+\echo     aged(tr.cells[8]);
+\echo   }  
+\echo }
+\echo function checkdbs1(){
 \echo $("#dbs tr").each(function(){
 \echo   $tr=$(this).children();
 \echo   if ($tr.eq(7).html() > 0 ) { 
