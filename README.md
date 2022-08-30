@@ -15,7 +15,7 @@ And another SQL script available for analyzing and generating detailed HTML repo
    Any authentication mechanism supported by PostgreSQL works for data gathering of `pg_gather`. 
 4. **Any Operating System** <br>
    Linux 32 / 64 bit, SunSolaris, Apple macOS, Microsoft Windows. Works everywhere `psql` is available  
-   (Windows users may Refer the Notes section below)
+   (Windows users may please refer the [Notes section](#notes) below)
 5. **Architecture agnostic**<br>
    x86-64 bit, ARM, Sparc, Power etc
 6. **Auditable and optionally maskable data** : Data is collected in a text file of Tab Seperated Values (TSV) format. Which makes it possible for reviewing and auditing the information before handing over or transmitting for analysis. Additional masking or trimming is also possible in [easy steps](docs/security.md)

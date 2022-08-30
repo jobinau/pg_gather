@@ -1,7 +1,6 @@
 \set QUIET 1
 \echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
-\echo <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 \echo <style>
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
 \echo th {background-color: #d2f2ff;cursor: pointer; }
@@ -85,11 +84,12 @@ FROM pg_get_db LEFT JOIN cts ON TRUE;
 \echo <div class="bottomright">
 \echo   <a href="#topics">Sections (Alt+I)</a>
 \echo </div>
+\echo <div id="sections" style="display:none">
 \echo <h2 id="tables">Tables</h2>
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
 \echo Objects other than tables will be marked with their relkind in brackets</p>
 \pset footer on
-\pset tableattr 'id="tabInfo" style="display:none"'
+\pset tableattr 'id="tabInfo"'
 SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN ' ('||(r.blks-tb.est_pages)*100/r.blks||'% bloat*)' ELSE '' END "Name" ,
 r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
@@ -258,6 +258,7 @@ SELECT to_jsonb(r) FROM
 ) r;
 
 \echo </div>
+\echo </div> <!--End of "sections"-->
 \echo <script type="text/javascript">
 \echo obj={};
 \echo autovacuum_freeze_max_age = 0;
@@ -265,14 +266,15 @@ SELECT to_jsonb(r) FROM
 \echo totCPU=0;
 \echo totMem=0;
 \echo document.addEventListener("DOMContentLoaded", () => {
-\echo obj=JSON.parse($("#analdata").html());
+\echo obj=JSON.parse( document.getElementById("analdata").innerText);
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
 \echo checkfindings();
 \echo });
 \echo window.onload = function() {
-\echo   document.getElementById("tabInfo").style="display:table";
+\echo   ["tabInfo","IndInfo","params","sections"].forEach(function(t) {document.getElementById(t).style="display:table";})
+\echo   document.getElementById("sections").style="display:table";
 \echo   document.getElementById("busy").style="display:none";
 \echo };
 \echo function checkfindings(){
@@ -283,11 +285,10 @@ SELECT to_jsonb(r) FROM
 \echo     } else {
 \echo       str=str+"Good connection Persistence."
 \echo     }
-\echo     $("#finditem").append("<li>"+ str +"</li>")
+\echo     //$("#finditem").append("<li>"+ str +"</li>")
+\echo     document.getElementById("finditem").innerHTML += "<li>"+ str +"</li>"
 \echo   }
-\echo   if (obj.ptabs > 0){
-\echo     $("#finditem").append("<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>")
-\echo   }
+\echo   if (obj.ptabs > 0) document.getElementById("finditem").innerHTML += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
 \echo   //Add footer to database details table at the top
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>Total DB size : "+ bytesToSize(totdb) +"</th>";
@@ -429,62 +430,67 @@ SELECT to_jsonb(r) FROM
 \echo   setTimeout(function(){th.style.cursor = "pointer";},10);
 \echo   },50);
 \echo })));
-\echo $("#IndInfo tr").each(function(){
-\echo   Scans = $(this).children().eq(4);
-\echo   if(Number(Scans.html()) == 0 ) Scans.addClass("warn").prop("title","Unused Index");
-\echo   IndSz = $(this).children().eq(5);
-\echo   IndSz.prop("title", bytesToSize(IndSz.html()));
-\echo   if (Number(IndSz.html()) > 2000000000)  IndSz.addClass("lime");
-\echo });
-\echo maxevnt = Number($("#tableConten tr").eq(1).children().eq(1).text());
-\echo $("#tableConten tr").each(function(){
-\echo   evnts = $(this).children().eq(1);
-\echo   if (Number(evnts.html()) > 0 )  evnts.append(''''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'''');
-\echo });
+\echo trs=document.getElementById("IndInfo").rows;
+\echo for (let tr of trs) {
+\echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
+\echo   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
+\echo   if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
+\echo }
+\echo trs=document.getElementById("tableConten").rows;
+\echo maxevnt=Number(trs[1].cells[1].innerText);
+\echo for (let tr of trs) {
+\echo   evnts=tr.cells[1];
+\echo   if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">''''
+\echo }
 \echo let blokers = []
 \echo let blkvictims = []
-\echo $("#tblblk tr").each(function(){
-\echo   victim =$(this).children().eq(0).text();
-\echo   blkr =$(this).children().eq(9).text();
+\echo trs=document.getElementById("tblblk").rows;
+\echo for (let tr of trs) {
+\echo   victim=tr.cells[0].innerText;
+\echo   blkr=tr.cells[9].innerText;
 \echo   if (victim > 0) blkvictims.push(victim);
 \echo   if (blkr > 0) blokers.push(blkr);
-\echo });
-\echo $("#tblsess tr").each(function(){
-\echo   pid = $(this).children().eq(0);
-\echo   stime = $(this).children().eq(7);
-\echo   xidage = $(this).children().eq(5);
-\echo   if (xidage.text() > 20) xidage.addClass("warn");
-\echo   if (blokers.indexOf(pid.text()) > -1){ 
-\echo      pid.addClass("warn").prop("title","Blocker")
-\echo      if (blkvictims.indexOf(pid.text()) == -1) pid.addClass("high");
+\echo }
+\echo trs=document.getElementById("tblsess").rows;
+\echo for (let tr of trs){
+\echo  pid=tr.cells[0];
+\echo  xidage=tr.cells[5];
+\echo  stime=tr.cells[7];
+\echo  if(xidage.innerText > 20) xidage.classList.add("warn");
+\echo  //if pid exists in blockers list
+\echo  if (blokers.indexOf(pid.innerText) > -1){ 
+\echo      pid.classList.add("warn"); pid.title="Blocker";
+\echo      //In case the pid is not there in vicitms list, it is the first blocker
+\echo      if (blkvictims.indexOf(pid.innerText) == -1) pid.classList.add("high");
 \echo   };
-\echo   if(DurationtoSeconds(stime.text()) > 300) stime.addClass("warn").prop("title","Busy");
-\echo });
-\echo if ($("#tblblk tr").length < 2){
-\echo   $("#tblblk").remove();
-\echo   $("#blocking").text("No Blocking Sessions Found");
+\echo   if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
 \echo }
-\echo if ($("#tblstmnt tr").length < 2){
-\echo   $("#tblstmnt").remove();
-\echo   $("#statements").text("pg_stat_statements info is not available");
+\echo if(document.getElementById("tblblk").rows.length < 2){ 
+\echo   document.getElementById("tblblk").remove();
+\echo   document.getElementById("blocking").innerText="No Blocking Sessions Found";
 \echo }
-\echo if ($("#tblchkpnt tr").length > 1){
-\echo   row=$("#tblchkpnt tr").eq(1)
-\echo   if (row.children().eq(0).text() > 10){
-\echo     row.children().eq(0).addClass("high").prop("title","More than 10% of forced checkpoints is not desirable, increase max_wal_size");
+\echo if(document.getElementById("tblstmnt").rows.length < 2){ 
+\echo   document.getElementById("tblstmnt").remove();
+\echo   document.getElementById("statements").innerText="pg_stat_statements info is not available"
+\echo }
+\echo trs=document.getElementById("tblchkpnt").rows;
+\echo if (trs.length > 1){
+\echo   tr=trs[1]
+\echo   if (tr.cells[0].innerText > 10){
+\echo     tr.cells[0].classList.add("high"); tr.cells[0].title="More than 10% of forced checkpoints is not desirable, increase max_wal_size";
 \echo   }
-\echo   if(row.children().eq(1).text() < 10 ){
-\echo     row.children().eq(1).addClass("high").prop("title","checkpoints are too frequent. consider checkpoint_timeout=1800");
+\echo   if(tr.cells[1].innerText < 10 ){
+\echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
 \echo   }
-\echo   if(row.children().eq(13).text() > 25){
-\echo     row.children().eq(13).addClass("high").prop("title","too many dirty pages cleaned by backends");
-\echo     if(row.children().eq(12).text() < 30){
-\echo       row.children().eq(12).addClass("high").prop("title","bgwriter is not efficient");
-\echo       if(row.children().eq(14).text() < 30){
-\echo         row.children().eq(14).addClass("high").prop("title","bgwriter could run more frequently. reduce bgwriter_delay");
+\echo   if(tr.cells[13].innerText > 25){
+\echo     tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends";
+\echo     if(tr.cells[12].innerText < 30){
+\echo       tr.cells[12].classList.add("high"); tr.cells[12].title="bgwriter is not efficient";
+\echo       if(tr.cells[14].innerText < 30){
+\echo         tr.cells[14].classList.add("high"); tr.cells[14].title="bgwriter could run more frequently. reduce bgwriter_delay";
 \echo       }
-\echo       if(row.children().eq(15).text() > 30){
-\echo         row.children().eq(15).addClass("high").prop("title","bgwriter halts too frequently. increase bgwriter_lru_maxpages");
+\echo       if(tr.cells[15].innerText > 30){
+\echo         tr.cells[15].classList.add("high"); tr.cells[15].title="bgwriter halts too frequently. increase bgwriter_lru_maxpages";
 \echo       }
 \echo     }
 \echo   }
@@ -503,12 +509,9 @@ SELECT to_jsonb(r) FROM
 \echo   h2=document.getElementById("replstat")
 \echo   h2.innerText="No Replication found"
 \echo }
-\echo $(document).keydown(function(event) {
-\echo     if (event.altKey && event.which === 73)
-\echo     {
-\echo       $("#topics").get(0).scrollIntoView();
-\echo       e.preventDefault();
-\echo     }
-\echo });
+\echo document.onkeyup = function(e) {
+\echo   if (e.altKey && e.which === 73) document.getElementById("topics").scrollIntoView({behavior: "smooth"});
+\echo   //       e.preventDefault();
+\echo }
 \echo </script>
 \echo </html>

@@ -1,7 +1,6 @@
 <% \set QUIET 1 %>
 <!DOCTYPE html>
 <html><meta charset="utf-8" />
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <style>
 table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
 th {background-color: #d2f2ff;cursor: pointer; }
@@ -85,11 +84,12 @@ FROM pg_get_db LEFT JOIN cts ON TRUE;
 <div class="bottomright">
   <a href="#topics">Sections (Alt+I)</a>
 </div>
+<div id="sections" style="display:none">
 <h2 id="tables">Tables</h2>
 <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
 Objects other than tables will be marked with their relkind in brackets</p>
 <% \pset footer on
-\pset tableattr 'id="tabInfo" style="display:none"'%>
+\pset tableattr 'id="tabInfo"'%>
 <% SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN ' ('||(r.blks-tb.est_pages)*100/r.blks||'% bloat*)' ELSE '' END "Name" ,
 r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
@@ -258,6 +258,7 @@ SELECT to_jsonb(r) FROM
 ) r;
 %>
 </div>
+</div> <!--End of "sections"-->
 <script type="text/javascript">
 //Global object to hold json values passed from the SQL analysis
 obj={};
@@ -273,7 +274,7 @@ totMem=0;
 
 //when the DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-obj=JSON.parse($("#analdata").html());
+obj=JSON.parse( document.getElementById("analdata").innerText);
 checkpars();
 checktabs();
 checkdbs();
@@ -282,7 +283,8 @@ checkfindings();
 
 window.onload = function() {
 // can also use window.addEventListener('load', (event) => {
-  document.getElementById("tabInfo").style="display:table";
+  ["tabInfo","IndInfo","params","sections"].forEach(function(t) {document.getElementById(t).style="display:table";})
+  document.getElementById("sections").style="display:table";
   document.getElementById("busy").style="display:none";
 };
 
@@ -296,12 +298,11 @@ function checkfindings(){
     } else {
       str=str+"Good connection Persistence."
     }
-    $("#finditem").append("<li>"+ str +"</li>")
+    //$("#finditem").append("<li>"+ str +"</li>")
+    document.getElementById("finditem").innerHTML += "<li>"+ str +"</li>"
   }
-  if (obj.ptabs > 0){
-    $("#finditem").append("<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>")
-  }
-
+  if (obj.ptabs > 0) document.getElementById("finditem").innerHTML += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+ 
   //Add footer to database details table at the top
   var el=document.createElement("tfoot");
   el.innerHTML = "<th colspan='9'>Total DB size : "+ bytesToSize(totdb) +"</th>";
@@ -458,75 +459,98 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
   setTimeout(() => { el.remove();},1000);
   setTimeout(function (){
   Array.from(table.querySelectorAll(''tr:nth-child(n+2)'')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
-//console.log(this.asc);
   setTimeout(function(){th.style.cursor = "pointer";},10);
   },50);
 })));
 
 //Index analysis
-$("#IndInfo tr").each(function(){
-  Scans = $(this).children().eq(4);
-  if(Number(Scans.html()) == 0 ) Scans.addClass("warn").prop("title","Unused Index");
-  IndSz = $(this).children().eq(5);
-  IndSz.prop("title", bytesToSize(IndSz.html()));
-  if (Number(IndSz.html()) > 2000000000)  IndSz.addClass("lime");
-});
-maxevnt = Number($("#tableConten tr").eq(1).children().eq(1).text());
-$("#tableConten tr").each(function(){
-  evnts = $(this).children().eq(1);
-  if (Number(evnts.html()) > 0 )  evnts.append(''<div style="display:inline-block;width:' + Number(evnts.html())*1500/maxevnt + 'px; border: 7px outset brown">'');
-});
+trs=document.getElementById("IndInfo").rows;
+for (let tr of trs) {
+  if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
+  tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
+  if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
+}
+
+// $("#IndInfo tr").each(function(){
+//   Scans = $(this).children().eq(4);
+//   if(Number(Scans.html()) == 0 ) Scans.addClass("warn").prop("title","Unused Index");
+//   IndSz = $(this).children().eq(5);
+//   IndSz.prop("title", bytesToSize(IndSz.html()));
+//   if (Number(IndSz.html()) > 2000000000)  IndSz.addClass("lime");
+// });
+
+//database time draw graph
+trs=document.getElementById("tableConten").rows;
+maxevnt=Number(trs[1].cells[1].innerText);
+for (let tr of trs) {
+  evnts=tr.cells[1];
+  if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">''
+}
+
+//Prepare the list of blockers and Victims
 let blokers = []
 let blkvictims = []
-$("#tblblk tr").each(function(){
-  victim =$(this).children().eq(0).text();
-  blkr =$(this).children().eq(9).text();
+trs=document.getElementById("tblblk").rows;
+for (let tr of trs) {
+  victim=tr.cells[0].innerText;
+  blkr=tr.cells[9].innerText;
   if (victim > 0) blkvictims.push(victim);
   if (blkr > 0) blokers.push(blkr);
-});
+}
+
 //Session information.
-$("#tblsess tr").each(function(){
-  pid = $(this).children().eq(0);
-  stime = $(this).children().eq(7);
-  xidage = $(this).children().eq(5);
-  if (xidage.text() > 20) xidage.addClass("warn");
-  if (blokers.indexOf(pid.text()) > -1){ 
-     pid.addClass("warn").prop("title","Blocker")
-     if (blkvictims.indexOf(pid.text()) == -1) pid.addClass("high");
+trs=document.getElementById("tblsess").rows;
+for (let tr of trs){
+ pid=tr.cells[0];
+ xidage=tr.cells[5];
+ stime=tr.cells[7];
+ if(xidage.innerText > 20) xidage.classList.add("warn");
+ //if pid exists in blockers list
+ if (blokers.indexOf(pid.innerText) > -1){ 
+     pid.classList.add("warn"); pid.title="Blocker";
+     //In case the pid is not there in vicitms list, it is the first blocker
+     if (blkvictims.indexOf(pid.innerText) == -1) pid.classList.add("high");
   };
-  if(DurationtoSeconds(stime.text()) > 300) stime.addClass("warn").prop("title","Busy");
-});
-if ($("#tblblk tr").length < 2){
-  $("#tblblk").remove();
-  $("#blocking").text("No Blocking Sessions Found");
+  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
 }
-if ($("#tblstmnt tr").length < 2){
-  $("#tblstmnt").remove();
-  $("#statements").text("pg_stat_statements info is not available");
+
+//If blocking session section is empty
+if(document.getElementById("tblblk").rows.length < 2){ 
+  document.getElementById("tblblk").remove();
+  document.getElementById("blocking").innerText="No Blocking Sessions Found";
 }
-if ($("#tblchkpnt tr").length > 1){
-  row=$("#tblchkpnt tr").eq(1)
-  if (row.children().eq(0).text() > 10){
-    row.children().eq(0).addClass("high").prop("title","More than 10% of forced checkpoints is not desirable, increase max_wal_size");
+
+//if there is no info from pg_stat_statements
+if(document.getElementById("tblstmnt").rows.length < 2){ 
+  document.getElementById("tblstmnt").remove();
+  document.getElementById("statements").innerText="pg_stat_statements info is not available"
+}
+
+//Checkpointer and bgwriter info
+trs=document.getElementById("tblchkpnt").rows;
+if (trs.length > 1){
+  tr=trs[1]
+  if (tr.cells[0].innerText > 10){
+    tr.cells[0].classList.add("high"); tr.cells[0].title="More than 10% of forced checkpoints is not desirable, increase max_wal_size";
   }
-  if(row.children().eq(1).text() < 10 ){
-    row.children().eq(1).addClass("high").prop("title","checkpoints are too frequent. consider checkpoint_timeout=1800");
+  if(tr.cells[1].innerText < 10 ){
+    tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
   }
-  if(row.children().eq(13).text() > 25){
-    row.children().eq(13).addClass("high").prop("title","too many dirty pages cleaned by backends");
-    if(row.children().eq(12).text() < 30){
-      row.children().eq(12).addClass("high").prop("title","bgwriter is not efficient");
-      if(row.children().eq(14).text() < 30){
-        row.children().eq(14).addClass("high").prop("title","bgwriter could run more frequently. reduce bgwriter_delay");
+  if(tr.cells[13].innerText > 25){
+    tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends";
+    if(tr.cells[12].innerText < 30){
+      tr.cells[12].classList.add("high"); tr.cells[12].title="bgwriter is not efficient";
+      if(tr.cells[14].innerText < 30){
+        tr.cells[14].classList.add("high"); tr.cells[14].title="bgwriter could run more frequently. reduce bgwriter_delay";
       }
-      if(row.children().eq(15).text() > 30){
-        row.children().eq(15).addClass("high").prop("title","bgwriter halts too frequently. increase bgwriter_lru_maxpages");
+      if(tr.cells[15].innerText > 30){
+        tr.cells[15].classList.add("high"); tr.cells[15].title="bgwriter halts too frequently. increase bgwriter_lru_maxpages";
       }
     }
   }
 }
 
-//Iterate though table without jquery
+//Check Replication status
 tab=document.getElementById("tblreplstat")
 if (tab.rows.length > 1){
   for(var i=1;i<tab.rows.length;i++){
@@ -543,13 +567,10 @@ if (tab.rows.length > 1){
 }
 
 
-//Scroll to Index/Topics if Alt+I is pressed
-$(document).keydown(function(event) {
-    if (event.altKey && event.which === 73)
-    {
-      $("#topics").get(0).scrollIntoView();
-      e.preventDefault();
-    }
-});
+//Press Alt_i to go to topics
+document.onkeyup = function(e) {
+  if (e.altKey && e.which === 73) document.getElementById("topics").scrollIntoView({behavior: "smooth"});
+  //       e.preventDefault();
+}
 </script>
 </html>
