@@ -12,6 +12,7 @@
 \echo .lime { font-weight:bold}
 \echo .lineblk {float: left; margin:0 9px 4px 0 }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
+\echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
@@ -46,9 +47,10 @@ SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In r
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16b" IS NOT NULL ORDER BY 1;
-\pset tableattr 'id="dbs"'
+\pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted,tup_updated,tup_deleted)),
+xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
 (temp_files/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint  "Avg.Temp Files",(temp_bytes/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db LEFT JOIN cts ON TRUE;
 \pset tableattr off
@@ -404,14 +406,15 @@ SELECT to_jsonb(r) FROM
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
 \echo }
 \echo function checkdbs(){
+\echo   //second column in the table is hidden, be careful
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
-\echo   trs[0].cells[5].title="Average Temp generation Per Day"; trs[0].cells[6].title="Average Temp generation Per Day";
+\echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day";
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
-\echo     [6,7].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
-\echo     totdb=totdb+Number(tr.cells[7].innerText);
-\echo     aged(tr.cells[8]);
+\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
+\echo     totdb=totdb+Number(tr.cells[8].innerText);
+\echo     aged(tr.cells[9]);
 \echo   }  
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
