@@ -440,10 +440,15 @@ SELECT to_jsonb(r) FROM
 \echo   if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
 \echo }
 \echo trs=document.getElementById("tableConten").rows;
-\echo maxevnt=Number(trs[1].cells[1].innerText);
-\echo for (let tr of trs) {
+\echo if (trs.length > 1){ 
+\echo   maxevnt=Number(trs[1].cells[1].innerText);
+\echo   for (let tr of trs) {
 \echo   evnts=tr.cells[1];
 \echo   if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">''''
+\echo   }
+\echo }else {
+\echo   document.getElementById("tableConten").remove();
+\echo   document.getElementById("time").innerText="Database wait events are not found"  
 \echo }
 \echo let blokers = []
 \echo let blkvictims = []
