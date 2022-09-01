@@ -164,6 +164,10 @@ JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_
 COPY (SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
 \echo '\\.'
 
+\echo COPY pg_get_ns(nsoid,nsname) FROM stdin;
+COPY (SELECT oid,nspname FROM pg_namespace) TO stdout;
+\echo '\\.'
+
 \echo COPY pg_get_extension FROM stdin;
 COPY (select oid,extname,extowner,extnamespace,extrelocatable,extversion from pg_extension) TO stdout;
 \echo '\\.'
@@ -192,7 +196,7 @@ COPY (SELECT blocked_locks.pid  AS blocked_pid,
        blocking_activity.xact_start AS blocking_xact_start
 FROM  pg_catalog.pg_locks   blocked_locks
    JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid
-   JOIN pg_catalog.pg_locks         blocking_locks 
+   JOIN pg_catalog.pg_locks  blocking_locks 
         ON blocking_locks.locktype = blocked_locks.locktype
         AND blocking_locks.DATABASE IS NOT DISTINCT FROM blocked_locks.DATABASE
         AND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation
@@ -208,11 +212,15 @@ FROM  pg_catalog.pg_locks   blocked_locks
 WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
 \echo '\\.'
 
---select * from pg_stat_replication;
+--Replication status
+--TODO replace with pg_stat_get_wal_senders()
 \echo COPY pg_replication_stat(usename,client_addr,client_hostname, pid, state,sent_lsn,write_lsn,flush_lsn,replay_lsn,sync_state) FROM stdin;
-COPY ( 
-   SELECT usename, client_addr, client_hostname, pid, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state  FROM pg_stat_replication
-) TO stdin;
+COPY ( SELECT usename, client_addr, client_hostname, pid, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state  FROM pg_stat_replication ) TO stdin;
+\echo '\\.'
+
+--Slot status
+\echo COPY pg_get_slots(slot_name, plugin, slot_type, datoid, temporary, active,  active_pid, old_xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn) FROM stdin;
+COPY ( SELECT slot_name, plugin, slot_type, datoid, temporary, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn  FROM pg_get_replication_slots()) TO stdout;
 \echo '\\.'
 
 --Archive status

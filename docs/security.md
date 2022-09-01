@@ -11,15 +11,15 @@ Even though `pg_gather` collects only very minimal information from  **system ca
 ## 1. Masking SQL query statements
 By default, PostgreSQL removes bind values from query string bfore it is displayed in views like `pg_stat_activity`. So there is no visibility to data by default. Still a user may not want give full query string. Following is an example for truncating query string to 50 characters using `sed` utility before handing over the output file for analysis.
 ```
-sed  -i 's/\(^[0-9]*\t[0-9]*\t[[:alnum:]]*\t[[:alnum:] .-_]*\t[[:alnum:] ]*\t[[:alnum:]\/\* :,-_`\o47"$]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g' out.txt
+sed  -i 's/\(^[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g' out1.txt
 ```
-** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statments. So it is not a recommended pratice.
+** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statments.
 ## 2. Masking client IP addresses
-Any monitoring or analysis tool which access the `pg_stat_activity` for understanding the session activities can see the client IP addresses . Following `sed` command can be used for masking the part of IP address
+Any monitoring or analysis tool which access the `pg_stat_activity` for understanding the session activities can see the client IP addresses . Following sample `sed` command can be used for masking the part of IP address, leaving only last ditit of the IPv4
 ```
 sed -r -i 's/([0-9]{1,3}\.){3}([0-9]{1,3})/0.0.0.\2/g' out.txt
 ```
-** IP addresess or the clients connecting to PostreSQL is important to understand those clients which are abusive. IP addresses gives vital information about application servers which has poor connection pooling. Masking the IP addresss can prevent many such analysis.
+** IP addresess or the clients connecting to PostreSQL is important to understand those clients which are abusive. IP addresses gives vital information about application servers which has poor connection pooling. Masking the IP addresss can prevent such analysis.
 
 ## Information collected  (incomplete, work-in-progress)
 
