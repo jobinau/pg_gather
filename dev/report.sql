@@ -13,7 +13,9 @@
 \echo .lineblk {float: left; margin:0 9px 4px 0 }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
+\echo .thidden tr td:first-child {color:blue;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
+\echo #dtls {position: absolute;background-color:#FFFFCA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo </style>
@@ -49,7 +51,7 @@ UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16b" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted,tup_updated,tup_deleted)),
+SELECT datname "DB Name",to_jsonb(ROW((tup_inserted/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint,(tup_updated/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint,(tup_deleted/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint)),
 xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
 (temp_files/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint  "Avg.Temp Files",(temp_bytes/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db LEFT JOIN cts ON TRUE;
@@ -382,12 +384,13 @@ SELECT to_jsonb(r) FROM
 \echo console.log("time taken :" + (endTime - startTime));
 \echo }
 \echo function aged(cell){
-\echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US"); }
+\echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
 \echo }
 \echo function checktabs(){
 \echo   const startTime =new Date().getTime();
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
+\echo   [8,14,15].forEach(function(num){trs[0].cells[num].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
 \echo   for(var i=1;i<len;i++){
 \echo   //TODO : trs.forEach (convert the for loop to forEach if possible)
 \echo     tr=trs[i]; let TotTab=tr.cells[6]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[7]; TabIndSize=(TabInd.innerHTML);
@@ -409,7 +412,7 @@ SELECT to_jsonb(r) FROM
 \echo   //second column in the table is hidden, be careful
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
-\echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day";
+\echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
@@ -432,6 +435,21 @@ SELECT to_jsonb(r) FROM
 \echo   Array.from(table.querySelectorAll(''''tr:nth-child(n+2)'''')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
 \echo   setTimeout(function(){th.style.cursor = "pointer";},10);
 \echo   },50);
+\echo })));
+\echo function dbsdtls(th){
+\echo   let o=JSON.parse(th.cells[1].innerText);
+\echo   return "<b>" + th.cells[0].innerText + " - activity stats</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 ;
+\echo }
+\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
+\echo   th=td.parentNode;
+\echo   tab=th.closest("table");
+\echo   var el=document.createElement("div");
+\echo   el.setAttribute("id", "dtls");
+\echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
+\echo   th.cells[2].appendChild(el);
+\echo })));
+\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
+\echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 \echo })));
 \echo trs=document.getElementById("IndInfo").rows;
 \echo for (let tr of trs) {

@@ -13,7 +13,9 @@ caption { font-size: larger }
 .lineblk {float: left; margin:0 9px 4px 0 }
 .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
+.thidden tr td:first-child {color:blue;}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
+#dtls {position: absolute;background-color:#FFFFCA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 </style>
@@ -49,7 +51,7 @@ UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16b" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted,tup_updated,tup_deleted)),
+SELECT datname "DB Name",to_jsonb(ROW((tup_inserted/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint,(tup_updated/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint,(tup_deleted/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint)),
 xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
 (temp_files/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint  "Avg.Temp Files",(temp_bytes/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db LEFT JOIN cts ON TRUE;
@@ -409,13 +411,15 @@ console.log("time taken :" + (endTime - startTime));
 
 //Cells with value greater than autovacuum_freeze_max_age
 function aged(cell){
- if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US") + "\n autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US"); }
+ if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
 }
 
+//Check Table Level info
 function checktabs(){
   const startTime =new Date().getTime();
   const trs=document.getElementById("tabInfo").rows
   const len=trs.length;
+  [8,14,15].forEach(function(num){trs[0].cells[num].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
   for(var i=1;i<len;i++){
   //TODO : trs.forEach (convert the for loop to forEach if possible)
     tr=trs[i]; let TotTab=tr.cells[6]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[7]; TabIndSize=(TabInd.innerHTML);
@@ -439,7 +443,7 @@ function checkdbs(){
   //second column in the table is hidden, be careful
   const trs=document.getElementById("dbs").rows
   const len=trs.length;
-  trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day";
+  trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
   for(var i=1;i<len;i++){
     tr=trs[i];
     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
@@ -466,6 +470,28 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
   },50);
 })));
 
+
+function dbsdtls(th){
+  let o=JSON.parse(th.cells[1].innerText);
+  return "<b>" + th.cells[0].innerText + " - activity stats</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 ;
+}
+
+//Table with hidden columns
+document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
+  th=td.parentNode;
+  tab=th.closest("table");
+  var el=document.createElement("div");
+  el.setAttribute("id", "dtls");
+  if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
+  th.cells[2].appendChild(el);
+})));
+
+
+document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
+  td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
+})));
+
+
 //Index analysis
 trs=document.getElementById("IndInfo").rows;
 for (let tr of trs) {
@@ -473,14 +499,6 @@ for (let tr of trs) {
   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
   if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
 }
-
-// $("#IndInfo tr").each(function(){
-//   Scans = $(this).children().eq(4);
-//   if(Number(Scans.html()) == 0 ) Scans.addClass("warn").prop("title","Unused Index");
-//   IndSz = $(this).children().eq(5);
-//   IndSz.prop("title", bytesToSize(IndSz.html()));
-//   if (Number(IndSz.html()) > 2000000000)  IndSz.addClass("lime");
-// });
 
 //database time draw graph
 trs=document.getElementById("tableConten").rows;
