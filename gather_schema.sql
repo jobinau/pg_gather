@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS pg_get_toast;
 DROP TABLE IF EXISTS pg_get_statements;
 DROP TABLE IF EXISTS pg_get_bgwriter;
 DROP TABLE IF EXISTS pg_get_roles;
+DROP TABLE IF EXISTS pg_get_extension;
 DROP TABLE IF EXISTS pg_get_slots;
 DROP TABLE IF EXISTS pg_get_ns;
 
