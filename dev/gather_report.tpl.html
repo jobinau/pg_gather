@@ -51,10 +51,10 @@ UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16b" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW((tup_inserted/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint,(tup_updated/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint,(tup_deleted/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint)),
-xact_commit "Commits",xact_rollback "Rollbacks",tup_inserted+tup_updated+tup_deleted "Transactions", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
-(temp_files/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint  "Avg.Temp Files",(temp_bytes/(EXTRACT(epoch FROM(c_ts - stats_reset))/86400))::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
-FROM pg_get_db LEFT JOIN cts ON TRUE;
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days::bigint,tup_updated/days::bigint,tup_deleted/days::bigint)),
+xact_commit/days::bigint "Avg.Commits",xact_rollback/days::bigint "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days::bigint "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
+temp_files/days::bigint "Avg.Temp Files",temp_bytes/days::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
+FROM pg_get_db LEFT JOIN LATERAL (SELECT EXTRACT(epoch FROM(c_ts-stats_reset))/86400 as days FROM cts) AS lat1 ON TRUE;
 \pset tableattr off
 %>
 <div>
@@ -309,7 +309,7 @@ function checkfindings(){
  
   //Add footer to database details table at the top
   var el=document.createElement("tfoot");
-  el.innerHTML = "<th colspan='9'>Total DB size : "+ bytesToSize(totdb) +"</th>";
+  el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total DB size is : "+ bytesToSize(totdb) +"</th>";
   dbs=document.getElementById("dbs");
   dbs.appendChild(el);
   
