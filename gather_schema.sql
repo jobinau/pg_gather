@@ -1,4 +1,6 @@
 --Schema for pg_gather
+\set QUIET 1
+\echo **Dropping pg_gather tables**
 set client_min_messages=ERROR;
 DROP TABLE IF EXISTS pg_gather;
 DROP TABLE IF EXISTS pg_get_activity;
@@ -22,7 +24,7 @@ DROP TABLE IF EXISTS pg_get_extension;
 DROP TABLE IF EXISTS pg_get_slots;
 DROP TABLE IF EXISTS pg_get_ns;
 
-
+\echo **Creating pg_gather tables**
 CREATE UNLOGGED TABLE pg_srvr (
     connstr text
 );
@@ -274,3 +276,4 @@ CREATE UNLOGGED TABLE pg_get_ns(
    nsoid oid,
    nsname text
 );
+\set QUIET 0
