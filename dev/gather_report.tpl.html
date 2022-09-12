@@ -223,10 +223,10 @@ SELECT CASE WHEN val > 10000
   ELSE NULL END
 FROM W;
 WITH W AS (
-SELECT string_agg(cnf.name ||'='||cnf.setting||' (Default:'||T.setting||')',',') as val FROM pg_get_confs cnf
-JOIN
-(VALUES ('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'),('wal_segment_size','16777216')) AS T (name,setting)
-ON cnf.name = T.name and cnf.setting != T.setting
+ select string_agg(name ||'='||setting,',') as val FROM pg_get_confs WHERE 
+ name in ('block_size','max_identifier_length','max_function_args','max_index_keys','segment_size','wal_block_size') AND 
+ (name,setting) NOT IN (('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'))
+ OR (name = 'wal_segment_size' AND unit ='8kB' and setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' and setting != '16777216')  
 )
 SELECT CASE WHEN LENGTH(val) > 1
   THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs </li>'
