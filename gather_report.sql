@@ -378,6 +378,9 @@ SELECT to_jsonb(r) FROM
 \echo       case "server_version":
 \echo         val.classList.add("lime");
 \echo         break;
+\echo       case "synchronous_standby_names":
+\echo         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+\echo         break;
 \echo     }
 \echo   }
 \echo const endTime = new Date().getTime();

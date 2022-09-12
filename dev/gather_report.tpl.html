@@ -403,6 +403,9 @@ function checkpars(){
       case "server_version":
         val.classList.add("lime");
         break;
+      case "synchronous_standby_names":
+        if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+        break;
     }
   }
 const endTime = new Date().getTime();
