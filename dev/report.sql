@@ -217,6 +217,11 @@ SELECT CASE WHEN val > 10000
   THEN '<li>There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
+WITH W AS (select last_failed_time,last_archived_time from pg_archiver_stat where last_archived_time < last_failed_time)
+SELECT CASE WHEN last_archived_time IS NOT NULL
+  THEN '<li>WAL archiving is failing from <b>'||last_archived_time||' onwards</b> </li>'
+  ELSE NULL END
+FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
 SELECT CASE WHEN val > 10000
   THEN '<li>There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details </li>'
