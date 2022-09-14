@@ -20,11 +20,11 @@ GROUP BY ROLLUP(1,2)
 ORDER BY 1,2;
 
 --2.1 Details of a particular session
-SELECT a.*
+SELECT a.*, rolname "user",datname "database"
 FROM pg_get_activity a 
   join pg_get_roles on a.usesysid=pg_get_roles.oid
   join pg_get_db on a.datid = pg_get_db.datid
-WHERE PID=17204
+WHERE PID=7494;
 
 --3.Which session is at the top of the blocking
 SELECT blocking_pid,statement_in_blocking_process,count(*)

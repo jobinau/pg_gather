@@ -219,7 +219,7 @@ SELECT CASE WHEN val > 10000
 FROM W;
 WITH W AS (select last_failed_time,last_archived_time from pg_archiver_stat where last_archived_time < last_failed_time)
 SELECT CASE WHEN last_archived_time IS NOT NULL
-  THEN '<li>WAL archiving is failing from <b>'||last_archived_time||' onwards</b> </li>'
+  THEN '<li>WAL archiving is failing from <b>'||last_archived_time||' ('|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
