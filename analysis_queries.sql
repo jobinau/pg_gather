@@ -108,6 +108,15 @@ JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
 JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 WHERE maxscan-minscan = 0;
 
+--15. WAL accumunation estimation due to WAL archive failure
+SELECT pg_size_pretty(sz) FROM (
+select  (
+  (('x'||lpad(split_part(current_wal::TEXT,'/', 1),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,9,8))::bit(32)::bigint) * 255 * 16^6 + 
+  ('x'||lpad(split_part(current_wal::TEXT,'/', 2),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,17,8))::bit(32)::bigint*16^6 
+)::bigint
+ as sz from pg_archiver_stat JOIN pg_gather ON TRUE
+) a;
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
