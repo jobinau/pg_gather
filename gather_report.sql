@@ -159,20 +159,11 @@ select query,total_time,calls from pg_get_statements order by 2 desc limit 10;
 \C 
 \echo <h2 id="replstat" style="clear: both">Replication Status</h2>
 \pset tableattr 'id="tblreplstat"'
-SELECT  usename AS "Replication User",client_addr AS "Replica Address",state,
-sent_offset - (write_offset - (sent_lsn - write_lsn) * 255 * 16 ^ 6 ) AS "Transmission Lag (Byte)",
-sent_offset - (flush_offset - (sent_lsn - flush_lsn) * 255 * 16 ^ 6 ) AS "Flush Ack Lag (Byte)",
-sent_offset - (replay_offset - (sent_lsn - replay_lsn) * 255 * 16 ^ 6 ) AS "Replay at Replica Lag (Byte)"
-FROM ( SELECT usename,client_addr,state,
-   ('x' || lpad(split_part(sent_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS sent_lsn,
-   ('x' || lpad(split_part(write_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS write_lsn,
-   ('x' || lpad(split_part(flush_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS flush_lsn,
-   ('x' || lpad(split_part(replay_lsn::TEXT, '/', 1), 8, '0'))::bit(32)::bigint AS replay_lsn,
-   ('x' || lpad(split_part(sent_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS sent_offset,
-   ('x' || lpad(split_part(write_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS write_offset,
-   ('x' || lpad(split_part(flush_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS flush_offset,
-   ('x' || lpad(split_part(replay_lsn::TEXT, '/', 2), 8, '0'))::bit(32)::bigint AS replay_offset
-FROM pg_replication_stat ) AS g;
+WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat)))
+SELECT usename AS "Replication User",client_addr AS "Replica Address",state,
+ pg_wal_lsn_diff(M.greatest, sent_lsn) "Transmission Lag (Bytes)",pg_wal_lsn_diff(sent_lsn,write_lsn) "Remote Write lag(Bytes)",
+ pg_wal_lsn_diff(write_lsn,flush_lsn) "Remote Flush lag(Bytes)",pg_wal_lsn_diff(flush_lsn,replay_lsn) "Remote Flush lag(Bytes)"
+FROM pg_replication_stat JOIN M ON TRUE;
 
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 \echo <p>Efficiency of Background writer and Checkpointer Process</p>
@@ -215,6 +206,11 @@ FROM W;
 WITH W AS (SELECT count(*) AS val from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p'))
 SELECT CASE WHEN val > 10000
   THEN '<li>There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details </li>'
+  ELSE NULL END
+FROM W;
+WITH W AS (select last_failed_time,last_archived_time from pg_archiver_stat where last_archived_time < last_failed_time)
+SELECT CASE WHEN last_archived_time IS NOT NULL
+  THEN '<li>WAL archiving is failing from <b>'||last_archived_time||' ('|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
@@ -528,7 +524,7 @@ SELECT to_jsonb(r) FROM
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i]
-\echo     for(var j=3;j<6;j++){
+\echo     for(var j=3;j<=6;j++){
 \echo       cell=row.cells[j]; cell.classList.add("lime")
 \echo       cell.title=bytesToSize(Number(cell.innerText),1024)
 \echo    }
