@@ -159,20 +159,11 @@ select query,total_time,calls from pg_get_statements order by 2 desc limit 10;
 \C 
 \echo <h2 id="replstat" style="clear: both">Replication Status</h2>
 \pset tableattr 'id="tblreplstat"'
-SELECT  usename AS "Replication User",client_addr AS "Replica Address",state,
-sent_offset - (write_offset - (sent_lsn - write_lsn) * 255 * 16 ^ 6 ) AS "Transmission Lag (Byte)",
-sent_offset - (flush_offset - (sent_lsn - flush_lsn) * 255 * 16 ^ 6 ) AS "Flush Ack Lag (Byte)",
-sent_offset - (replay_offset - (sent_lsn - replay_lsn) * 255 * 16 ^ 6 ) AS "Replay at Replica Lag (Byte)"
-FROM ( SELECT usename,client_addr,state,
-   ('x' || lpad(split_part(sent_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS sent_lsn,
-   ('x' || lpad(split_part(write_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS write_lsn,
-   ('x' || lpad(split_part(flush_lsn::TEXT,   '/', 1), 8, '0'))::bit(32)::bigint AS flush_lsn,
-   ('x' || lpad(split_part(replay_lsn::TEXT, '/', 1), 8, '0'))::bit(32)::bigint AS replay_lsn,
-   ('x' || lpad(split_part(sent_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS sent_offset,
-   ('x' || lpad(split_part(write_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS write_offset,
-   ('x' || lpad(split_part(flush_lsn::TEXT,   '/', 2), 8, '0'))::bit(32)::bigint AS flush_offset,
-   ('x' || lpad(split_part(replay_lsn::TEXT, '/', 2), 8, '0'))::bit(32)::bigint AS replay_offset
-FROM pg_replication_stat ) AS g;
+WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat)))
+SELECT usename AS "Replication User",client_addr AS "Replica Address",state,
+ pg_wal_lsn_diff(M.greatest, sent_lsn) "Transmission Lag (Bytes)",pg_wal_lsn_diff(sent_lsn,write_lsn) "Remote Write lag(Bytes)",
+ pg_wal_lsn_diff(write_lsn,flush_lsn) "Remote Flush lag(Bytes)",pg_wal_lsn_diff(flush_lsn,replay_lsn) "Remote Flush lag(Bytes)"
+FROM pg_replication_stat JOIN M ON TRUE;
 
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 \echo <p>Efficiency of Background writer and Checkpointer Process</p>
@@ -533,7 +524,7 @@ SELECT to_jsonb(r) FROM
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i]
-\echo     for(var j=3;j<6;j++){
+\echo     for(var j=3;j<=6;j++){
 \echo       cell=row.cells[j]; cell.classList.add("lime")
 \echo       cell.title=bytesToSize(Number(cell.innerText),1024)
 \echo    }
