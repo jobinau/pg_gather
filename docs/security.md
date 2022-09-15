@@ -30,17 +30,38 @@ sed -r -i 's/([0-9]{1,3}\.){3}([0-9]{1,3})/0.0.0.\2/g' out.txt
 3. Time of startup of PostgreSQL Instance  
    uses built-in function PostgreSQL : `pg_postmaster_start_time()`
 4. Check whether PostgreSQL is in recovery mode  
-   uses the buit-in function PostgreSQL : `pg_is_in_recovery()`
+   uses the built-in function PostgreSQL : `pg_is_in_recovery()`
 5. IP address from the connection came  
    uses the built-in function PostgreSQL : `inet_client_addr()`
 6. IP address of the Database host  
-   uses the buit-in function PostgreSQL : `inet_server_addr()`
+   uses the built-in function PostgreSQL : `inet_server_addr()`
 7. Time of last reloading of parameter  
-   uses the buit-in function PostgreSQL : `pg_conf_load_time()`
+   uses the built-in function PostgreSQL : `pg_conf_load_time()`
 8. Current LSN Position
-   uses the buit-in function PostgreSQL : `pg_current_wal_lsn()` or `pg_last_wal_receive_lsn()`
-
-
+   uses the built-in function PostgreSQL : `pg_current_wal_lsn()` or `pg_last_wal_receive_lsn()`
+9. Information about the session activity
+   uses `select * from pg_stat_get_activity(NULL)` which is similar to `pg_stat_activity`
+10. Wait-event sampling
+    uses information from `pg_stat_activity`
+11. Information from `pg_stat_statements`
+12. Number of transaction commits in each database
+    uses the built-in function `pg_stat_get_db_xact_commit()`
+13. Number of transaction rollbacks in each database
+    uses the built-in function `pg_stat_get_db_xact_rollback()`
+14. Number of blocks fetched to memory for each database
+    uses the built-in function `pg_stat_get_db_blocks_fetched()`
+15. Number of pages in cache which is hit by query execution
+    uses the built-in function `pg_stat_get_db_blocks_hit()`
+16. Number of tuples/rows returned per database
+    uses the built-in function `pg_stat_get_db_tuples_returned()`
+17. Number of tuples fetched per database
+    uses the built-in function `pg_stat_get_db_tuples_fetched()`
+18. Number of tuples inserted per database
+   `pg_stat_get_db_tuples_inserted()`
+19. Number of tuples updated per database
+    `pg_stat_get_db_tuples_updated()`
+20. Number of tuples deleted per database
+    `pg_stat_get_db_tuples_deleted()` 
 
 ## Notes to users:
-Appreciate independent audits and feedback. You are welcome to report any concerns arrises out of audits.
+Appreciate independent audits and feedback. You are welcome to report any concerns that arise out of audits.
