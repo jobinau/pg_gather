@@ -1,25 +1,25 @@
 # Data Security 
-Data Security is an area of paramount importance when it comes to information collection for any reason. `pg_gather` is desisgned to address the security / data safety aspects from the day one and it is one of the primary objective of the project itself. Transperancy is ensured for what is collected, transmitted and processed. Data collection script (`gather.sql`) is maintained as SQL only script to enhance the auditing requirements. Basic understanding of SQL is sufficinet, No programming knowledge required for auditing.
+Data Security is an area of paramount importance when it comes to information collected for any reason. `pg_gather` is designed to address the security/data safety aspects from day one, and it is one of the project's primary objectives itself. Transparency is ensured for what is collected, transmitted and processed. The data collection script (`gather.sql`) is maintained as SQL only script to enhance the auditing requirements. A basic understanding of SQL is sufficient. No programming knowledge is required for auditing.
   
-`pg_gather` collects only minimal **system catalog**, **performance**, **current session activity** and **configuration/parameter** information which are essential for analysis. Data stored within the user-defined or application-defined tables or indexes are Never accessed or collected. Even from the performance and catalog views, bare minimal information is collected. Please consider the same minimilistic approch are submitting Patches / Pull requests. 
+`pg_gather` collects only minimal **system catalog**, **performance**, **current session activity** and **configuration/parameter** information which are essential for analysis. Data stored within the user-defined or application-defined tables or indexes are **Never** accessed or collected. Even from the performance and catalog views, bare minimal information is collected. Please consider the same minimalistic approach are submitting Patches / Pull requests. 
 
 Please refer the "information collected" section of this document for understading th data points 
 
 # Information masking
-Even though `pg_gather` collects only very minimal information from  **system catalog**, **performance**, **current session activity** and **configuration/parameter**, One might want to mask more information, especially on a highly secured enviroment. Since the `pg_gather` uses the TSV (Tab Seperated Value) frormat for the collected,  any tool or editor whith regular expression will be good for data masking / trimming berfore transmitting the data. Plase see the examples below. Just making sure that the "tab" characters which is used as the seperator is preserved is sufficient.
+Even though `pg_gather` collects only very minimal information from  **system catalog**, **performance**, **current session activity** and **configuration/parameter**, One might want to mask more details, especially in a highly secured environment. Since the `pg_gather` uses the TSV (Tab Separated Value) format for the collected,  any tool or editor with regular expression will be good for data masking/trimming before transmitting the data. Please, see the examples below. Please ensure that the "tab" characters, which are used as the separator, are preserved.
 
 ## 1. Masking SQL query statements
-By default, PostgreSQL removes bind values from query string bfore it is displayed in views like `pg_stat_activity`. So there is no visibility to data by default. Still a user may not want give full query string. Following is an example for truncating query string to 50 characters using `sed` utility before handing over the output file for analysis.
+By default, PostgreSQL removes bind values from query string before it is displayed in views like `pg_stat_activity`. So there is no visibility of data by default. Still, a user may not want to give a complete query string. Following is an example of truncating a query string to 50 characters using the `sed` utility before handing over the output file for analysis.
 ```
-sed  -i 's/\(^[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g' out1.txt
+sed  -i 's/\(^[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g' out.txt
 ```
-** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statments.
+** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statements.
 ## 2. Masking client IP addresses
-Any monitoring or analysis tool which access the `pg_stat_activity` for understanding the session activities can see the client IP addresses . Following sample `sed` command can be used for masking the part of IP address, leaving only last ditit of the IPv4
+Any monitoring or analysis tool which accesses the `pg_stat_activity` for understanding the session activities can see the client IP addresses. Following sample `sed` command can be used for masking the part of the IP address, leaving only the last digit of the IPv4
 ```
 sed -r -i 's/([0-9]{1,3}\.){3}([0-9]{1,3})/0.0.0.\2/g' out.txt
 ```
-** IP addresess or the clients connecting to PostreSQL is important to understand those clients which are abusive. IP addresses gives vital information about application servers which has poor connection pooling. Masking the IP addresss can prevent such analysis.
+** IP addresses or the clients connecting to PostgreSQL is essential to understand those clients who are abusive. IP addresses give vital information about application servers which has poor connection pooling. Masking the IP addresses can prevent such analysis.
 
 ## Information collected  (incomplete, work-in-progress)
 
@@ -43,4 +43,4 @@ sed -r -i 's/([0-9]{1,3}\.){3}([0-9]{1,3})/0.0.0.\2/g' out.txt
 
 
 ## Notes to users:
-Appreiciate independent audits and feedback. You are welcome to report any concerns arrises out of audits.
+Appreciate independent audits and feedback. You are welcome to report any concerns arrises out of audits.
