@@ -6,7 +6,9 @@
 \echo th {background-color: #d2f2ff;cursor: pointer; }
 \echo tr:nth-child(even) {background-color: #eef8ff}
 \echo tr:hover { background-color: #FFFFCA}
+\echo h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
 \echo caption { font-size: larger }
+\echo ol { width: fit-content;}
 \echo .warn { font-weight:bold; background-color: #FAA }
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold}
@@ -15,9 +17,10 @@
 \echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
 \echo .thidden tr td:first-child {color:blue;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem {position: absolute;background-color:#FFFFCA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
+\echo #dtls,#finditem {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
+\echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
 \echo </style>
 \H
 \pset footer off 
@@ -194,8 +197,8 @@ CROSS JOIN
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
 \echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
-\echo <h2 id="findings" style="clear: both">Findings</h2>
-\echo <ol id="finditem" style="padding:2em">
+\echo <h2 id="findings" >Findings</h2>
+\echo <ol id="finditem" style="padding:2em;position:relative">
 \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
@@ -264,6 +267,7 @@ SELECT to_jsonb(r) FROM
 
 \echo </div>
 \echo </div> <!--End of "sections"-->
+\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
 \echo autovacuum_freeze_max_age = 0;
