@@ -14,8 +14,8 @@
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
 \echo .thidden tr td:first-child {color:blue;}
-\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }
-\echo #dtls {position: absolute;background-color:#FFFFCA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
+\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
+\echo #dtls,#finditem {position: absolute;background-color:#FFFFCA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo </style>
@@ -194,24 +194,29 @@ CROSS JOIN
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
 \echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
-\echo <h2 id="findings" style="clear: both">Important Findings</h2>
-\echo <ol id="finditem">
+\echo <h2 id="findings" style="clear: both">Findings</h2>
+\echo <ol id="finditem" style="padding:2em">
 \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
 SELECT CASE WHEN val > 0 
-  THEN '<li>There are '||val||' idle in transaction session(s) please check <a href= "#blocking" >blocking sessions</a> also</li>' 
-  ELSE '<li>No idle in transactions. Which is good </li>' END 
+  THEN '<li>There are '||val||' idle in transaction session(s) </li>' 
+  ELSE NULL END 
 FROM W; 
 WITH W AS (SELECT count(*) AS val from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p'))
 SELECT CASE WHEN val > 10000
   THEN '<li>There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
-WITH W AS (select last_failed_time,last_archived_time from pg_archiver_stat where last_archived_time < last_failed_time)
+WITH W AS (select last_failed_time,last_archived_time,last_archived_wal from pg_archiver_stat where last_archived_time < last_failed_time)
 SELECT CASE WHEN last_archived_time IS NOT NULL
-  THEN '<li>WAL archiving is failing from <b>'||last_archived_time||' ('|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> </li>'
-  ELSE NULL END
+  THEN '<li>WAL archiving is failing since <b>'||last_archived_time||' (duration:'|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> '  ||
+  COALESCE(
+  (SELECT ' With estimated size <b>' ||
+  pg_size_pretty(((('x'||lpad(split_part(current_wal::TEXT,'/', 1),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,9,8))::bit(32)::bigint) * 255 * 16^6 + 
+  ('x'||lpad(split_part(current_wal::TEXT,'/', 2),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,17,8))::bit(32)::bigint*16^6 )::bigint)
+  FROM pg_gather), ' ') || '</b> behind </li>'
+ELSE NULL END
 FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
 SELECT CASE WHEN val > 10000
@@ -279,9 +284,9 @@ SELECT to_jsonb(r) FROM
 \echo };
 \echo function checkfindings(){
 \echo   if (obj.cn.f1 > 0){
-\echo     str=obj.cn.f2 + " out of " + obj.cn.f1 + " connection in use are new. "
-\echo     if (obj.cn.f2/obj.cn.f1 > 0.7 ){
-\echo       str=str+"<b> Poor Connection Persistence.</b> Please improve connection pooling"
+\echo     str="<b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
+\echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
+\echo       str=str+"Please consider this for improving connection pooling"
 \echo     } else {
 \echo       str=str+"Good connection Persistence."
 \echo     }
