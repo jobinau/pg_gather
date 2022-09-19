@@ -14,6 +14,7 @@ process_gather(){
   #This don't have a good explanation yet and treated as unknown bug. 
   #Added 2 lines to mitigate this problem: /^[[:space:]]*$/d      and    s/^\?column?|\(.*\)/\1/
   #TODO : Observe over a period of time and remove those 2 lines if possible.
+  #TODO : copy pg_get_slots and pg_get_ns lines for sed from "imphistory.sh"
   zcat $1 | sed -n '
   /^COPY/, /^\\\./ {
     s/COPY pg_get_activity (/COPY pg_get_activity (collect_ts,/

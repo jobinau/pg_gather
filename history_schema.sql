@@ -141,3 +141,19 @@ CREATE UNLOGGED TABLE history.pg_get_bgwriter(
     buffers_alloc bigint,
     stats_reset timestamp with time zone
 );
+
+
+CREATE UNLOGGED TABLE history.pg_get_slots(
+    collect_ts timestamp with time zone,
+    slot_name text,
+    plugin text,
+    slot_type text,
+    datoid oid,
+    temporary bool,
+    active bool,
+    active_pid int,
+    old_xmin xid,
+    catalog_xmin xid,
+    restart_lsn pg_lsn,
+    confirmed_flush_lsn pg_lsn
+);
