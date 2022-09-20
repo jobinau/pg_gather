@@ -7,7 +7,7 @@ fi
 for f in "$@"
 do 
   ##Data collection timestamp. This info can be inserted for collect_ts of each line
-  coll_ts=`zcat $f | head -n 15 | sed -n '/COPY pg_gather/ {n; s/\([0-9-]*\s[0-9:\.+]*\).*/\1/; p}'`
+  coll_ts=`zcat $f | head -n 15 | sed -n '/COPY pg_gather/ {n; s/\([0-9-]*\s[0-9:\.+-]*\).*/\1/; p}'`
   printf "\nImporting %s \n" "$coll_ts"
   #In a real customer enviorment testing, an additional column appeared for pg_pid_wait like : ?column?|8459	ClientRead
   #This don't have a good explanation yet and treated as unknown bug. 
