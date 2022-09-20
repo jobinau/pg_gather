@@ -29,7 +29,7 @@ SET max_parallel_workers_per_gather = 0;
 <h1>
   <svg width="10em" viewBox="0 0 140 80">
     <path fill="none" stroke="#000000" stroke-linecap="round" stroke-width="2"  d="m 21.2,46.7 c 1,2 0.67,4 -0.3,5.1 c -1.1,1 -2,1.5 -4,1 c -10,-3 -4,-25 -4 -25 c 0.6,-10 8,-9 8 -9 s 7,-4.5 11,0.2 c 1.2,1.4 1.7,3.3 1.7,5.17 c -0.1,3 3,7 -2,10 c-2,2 -1,5 -8,5.5 m -2 -12 c 0,0 -1,1 -0.2,0.2 m -4 12 c 0,0 0,10 -12,11"/>
-    <text x="30" y="50" style="font:25px arial">g_gather</text>
+    <text x="30" y="50" style="font:25px arial">gGather</text>
     <text x="75" y="62" style="fill:red; font:15px arial">Report</text>
    </svg>
    <b id="busy" class="warn"> Loading... </b>
@@ -48,16 +48,16 @@ SELECT * FROM
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v16b"
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v16"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16b" IS NOT NULL ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v16" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days::bigint,tup_updated/days::bigint,tup_deleted/days::bigint)),
-xact_commit/days::bigint "Avg.Commits",xact_rollback/days::bigint "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days::bigint "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio",
-temp_files/days::bigint "Avg.Temp Files",temp_bytes/days::bigint "Avg.Temp Bytes",db_size "DB size",age "Age"
-FROM pg_get_db LEFT JOIN LATERAL (SELECT EXTRACT(epoch FROM(c_ts-stats_reset))/86400 as days FROM cts) AS lat1 ON TRUE;
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days))
+,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
+,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
+FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
 \pset tableattr off
 %>
 <div>
@@ -191,7 +191,7 @@ FROM pg_get_bgwriter
 CROSS JOIN 
 (SELECT 
     round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric min_since_reset,
-    buffers_checkpoint + buffers_clean + buffers_backend total_buffers,
+    GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
     checkpoints_timed+checkpoints_req tot_cp 
     FROM pg_get_bgwriter) AS bg
 JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
@@ -233,7 +233,7 @@ WITH W AS (
  OR (name = 'wal_segment_size' AND unit ='8kB' and setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' and setting != '16777216')  
 )
 SELECT CASE WHEN LENGTH(val) > 1
-  THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation is not fully supported and prone to bugs </li>'
+  THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation prone to bugs and it is beyond supportability</li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -481,7 +481,7 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
 
 function dbsdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
-  return "<b>" + th.cells[0].innerText + " - activity stats</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 ;
+  return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 ;
 }
 
 //Table with hidden columns
