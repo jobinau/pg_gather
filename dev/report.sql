@@ -30,7 +30,7 @@ SET max_parallel_workers_per_gather = 0;
 \echo   <svg width="10em" viewBox="0 0 140 80">
 \echo     <path fill="none" stroke="#000000" stroke-linecap="round" stroke-width="2"  d="m 21.2,46.7 c 1,2 0.67,4 -0.3,5.1 c -1.1,1 -2,1.5 -4,1 c -10,-3 -4,-25 -4 -25 c 0.6,-10 8,-9 8 -9 s 7,-4.5 11,0.2 c 1.2,1.4 1.7,3.3 1.7,5.17 c -0.1,3 3,7 -2,10 c-2,2 -1,5 -8,5.5 m -2 -12 c 0,0 -1,1 -0.2,0.2 m -4 12 c 0,0 0,10 -12,11"/>
 \echo     <text x="30" y="50" style="font:25px arial">gGather</text>
-\echo     <text x="75" y="62" style="fill:red; font:15px arial">Report</text>
+\echo     <text x="60" y="62" style="fill:red; font:15px arial">Report</text>
 \echo    </svg>
 \echo    <b id="busy" class="warn"> Loading... </b>
 \echo </h1>
@@ -162,11 +162,18 @@ select query,total_time,calls from pg_get_statements order by 2 desc limit 10;
 \C 
 \echo <h2 id="replstat" style="clear: both">Replication Status</h2>
 \pset tableattr 'id="tblreplstat"'
-WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat)))
-SELECT usename AS "Replication User",client_addr AS "Replica Address",state,
+WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
+  g AS (SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
+SELECT usename AS "Replication User",client_addr AS "Replica Address",pid,state,
  pg_wal_lsn_diff(M.greatest, sent_lsn) "Transmission Lag (Bytes)",pg_wal_lsn_diff(sent_lsn,write_lsn) "Remote Write lag(Bytes)",
- pg_wal_lsn_diff(write_lsn,flush_lsn) "Remote Flush lag(Bytes)",pg_wal_lsn_diff(flush_lsn,replay_lsn) "Remote Flush lag(Bytes)"
-FROM pg_replication_stat JOIN M ON TRUE;
+ pg_wal_lsn_diff(write_lsn,flush_lsn) "Remote Flush lag(Bytes)",pg_wal_lsn_diff(flush_lsn,replay_lsn) "Remote Flush lag(Bytes)",
+ slot_name "Slot",plugin,slot_type "Type",datname "DB name",temporary,active,GREATEST(g.mx_xid-old_xmin::text::bigint,0) as "xmin age",
+ GREATEST(g.mx_xid-catalog_xmin::text::bigint,0) as "catalog xmin age", GREATEST(pg_wal_lsn_diff(M.greatest,restart_lsn),0) as "Restart LSN lag(Bytes)",
+ GREATEST(pg_wal_lsn_diff(M.greatest,confirmed_flush_lsn),0) as "Confirmed LSN lag(Bytes)"
+FROM pg_replication_stat FULL OUTER JOIN M ON TRUE
+  FULL OUTER JOIN pg_get_slots s ON pid = active_pid
+  FULL OUTER JOIN g ON TRUE
+  LEFT JOIN pg_get_db ON s.datoid = datid;
 
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 \echo <p>Efficiency of Background writer and Checkpointer Process</p>
@@ -291,9 +298,7 @@ SELECT to_jsonb(r) FROM
 \echo     str="<b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
 \echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
 \echo       str=str+"Please consider this for improving connection pooling"
-\echo     } else {
-\echo       str=str+"Good connection Persistence."
-\echo     }
+\echo     } 
 \echo     //$("#finditem").append("<li>"+ str +"</li>")
 \echo     document.getElementById("finditem").innerHTML += "<li>"+ str +"</li>"
 \echo   }
@@ -532,11 +537,15 @@ SELECT to_jsonb(r) FROM
 \echo tab=document.getElementById("tblreplstat")
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
-\echo     row=tab.rows[i]
-\echo     for(var j=3;j<=6;j++){
-\echo       cell=row.cells[j]; cell.classList.add("lime")
-\echo       cell.title=bytesToSize(Number(cell.innerText),1024)
-\echo    }
+\echo     row=tab.rows[i];
+\echo     [4,5,6,7,16,17].forEach(function(num){ cell=row.cells[num]; cell.title=bytesToSize(Number(cell.innerText),1024); 
+\echo      if(cell.innerText > 104857600){
+\echo       cell.classList.add("warn");
+\echo      }else{
+\echo       cell.classList.add("lime");
+\echo      }
+\echo     });
+\echo     [14,15].forEach(function(num){  if(row.cells[num].innerText > 20) row.cells[num].classList.add("warn"); });
 \echo   }
 \echo }else{
 \echo   tab.remove()
