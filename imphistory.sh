@@ -30,6 +30,7 @@ do
     /^COPY pg_tab_bloat/, /^\\\./d  #-do-
     /^COPY pg_get_toast/, /^\\\./d  #-do-
     /^COPY pg_get_extension/, /^\\\./d  #-do-
+    /^COPY pg_get_statements/, /^\\\./d  #-do-
     /^COPY pg_get_ns/, /^\\\./d  #-do-
     /^[[:space:]]*$/d
     s/^\?column?|\(.*\)/\1/
