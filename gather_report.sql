@@ -170,9 +170,9 @@ SELECT usename AS "Replication User",client_addr AS "Replica Address",pid,state,
  slot_name "Slot",plugin,slot_type "Type",datname "DB name",temporary,active,GREATEST(g.mx_xid-old_xmin::text::bigint,0) as "xmin age",
  GREATEST(g.mx_xid-catalog_xmin::text::bigint,0) as "catalog xmin age", GREATEST(pg_wal_lsn_diff(M.greatest,restart_lsn),0) as "Restart LSN lag(Bytes)",
  GREATEST(pg_wal_lsn_diff(M.greatest,confirmed_flush_lsn),0) as "Confirmed LSN lag(Bytes)"
-FROM pg_replication_stat FULL OUTER JOIN M ON TRUE
+FROM pg_replication_stat JOIN M ON TRUE
   FULL OUTER JOIN pg_get_slots s ON pid = active_pid
-  FULL OUTER JOIN g ON TRUE
+  LEFT JOIN g ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
 
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
@@ -246,7 +246,7 @@ FROM W;
 WITH W AS (
 SELECT count(*) cnt FROM pg_get_confs WHERE source IS NOT NULL )
 SELECT CASE WHEN cnt < 1
-  THEN 'Couldn''t detect values from configuration files. Possibly corrupt Parameter file(s)'
+  THEN '<li>Couldn''t get parameter values from configuration files. Partial gather or corrupt Parameter file(s)</li>'
   ELSE NULL END
 FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
