@@ -365,6 +365,12 @@ SELECT to_jsonb(r) FROM
 \echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
 \echo         if(val.innerText > 98304) val.classList.add("warn");
 \echo         break;
+\echo       case "checkpoint_timeout":
+\echo         if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+\echo         break;
+\echo       case "hot_standby_feedback":
+\echo         val.classList.add("lime");
+\echo         break;
 \echo       case "shared_buffers":
 \echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
 \echo         if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
