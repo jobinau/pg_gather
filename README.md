@@ -5,8 +5,7 @@ This is a single SQL-only script for gathering performance and configuration dat
 And another SQL script available for analyzing and generating detailed HTML reports from the collected data. Yes, everything SQL-Only!, leveraging the features of `psql`-The command-line utility of PostgreSQL
 
 **Supported Versions** : PostgreSQL 10, 11, 12, 13, 14 & 15  
-**Minimum support versions** : PostgreSQL 9.5, 9.6
-
+**Older versions** : For PostgeSQL 9.6 and older, Please refer the [documentation page](docs/oldversions.md)
 
 # Highlights
 1. **Secure by Open :** Simple, Transperent, Fully auditable code.<br>
@@ -46,25 +45,23 @@ Recommended running the script as a privileged user (`superuser`, `rds_superuser
 This output file contains performance and configuration data for analysis  
 <a name="notes">
 ## Notes:</a> 
-   1. There is a seperate `gather_old.sql` for **older** minimum support versions 9.5 and 9.6
-   2. **Heroku** like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errosrs during the data collection. which can be ignored
-   3. **MS Windows** users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
+   1. **Heroku** like DaaS hostings imposes very high restrictions on collecting performance data. query on views like pg_statistics may produce errosrs during the data collection. which can be ignored
+   2. **MS Windows** users!, client tools like [pgAdmin](https://www.pgadmin.org/) comes with `psql` along with it. which can be used for running `pg_gather` against local or remote databases. For example
    ```
      "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
    ```
-   4. **Aurora** has "PostgreSQL compatible" offering. Even though it is look-alike PostgreSQL, It is not real PostgreSQL. So please do the following to the `gather.sql` which replaces one line with "NULL"
+   3. **Aurora** has "PostgreSQL compatible" offering. Even though it is look-alike PostgreSQL, It is not real PostgreSQL. So please do the following to the `gather.sql` which replaces one line with "NULL"
    ```
      sed -i 's/^CASE WHEN pg_is_in_recovery().*/NULL/' gather.sql
    ```
-   5. **Docker** containers of PostgreSQL may not have curl, wget utilities to download `gather.sql` inside. So an alternate option of pipeing the content of the sql file to `psql` is recommended.
+   4. **Docker** containers of PostgreSQL may not have curl, wget utilities to download `gather.sql` inside. So an alternate option of pipeing the content of the sql file to `psql` is recommended.
    ```
      cat gather.sql | docker exec -i <container> psql -X -f - > out.txt
    ```
-   6. **Kubernetes** environment also will have similar restriction as mentioined for Docker. So similar approch is suggestable.
+   5. **Kubernetes** environment also will have similar restriction as mentioined for Docker. So similar approch is suggestable.
    ```
      cat gather.sql | kubectl exec -i <PGpod> -- psql -X -f - > out.txt
    ```
-
 
 ## Gathering data continuosly, but Partially
 One-time data collecton may not be sufficient for capturing a problem which may not be happening at the moment. The `pg_gather` (Ver.8 onwards) has special optimizations for a light-weight and continuous data gathering for analysis.  The idea is to schedule `gather.sql` every minute against "template1" database. The generated output files can be collected into a directory.  
