@@ -93,7 +93,7 @@ SELECT ct.relname AS "Table", ct.relkind, ci.relname as "Index",indisunique,indi
 WHERE ct.relkind not in  ('t','i','f','v','c')
 AND ci.relname IS NULL;
 
--- 14. Unused Indexes
+-- 14. Unused Indexes bye comparing two snapshots
 --Create a index history table using the data from the first pg_gather
 CREATE TABLE pg_get_index_hist AS SELECT * FROM pg_get_index;
 --Add the data from the second, thired pg_gather to it
@@ -116,6 +116,8 @@ select  (
 )::bigint
  as sz from pg_archiver_stat JOIN pg_gather ON TRUE
 ) a;
+
+
 
 
 =======================HISTORY SCHEMA ANALYSIS=========================
