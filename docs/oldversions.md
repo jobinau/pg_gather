@@ -1,14 +1,14 @@
 # pg_gather (pgGather) support for old PostgreSQL versions.
-pgGather development considers mainly the PostgreSQL versions starting from 10.
-But still it is possible to collect and analyze data from older versions.
+pg_gather mainly targets the use for PostgreSQL versions 10 onwards.
+But still it is possible to collect and analyze data from older versions. This page covers the special attentions required if PostgreSQL version is older than 10
 
 ## Challenge
-The amount of information available from views like `pg_stat_activity` is significantly changed over versions. Ensuring backward compatibility with PostgreSQL version 9.6 and older, without sacrificing features is a tough task. Another challenge is that `psql` utility of older versions don't have sufficient feautre for data collection after the detection of the PostgreSQL version without any additional overhead.
+The amount of information available from views like `pg_stat_activity` is significantly changed over versions. Ensuring backward compatibility with PostgreSQL version 9.6 and older, without sacrificing features is a tough task. Another challenge is that `psql` utility of older versions don't have sufficient feautre for data collection without causing any additional overhead and complexity.
 
 However, The project is striving hard to ensure the minimum support for older versions. 
 
 ## Errors while collecting data
-Please expect error messages while collecting the data. This is because old versions don't have many features, performance views, columns etc which the script is looking for. However, `pg_gather` is envisioned to handle failure scenarios, collect the possible data, and work using the same.
+Please expect error messages while collecting the data. This is because old versions don't have many features, performance views, columns etc which the script is looking for. However, `pg_gather` is envisioned to handle failure scenarios, collect the possible data, and perform analysis on what is available.
 So you may just ignore the error messages and proceed.
 
 
