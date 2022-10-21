@@ -257,7 +257,9 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 --Ability to pass SQL ananlysis to report 
 SELECT to_jsonb(r) FROM
 (SELECT 
-  (SELECT count(*) from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
+  (select recovery from pg_gather) AS clsr,
+  (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
+     from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
   (SELECT to_jsonb(ROW(COUNT(*),COUNT(*) FILTER (WHERE CONN < interval '15 minutes' ) )) FROM 
   (WITH g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
   SELECT pid,g.ts - backend_start CONN
@@ -316,7 +318,13 @@ function checkfindings(){
     document.getElementById("finditem").innerHTML += "<li>"+ str +"</li>"
   }
   if (obj.ptabs > 0) document.getElementById("finditem").innerHTML += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
- 
+ if(obj.clsr){
+  document.getElementById("finditem").innerHTML += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
+ }else{
+  if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> No vaccum info for " + obj.tabs.f2 + " tables </li>";
+  if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> No statistics available for " + obj.tabs.f3 + " tables, query planning can go wrong </li>";
+  if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are " + obj.tabs.f3 + " tables in the database. Only frist 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+ }
   //Add footer to database details table at the top
   var el=document.createElement("tfoot");
   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total DB size is : "+ bytesToSize(totdb) +"</th>";
