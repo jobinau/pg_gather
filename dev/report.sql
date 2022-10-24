@@ -54,7 +54,7 @@ UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v17" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days))
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
@@ -374,6 +374,12 @@ SELECT to_jsonb(r) FROM
 \echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
 \echo         if(val.innerText > 98304) val.classList.add("warn");
 \echo         break;
+\echo       case "huge_pages":
+\echo         val.classList.add("lime");
+\echo         break;
+\echo       case "huge_page_size":
+\echo         val.classList.add("lime");
+\echo         break;
 \echo       case "checkpoint_timeout":
 \echo         if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
 \echo         break;
@@ -473,13 +479,14 @@ SELECT to_jsonb(r) FROM
 \echo })));
 \echo function dbsdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 ;
+\echo   return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 + "<br/>Stats Reset : " + o.f4 ;
 \echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
 \echo   tab=th.closest("table");
 \echo   var el=document.createElement("div");
 \echo   el.setAttribute("id", "dtls");
+\echo   el.setAttribute("align","left");
 \echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
 \echo   th.cells[2].appendChild(el);
 \echo })));

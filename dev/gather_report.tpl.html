@@ -54,7 +54,7 @@ UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v17" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days))
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
@@ -398,6 +398,12 @@ function checkpars(){
         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
         if(val.innerText > 98304) val.classList.add("warn");
         break;
+      case "huge_pages":
+        val.classList.add("lime");
+        break;
+      case "huge_page_size":
+        val.classList.add("lime");
+        break;
       case "checkpoint_timeout":
         if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
         break;
@@ -507,7 +513,7 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
 
 function dbsdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
-  return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 ;
+  return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 + "<br/>Stats Reset : " + o.f4 ;
 }
 
 //Table with hidden columns
@@ -516,10 +522,10 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
   tab=th.closest("table");
   var el=document.createElement("div");
   el.setAttribute("id", "dtls");
+  el.setAttribute("align","left");
   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
   th.cells[2].appendChild(el);
 })));
-
 
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
