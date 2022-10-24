@@ -96,9 +96,10 @@ FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats
 \echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
 \echo Objects other than tables will be marked with their relkind in brackets</p>
 \pset footer on
-\pset tableattr 'id="tabInfo"'
-SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END || CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN ' ('||(r.blks-tb.est_pages)*100/r.blks||'% bloat*)' ELSE '' END "Name" ,
-r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
+\pset tableattr 'id="tabInfo" class="thidden"'
+SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
+to_jsonb(ROW(ns.nsname)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks||'%' ELSE '' END "Bloat*",
+r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
 FROM pg_get_rel r
@@ -107,6 +108,7 @@ LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
+LEFT JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid
 ORDER BY r.tab_ind_size DESC LIMIT 10000; 
 \pset tableattr
 \echo <h2 id="indexes">Indexes</h2>
@@ -424,10 +426,10 @@ SELECT to_jsonb(r) FROM
 \echo   const startTime =new Date().getTime();
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
-\echo   [8,14,15].forEach(function(num){trs[0].cells[num].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
+\echo   [10,16,17].forEach(function(num){trs[0].cells[num].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
 \echo   for(var i=1;i<len;i++){
 \echo   //TODO : trs.forEach (convert the for loop to forEach if possible)
-\echo     tr=trs[i]; let TotTab=tr.cells[6]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[7]; TabIndSize=(TabInd.innerHTML);
+\echo     tr=trs[i]; let TotTab=tr.cells[8]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[9]; TabIndSize=(TabInd.innerHTML);
 \echo     if(TotTabSize > 5000000000 ) { TotTab.classList.add("lime"); TotTab.title = bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge"; 
 \echo     } else TotTab.title=bytesToSize(TotTabSize);
 \echo     //Tab above 20MB and with Index bigger than Tab
@@ -436,15 +438,15 @@ SELECT to_jsonb(r) FROM
 \echo     //Tab+Ind > 10GB
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
 \echo     //Check the TOAST size
-\echo     if (tr.cells[13].innerText > 10000) { 
-\echo       tr.cells[13].title=bytesToSize(Number(tr.cells[13].innerText)); 
+\echo     if (tr.cells[15].innerText > 10000) { 
+\echo       tr.cells[15].title=bytesToSize(Number(tr.cells[13].innerText)); 
 \echo       //if TOAST is more than 10GB
-\echo       if (tr.cells[13].innerText > 10737418240) tr.cells[13].classList.add("warn")
-\echo       else tr.cells[13].classList.add("lime")
+\echo       if (tr.cells[15].innerText > 10737418240) tr.cells[13].classList.add("warn")
+\echo       else tr.cells[15].classList.add("lime")
 \echo     }
-\echo     aged(tr.cells[8]);
-\echo     aged(tr.cells[14]);
-\echo     aged(tr.cells[15]);
+\echo     aged(tr.cells[10]);
+\echo     aged(tr.cells[16]);
+\echo     aged(tr.cells[17]);
 \echo   }
 \echo const endTime = new Date().getTime();
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
@@ -481,6 +483,10 @@ SELECT to_jsonb(r) FROM
 \echo   let o=JSON.parse(th.cells[1].innerText);
 \echo   return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 + "<br/>Stats Reset : " + o.f4 ;
 \echo }
+\echo function tabdtls(th){
+\echo   let o=JSON.parse(th.cells[1].innerText);
+\echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + o.f1 ;
+\echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
 \echo   tab=th.closest("table");
@@ -488,6 +494,7 @@ SELECT to_jsonb(r) FROM
 \echo   el.setAttribute("id", "dtls");
 \echo   el.setAttribute("align","left");
 \echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
+\echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
 \echo   th.cells[2].appendChild(el);
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
