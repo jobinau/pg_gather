@@ -256,7 +256,6 @@ SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcef
 \echo </ol>
 \echo <div id="analdata" hidden>
 \pset format unaligned
---Ability to pass SQL ananlysis to report 
 SELECT to_jsonb(r) FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
@@ -273,7 +272,13 @@ SELECT to_jsonb(r) FROM
   (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
    count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
    count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
-  FROM pg_get_activity) as sess
+  FROM pg_get_activity) as sess,
+  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"[[:word:]]*\"')) "curdb" FROM pg_srvr),
+  cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
+SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
+curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
+LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
+LEFT JOIN cts ON true) as dbts
 ) r;
 
 \echo </div>
@@ -485,7 +490,11 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo function tabdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + o.f1 ;
+\echo   let vac=th.cells[13].innerText;
+\echo   let str=""
+\echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
+\echo   if (vac > 0) str="<br />Vaccums per day:" + Number(vac/obj.dbts.f4).toFixed(1);
+\echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + o.f1 + str;
 \echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
