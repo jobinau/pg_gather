@@ -6,3 +6,5 @@ The AWK script `apply_template.awk` is used for generating the report.sql (or ..
 ```
 cat gather_report.tpl.html | awk -f apply_template.awk  > report.sql; psql -X -f report.sql > out.html  
 ```
+## SQL Statement Documentation
+Please refer [SQL documentation](SQLstatement.md) on SQL statement used in this project.
