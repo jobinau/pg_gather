@@ -3,6 +3,7 @@ embedding detailed comments inside SQL statement is not a great option because t
 This documentation fills the gap with detailed explanation
 
 #SQL for PG server side analysis which returns a json message.
+The query under section id="analdata"
 ```
 SELECT to_jsonb(r) FROM
 (SELECT 
@@ -24,7 +25,15 @@ SELECT to_jsonb(r) FROM
   (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
    count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
    count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
-  FROM pg_get_activity) as sess
+  FROM pg_get_activity) as sess,
+  ---
+  ---Current database selected and its stats reset ts, collection ts, number of days
+  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"[[:word:]]*\"')) "curdb" FROM pg_srvr),
+  cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
+  SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
+  curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
+  LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
+  LEFT JOIN cts ON true) as dbts
 ) r;
 ```
 
