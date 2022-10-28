@@ -273,7 +273,7 @@ SELECT to_jsonb(r) FROM
    count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
    count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
   FROM pg_get_activity) as sess,
-  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"[[:word:]]*\"')) "curdb" FROM pg_srvr),
+  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"[[:word:]]*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
   cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
 SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
 curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
@@ -412,6 +412,9 @@ LEFT JOIN cts ON true) as dbts
 \echo         break;
 \echo       case "random_page_cost":
 \echo         if(val.innerText > 1.2) val.classList.add("warn");
+\echo         break;
+\echo       case "jit":
+\echo         if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
 \echo         break;
 \echo       case "server_version":
 \echo         val.classList.add("lime");
