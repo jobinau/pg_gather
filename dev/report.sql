@@ -278,7 +278,8 @@ SELECT to_jsonb(r) FROM
 SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
 curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
 LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
-LEFT JOIN cts ON true) as dbts
+LEFT JOIN cts ON true) as dbts,
+(SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns
 ) r;
 
 \echo </div>
@@ -494,10 +495,13 @@ LEFT JOIN cts ON true) as dbts
 \echo function tabdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText);
 \echo   let vac=th.cells[13].innerText;
+\echo   let nsoid=JSON.parse(th.cells[2].innerText);
+\echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
 \echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
 \echo   if (vac > 0) str="<br />Vaccums per day:" + Number(vac/obj.dbts.f4).toFixed(1);
-\echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + o.f1 + str;
+\echo   //return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + o.f1 + str;
+\echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
