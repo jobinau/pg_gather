@@ -497,6 +497,7 @@ function checkdbs(){
   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
   for(var i=1;i<len;i++){
     tr=trs[i];
+    if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
     totdb=totdb+Number(tr.cells[8].innerText);
     aged(tr.cells[9]);
@@ -524,7 +525,9 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
 /////############## Pop-up details box######################
 function dbsdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
-  return "<b>" + th.cells[0].innerText + "</b><br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 + "<br/>Stats Reset : " + o.f4 ;
+  let str="";
+  if(th.cells[0].classList.contains("lime")) str = "<br/>(pg_gather connected)";
+  return "<b>" + th.cells[0].innerText + "</b>" + str + "<br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 + "<br/>Stats Reset : " + o.f4 ;
 }
 
 function tabdtls(th){
