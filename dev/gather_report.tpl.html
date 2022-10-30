@@ -195,7 +195,8 @@ round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
 round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
 round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
 round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs (**1)",
-coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit (**2)"
+coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit (**2)",
+round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
 (SELECT 
@@ -203,8 +204,8 @@ CROSS JOIN
     GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
     checkpoints_timed+checkpoints_req tot_cp 
     FROM pg_get_bgwriter) AS bg
-JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
-JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; %>
+LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
+LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; %>
 <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 <h2 id="findings" >Findings</h2>
 <ol id="finditem" style="padding:2em;position:relative">
@@ -248,7 +249,7 @@ FROM W;
 WITH W AS (
 SELECT count(*) cnt FROM pg_get_confs WHERE source IS NOT NULL )
 SELECT CASE WHEN cnt < 1
-  THEN '<li>Couldn''t get parameter values from configuration files. Partial gather or corrupt Parameter file(s)</li>'
+  THEN '<li>Couldn''t get parameter values. Partial gather or corrupt Parameter file(s)</li>'
   ELSE NULL END
 FROM W;
 SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
