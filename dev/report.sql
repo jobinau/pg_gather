@@ -136,10 +136,11 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
 \echo <h2 id="time">Database time</h2>
 \pset tableattr 'id="tableConten" name="waits"'
-\C 'Wait Events and CPU info'
+\C 'Wait Events and CPU info.'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
 \C
---session waits 
+
+\echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/oldversions.md">Reference</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
