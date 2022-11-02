@@ -151,6 +151,11 @@ CREATE UNLOGGED TABLE pg_get_class (
     relnamespace oid
 );
 
+CREATE UNLOGGED TABLE pg_pg_inherits(
+    inhrelid oid,
+    inhparent oid
+);
+
 CREATE UNLOGGED TABLE pg_get_index (
     indexrelid oid,
     indrelid oid,
