@@ -450,9 +450,9 @@ LEFT JOIN cts ON true) as dbts,
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
 \echo     //Check the TOAST size
 \echo     if (tr.cells[15].innerText > 10000) { 
-\echo       tr.cells[15].title=bytesToSize(Number(tr.cells[13].innerText)); 
+\echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
 \echo       //if TOAST is more than 10GB
-\echo       if (tr.cells[15].innerText > 10737418240) tr.cells[13].classList.add("warn")
+\echo       if (tr.cells[15].innerText > 10737418240) tr.cells[15].classList.add("warn")
 \echo       else tr.cells[15].classList.add("lime")
 \echo     }
 \echo     aged(tr.cells[10]);
