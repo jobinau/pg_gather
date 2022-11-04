@@ -331,9 +331,9 @@ function checkfindings(){
  if(obj.clsr){
   document.getElementById("finditem").innerHTML += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
  }else{
-  if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> No vaccum info for " + obj.tabs.f2 + " tables </li>";
-  if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> No statistics available for " + obj.tabs.f3 + " tables, query planning can go wrong </li>";
-  if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are " + obj.tabs.f3 + " tables in the database. Only frist 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+  if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
+  if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
+  if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
  }
   //Add footer to database details table at the top
   var el=document.createElement("tfoot");

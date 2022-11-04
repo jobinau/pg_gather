@@ -140,7 +140,7 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
-\echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/oldversions.md">Reference</a>
+\echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
@@ -318,9 +318,9 @@ LEFT JOIN cts ON true) as dbts,
 \echo  if(obj.clsr){
 \echo   document.getElementById("finditem").innerHTML += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
-\echo   if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> No vaccum info for " + obj.tabs.f2 + " tables </li>";
-\echo   if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> No statistics available for " + obj.tabs.f3 + " tables, query planning can go wrong </li>";
-\echo   if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are " + obj.tabs.f3 + " tables in the database. Only frist 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+\echo   if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
+\echo   if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
+\echo   if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
 \echo  }
 \echo   //Add footer to database details table at the top
 \echo   var el=document.createElement("tfoot");

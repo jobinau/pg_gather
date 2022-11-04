@@ -5,6 +5,9 @@ Always refer to PostgreSQL documentation [here](https://www.postgresql.org/docs/
 ## BufferIO
 buffer I/O. Backends will be trying to clear the Buffers. High value indicates that there is not sufficient `shared_buffers`. Generally it is expected to have assoicated `DataFileRead` also
 
+## BufFileRead
+Reading from buffered Temporary Files, All sorts of temporary files including the one used for sort and hashjoins, parallel execution, And files used by single sessions (refer: buffile.c)
+
 ## ClientRead
 Waiting to read data from the client/application. High value indcates that application/client is responding fast enough. combined with "idle-in-transaction" can cause contention in the server.
 
