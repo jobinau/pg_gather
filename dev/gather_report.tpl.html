@@ -319,21 +319,24 @@ window.onload = function() {
 
 //check the obj content and display findings messages accordingly
 function checkfindings(){
+  let strfind = "";
   if (obj.cn.f1 > 0){
-    str="<b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
+    strfind="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
-      str=str+"Please consider this for improving connection pooling"
+      strfind+="Please consider this for improving connection pooling"
     } 
-    //$("#finditem").append("<li>"+ str +"</li>")
-    document.getElementById("finditem").innerHTML += "<li>"+ str +"</li>"
+    strfind += "</li>";
   }
-  if (obj.ptabs > 0) document.getElementById("finditem").innerHTML += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+  if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
  if(obj.clsr){
-  document.getElementById("finditem").innerHTML += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
+  strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
  }else{
-  if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
-  if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
-  if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+  if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
+  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
+  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+  let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length;
+  strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
+  document.getElementById("finditem").innerHTML += strfind;
  }
   //Add footer to database details table at the top
   var el=document.createElement("tfoot");

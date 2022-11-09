@@ -306,21 +306,24 @@ LEFT JOIN cts ON true) as dbts,
 \echo   document.getElementById("busy").style="display:none";
 \echo };
 \echo function checkfindings(){
+\echo   let strfind = "";
 \echo   if (obj.cn.f1 > 0){
-\echo     str="<b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
+\echo     strfind="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
 \echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
-\echo       str=str+"Please consider this for improving connection pooling"
+\echo       strfind+="Please consider this for improving connection pooling"
 \echo     } 
-\echo     //$("#finditem").append("<li>"+ str +"</li>")
-\echo     document.getElementById("finditem").innerHTML += "<li>"+ str +"</li>"
+\echo     strfind += "</li>";
 \echo   }
-\echo   if (obj.ptabs > 0) document.getElementById("finditem").innerHTML += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+\echo   if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
 \echo  if(obj.clsr){
-\echo   document.getElementById("finditem").innerHTML += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
+\echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
-\echo   if ( obj.tabs.f2 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
-\echo   if ( obj.tabs.f3 > 0 ) document.getElementById("finditem").innerHTML += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
-\echo   if ( obj.tabs.f1 > 10000) document.getElementById("finditem").innerHTML += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+\echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
+\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
+\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+\echo   let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length;
+\echo   strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
+\echo   document.getElementById("finditem").innerHTML += strfind;
 \echo  }
 \echo   //Add footer to database details table at the top
 \echo   var el=document.createElement("tfoot");
