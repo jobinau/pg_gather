@@ -123,7 +123,7 @@ COPY (SELECT oid,relname,relkind,relnamespace FROM pg_class WHERE relnamespace N
 \echo '\\.'
 
 --Index usage info
-\echo COPY pg_get_index FROM stdin;
+\echo COPY pg_get_index(indexrelid,indrelid,indisunique,indisprimary,numscans,size) FROM stdin;
 COPY (SELECT indexrelid,indrelid,indisunique,indisprimary, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid) from pg_index) TO stdin;
 \echo '\\.'
 

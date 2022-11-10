@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS pg_get_file_confs;
 DROP TABLE IF EXISTS pg_get_db;
 DROP TABLE IF EXISTS pg_get_index;
 DROP TABLE IF EXISTS pg_get_rel;
-DROP TABLE IF EXISTS pg_pg_inherits;
+DROP TABLE IF EXISTS pg_get_inherits;
 DROP TABLE IF EXISTS pg_srvr;
 DROP TABLE IF EXISTS pg_get_block;
 DROP TABLE IF EXISTS pg_pid_wait;
@@ -152,7 +152,7 @@ CREATE UNLOGGED TABLE pg_get_class (
     relnamespace oid
 );
 
-CREATE UNLOGGED TABLE pg_pg_inherits(
+CREATE UNLOGGED TABLE pg_get_inherits(
     inhrelid oid,
     inhparent oid
 );
