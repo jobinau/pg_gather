@@ -275,7 +275,7 @@ SELECT to_jsonb(r) FROM
    count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
    count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
   FROM pg_get_activity) as sess,
-  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"[[:word:]]*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
+  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
   cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
 SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
 curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
