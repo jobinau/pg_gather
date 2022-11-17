@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-DOCKER_IMAGE=postgres:13
+DOCKER_IMAGE=postgres:14
 
 if [ -z "${1}" ]; then
     echo "Usage is generate_report.sh path_to_output.txt [path_to_report.html] [keep the docker container y/n]"
@@ -9,10 +9,11 @@ if [ -z "${1}" ]; then
 fi
 
 GATHER_OUT="${1}"
-REPORT_OUT="${2:-$GATHER_OUT.html}"
+REPORT_OUT="${2:-$(echo "${GATHER_OUT}" | cut -f 1 -d '.')}.html"
 KEEP_DOCKER="${3:-n}"
+GATHERDIR="$(dirname "$(realpath "$0")")"
 
-if [ ! -f ./gather_schema.sql ] || [ ! -f ./gather_report.sql ]; then
+if [ ! -f $GATHERDIR/gather_schema.sql ] || [ ! -f $GATHERDIR/gather_report.sql ]; then
   echo "gather_schema.sql and gather_report.sql weren't found; are you running from a cloned repo?"
   exit 1
 fi
@@ -22,9 +23,8 @@ CONTAINER_ID=$(docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust ${DOCKER_IMAGE})
 echo "Docker container is ${CONTAINER_ID}; will wait 3 seconds before proceeding"
 sleep 3;
 
-cat gather_schema.sql | docker exec -i --user postgres "${CONTAINER_ID}" psql -f -
-sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' "${GATHER_OUT}" | docker exec -i --user postgres "${CONTAINER_ID}" psql -f -
-cat gather_report.sql | docker exec -i --user postgres "${CONTAINER_ID}" sh -c "psql -X -f -" > "${REPORT_OUT}"
+{ cat $GATHERDIR/gather_schema.sql; cat ${GATHER_OUT}; }  | docker exec -i --user postgres "${CONTAINER_ID}" psql -f - -c "ANALYZE"
+cat $GATHERDIR/gather_report.sql | docker exec -i --user postgres "${CONTAINER_ID}" sh -c "psql -X -f -" > "${REPORT_OUT}"
 
 docker stop "${CONTAINER_ID}"
 if [ "n" = "${KEEP_DOCKER}" ]; then
