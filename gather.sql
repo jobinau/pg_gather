@@ -26,7 +26,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 SET statement_timeout=60000;
 \t on
 PREPARE pidevents AS
-SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_activity WHERE state != 'idle' and pid != pg_backend_pid();
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE state != 'idle' and pid != pg_backend_pid();
 \a
 \set QUIET off
 \echo '\\t'
@@ -39,7 +39,7 @@ SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_activity WHERE sta
 \echo '\\.'
 \endif
 
-\echo COPY pg_gather FROM stdin;
+\echo COPY pg_gather (collect_ts,usr,db,ver,pg_start_ts,recovery,client,server,reload_ts,current_wal) FROM stdin;
 COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),
 CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END
 ) TO stdin; 
@@ -57,10 +57,8 @@ CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal
 \copy (select * from  pg_stat_get_activity(NULL) where pid != pg_backend_pid()) to stdin
 \echo '\\.'
 
-
---A lightweight implimentation of wait event data capture
 \o /dev/null
-SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
+SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
 \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
@@ -237,7 +235,7 @@ COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
 
 --Active session (again)
 \o /dev/null
-SELECT 'SELECT pg_sleep(0.01); EXECUTE pidevents;' FROM generate_series(1,1000) g;
+SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
 \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
