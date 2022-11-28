@@ -121,8 +121,9 @@ ORDER BY size DESC LIMIT 10000;
 \pset tableattr %>
 <h2 id="parameters">Parameters & settings</h2>
 <% \pset tableattr 'id="params"'%>
-<% SELECT s.*,string_agg(f.sourcefile ||' - '|| f.setting,chr(10)) As "Other locations" FROM pg_get_confs s
-LEFT JOIN pg_get_file_confs f ON s.name = f.name AND  s.source <> f.sourcefile
+<% SELECT coalesce(s.name,f.name) "Name",s.setting,s.unit,s.source, 
+string_agg(f.sourcefile ||' - '|| f.setting || CASE WHEN f.applied = true THEN ' (applicable)' ELSE '' END ,chr(10)) FILTER (WHERE s.source != f.sourcefile OR s.source IS NULL ) AS "Other locations"
+FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower(f.name)
 GROUP BY 1,2,3,4 ORDER BY 1; %>
 <% \pset tableattr%>
 <h2 id="extensions">Extensions</h2>
@@ -282,7 +283,8 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
     LEFT JOIN cts ON true) as dbts,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns,
-  (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail
+  (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail,
+  (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib
 ) r;
 %>
 </div>
@@ -387,6 +389,9 @@ function checkpars(){
   for(var i=1;i<trs.length;i++){
     tr=trs[i]; nm=tr.cells[0]; val=tr.cells[1];
     switch(nm.innerText){
+      case "archive_command" :
+        if (obj.arclib !== null && obj.arclib.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
+        break;
       case "autovacuum" :
         if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
         break;
