@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS pg_get_roles;
 DROP TABLE IF EXISTS pg_get_extension;
 DROP TABLE IF EXISTS pg_get_slots;
 DROP TABLE IF EXISTS pg_get_ns;
+DROP TABLE IF EXISTS pg_gather_end;
 
 \echo **Creating pg_gather tables**
 CREATE UNLOGGED TABLE pg_srvr (
@@ -41,6 +42,11 @@ CREATE UNLOGGED TABLE pg_gather (
     server inet,
     reload_ts timestamp with time zone,
     current_wal pg_lsn
+);
+
+CREATE UNLOGGED TABLE pg_gather_end (
+    end_ts timestamp with time zone,
+    end_lsn pg_lsn
 );
 
 CREATE UNLOGGED TABLE pg_get_activity (
