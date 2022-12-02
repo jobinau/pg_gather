@@ -331,7 +331,7 @@ SELECT to_jsonb(r) FROM
 \echo  }
 \echo   //Add footer to database details table at the top
 \echo   var el=document.createElement("tfoot");
-\echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total DB size is : "+ bytesToSize(totdb) +"</th>";
+\echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
 \echo   dbs=document.getElementById("dbs");
 \echo   dbs.appendChild(el);
 \echo   //Add footer to Sessions Summary table
@@ -458,6 +458,8 @@ SELECT to_jsonb(r) FROM
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
 \echo     //Tab+Ind > 10GB
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
+\echo     //Check vacuum frequncy
+\echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12) tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day";
 \echo     //Check the TOAST size
 \echo     if (tr.cells[15].innerText > 10000) { 
 \echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
