@@ -158,14 +158,17 @@ JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_
 ) TO stdin;
 \echo '\\.'
 
+--TOAST info
 \echo COPY pg_get_toast FROM stdin;
 COPY (SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
 \echo '\\.'
 
+--namespaces/schemas
 \echo COPY pg_get_ns(nsoid,nsname) FROM stdin;
 COPY (SELECT oid,nspname FROM pg_namespace) TO stdout;
 \echo '\\.'
 
+--Extensions present
 \echo COPY pg_get_extension FROM stdin;
 COPY (select oid,extname,extowner,extnamespace,extrelocatable,extversion from pg_extension) TO stdout;
 \echo '\\.'
@@ -208,6 +211,10 @@ FROM  pg_catalog.pg_locks   blocked_locks
         AND blocking_locks.pid != blocked_locks.pid
    JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid
 WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
+\echo '\\.'
+--Lock chain info
+\echo COPY pg_get_pidblock(victim_pid,blocking_pids) FROM stdin;
+COPY (SELECT pid,pg_blocking_pids(pid) FROM pg_stat_get_activity(NULL) WHERE wait_event_type = 'Lock') TO stdout;
 \echo '\\.'
 
 --Replication status
