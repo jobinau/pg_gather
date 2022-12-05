@@ -524,7 +524,11 @@ SELECT to_jsonb(r) FROM
 \echo   str += "<br/>Updates / day : " + Math.round(o.f2/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f3/obj.dbts.f4);
 \echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   if (o.f2 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f2/(o.f2+o.f1)+ 20*o.f2*o.f4/((o.f2+o.f1)*o.f2)); //
+\echo   if (o.f2 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f2/(o.f2+o.f1)+ 20*o.f2*o.f4/((o.f2+o.f1)*o.f2));
+\echo   if (vac/obj.dbts.f4 > 50) { 
+\echo     let threshold = Math.round((Math.round(o.f2/obj.dbts.f4) + Math.round(o.f3/obj.dbts.f4))/48);
+\echo     str += "<br/>AUTOVACUUM recommendation : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
+\echo   }
 \echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {

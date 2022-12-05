@@ -284,7 +284,9 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN cts ON true) as dbts,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns,
   (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail,
-  (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib
+  (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib,
+  (SELECT CASE WHEN max(stats_reset)-min(stats_reset) < '2 minute' :: interval THEN min(stats_reset) ELSE NULL END 
+  FROM (SELECT stats_reset FROM pg_get_db UNION SELECT stats_reset FROM pg_get_bgwriter) reset) crash
 ) r;
 
 \echo </div>
@@ -325,6 +327,7 @@ SELECT to_jsonb(r) FROM
 \echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
 \echo   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
+\echo   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
 \echo   let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length;
 \echo   strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
@@ -521,7 +524,11 @@ SELECT to_jsonb(r) FROM
 \echo   str += "<br/>Updates / day : " + Math.round(o.f2/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f3/obj.dbts.f4);
 \echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   if (o.f2 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f2/(o.f2+o.f1)+ 20*o.f2*o.f4/((o.f2+o.f1)*o.f2)); //
+\echo   if (o.f2 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f2/(o.f2+o.f1)+ 20*o.f2*o.f4/((o.f2+o.f1)*o.f2));
+\echo   if (vac/obj.dbts.f4 > 50) { 
+\echo     let threshold = Math.round((Math.round(o.f2/obj.dbts.f4) + Math.round(o.f3/obj.dbts.f4))/48);
+\echo     str += "<br/>AUTOVACUUM recommendation : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
+\echo   }
 \echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
