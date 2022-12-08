@@ -212,6 +212,7 @@ FROM  pg_catalog.pg_locks   blocked_locks
    JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid
 WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
 \echo '\\.'
+
 --Lock chain info
 \echo COPY pg_get_pidblock(victim_pid,blocking_pids) FROM stdin;
 COPY (SELECT pid,pg_blocking_pids(pid) FROM pg_stat_get_activity(NULL) WHERE wait_event_type = 'Lock') TO stdout;
@@ -246,4 +247,11 @@ SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
 \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
+\echo '\\.'
+
+--End Marker
+\echo COPY pg_gather_end(end_ts,end_lsn) FROM stdin;
+COPY ( SELECT current_timestamp,
+  CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END
+) TO stdin;
 \echo '\\.\n'
