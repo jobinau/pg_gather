@@ -1,7 +1,7 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 -- pg_gather version
-\set ver 18
+\set ver 19
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( current_database() != 'template1' ) as fullgather \gset
@@ -26,7 +26,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 SET statement_timeout=60000;
 \t on
 PREPARE pidevents AS
-SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE state != 'idle' and pid != pg_backend_pid();
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE state != 'idle' OR state IS NULL;
 \a
 \set QUIET off
 \echo '\\t'

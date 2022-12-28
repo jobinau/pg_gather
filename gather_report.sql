@@ -138,7 +138,9 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 \echo <h2 id="time">Database time</h2>
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info.'
-SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait GROUP BY 1 ORDER BY count(*) DESC;
+SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
+WHERE wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain')
+GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
 \echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
