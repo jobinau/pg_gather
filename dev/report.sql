@@ -139,7 +139,7 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info.'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
-WHERE wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain')
 GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
@@ -155,7 +155,6 @@ SELECT * FROM (
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
    LEFT JOIN g ON true
-  WHERE a.state IS NOT NULL
   GROUP BY 1,2,3,4,5,6,7,8 ORDER BY 6 DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle'; 
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>

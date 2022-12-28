@@ -26,7 +26,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 SET statement_timeout=60000;
 \t on
 PREPARE pidevents AS
-SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE state != 'idle' OR state IS NULL;
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE (state != 'idle' OR state IS NULL) AND pid != pg_backend_pid();
 \a
 \set QUIET off
 \echo '\\t'
