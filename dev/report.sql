@@ -139,7 +139,7 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info.'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
-WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep')
 GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
