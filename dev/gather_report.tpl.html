@@ -306,6 +306,7 @@ SELECT to_jsonb(r) FROM
 <script type="text/javascript">
 //Global object to hold json values passed from the SQL analysis
 obj={};
+meta={pgvers:["10.23","11.18","12.13","13.9","14.6","15.1"]};
 
 //Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
 autovacuum_freeze_max_age = 0;
@@ -436,6 +437,18 @@ function checkpars(){
         break;
       case "huge_pages":
         val.classList.add("lime");
+        break;
+      case "server_version":
+        val.classList.add("lime"); let setval = val.innerText.split(" ")[0];
+        if ( setval.split(".")[0] < Math.trunc(meta.pgvers[0])){
+          val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+        } else {
+          meta.pgvers.forEach(function(t){
+            if (Math.trunc(setval) == Math.trunc(t)){
+               if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+            }
+          })  
+        }
         break;
       case "huge_page_size":
         val.classList.add("lime");

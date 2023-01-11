@@ -305,6 +305,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
+\echo meta={pgvers:["10.23","11.18","12.13","13.9","14.6","15.1"]};
 \echo autovacuum_freeze_max_age = 0;
 \echo totdb=0;
 \echo totCPU=0;
@@ -412,6 +413,18 @@ SELECT to_jsonb(r) FROM
 \echo         break;
 \echo       case "huge_pages":
 \echo         val.classList.add("lime");
+\echo         break;
+\echo       case "server_version":
+\echo         val.classList.add("lime"); let setval = val.innerText.split(" ")[0];
+\echo         if ( setval.split(".")[0] < Math.trunc(meta.pgvers[0])){
+\echo           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+\echo         } else {
+\echo           meta.pgvers.forEach(function(t){
+\echo             if (Math.trunc(setval) == Math.trunc(t)){
+\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+\echo             }
+\echo           })  
+\echo         }
 \echo         break;
 \echo       case "huge_page_size":
 \echo         val.classList.add("lime");
