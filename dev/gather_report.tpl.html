@@ -307,7 +307,8 @@ SELECT to_jsonb(r) FROM
 //Global object to hold json values passed from the SQL analysis
 obj={};
 meta={pgvers:["10.23","11.18","12.13","13.9","14.6","15.1"]};
-
+mgrver="";
+walcomprz="";
 //Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
 autovacuum_freeze_max_age = 0;
 //total DB size
@@ -355,6 +356,8 @@ function checkfindings(){
   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
   if (obj.wmemuse !== null &&  obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
   if (obj.sumry !== null) strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds</b></li><li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>";
+  if ( mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
+  if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
   strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
   document.getElementById("finditem").innerHTML += strfind;
@@ -422,42 +425,29 @@ function checkpars(){
         autovacuum_freeze_max_age = Number(val.innerText);
         if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
         break;
+      case "checkpoint_timeout":
+        if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+        break;
       case "deadlock_timeout":
         val.classList.add("lime");
         break;
       case "effective_cache_size":
         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
         break;
-      case "maintenance_work_mem":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
-        break;
-      case "work_mem":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
-        if(val.innerText > 98304) val.classList.add("warn");
-        break;
       case "huge_pages":
         val.classList.add("lime");
-        break;
-      case "server_version":
-        val.classList.add("lime"); let setval = val.innerText.split(" ")[0];
-        if ( setval.split(".")[0] < Math.trunc(meta.pgvers[0])){
-          val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-        } else {
-          meta.pgvers.forEach(function(t){
-            if (Math.trunc(setval) == Math.trunc(t)){
-               if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
-            }
-          })  
-        }
         break;
       case "huge_page_size":
         val.classList.add("lime");
         break;
-      case "checkpoint_timeout":
-        if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
-        break;
       case "hot_standby_feedback":
         val.classList.add("lime");
+        break;
+      case "jit":
+        if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
+        break;
+      case "maintenance_work_mem":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
         break;
       case "shared_buffers":
         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
@@ -479,14 +469,28 @@ function checkpars(){
       case "random_page_cost":
         if(val.innerText > 1.2) val.classList.add("warn");
         break;
-      case "jit":
-        if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
-        break;
       case "server_version":
-        val.classList.add("lime");
+        val.classList.add("lime"); let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+        if ( mgrver < Math.trunc(meta.pgvers[0])){
+          val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+        } else {
+          meta.pgvers.forEach(function(t){
+            if (Math.trunc(setval) == Math.trunc(t)){
+               if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+            }
+          })  
+        }
         break;
       case "synchronous_standby_names":
         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+        break;
+      case "wal_compression":
+        val.classList.add("lime");
+        walcomprz = val.innerText;
+        break;
+      case "work_mem":
+        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+        if(val.innerText > 98304) val.classList.add("warn");
         break;
     }
   }

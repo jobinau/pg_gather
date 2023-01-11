@@ -306,6 +306,8 @@ SELECT to_jsonb(r) FROM
 \echo <script type="text/javascript">
 \echo obj={};
 \echo meta={pgvers:["10.23","11.18","12.13","13.9","14.6","15.1"]};
+\echo mgrver="";
+\echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
 \echo totdb=0;
 \echo totCPU=0;
@@ -342,6 +344,8 @@ SELECT to_jsonb(r) FROM
 \echo   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
 \echo   if (obj.wmemuse !== null &&  obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
 \echo   if (obj.sumry !== null) strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds</b></li><li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>";
+\echo   if ( mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
+\echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
 \echo   strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
@@ -398,42 +402,29 @@ SELECT to_jsonb(r) FROM
 \echo         autovacuum_freeze_max_age = Number(val.innerText);
 \echo         if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
 \echo         break;
+\echo       case "checkpoint_timeout":
+\echo         if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+\echo         break;
 \echo       case "deadlock_timeout":
 \echo         val.classList.add("lime");
 \echo         break;
 \echo       case "effective_cache_size":
 \echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
 \echo         break;
-\echo       case "maintenance_work_mem":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
-\echo         break;
-\echo       case "work_mem":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
-\echo         if(val.innerText > 98304) val.classList.add("warn");
-\echo         break;
 \echo       case "huge_pages":
 \echo         val.classList.add("lime");
-\echo         break;
-\echo       case "server_version":
-\echo         val.classList.add("lime"); let setval = val.innerText.split(" ")[0];
-\echo         if ( setval.split(".")[0] < Math.trunc(meta.pgvers[0])){
-\echo           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-\echo         } else {
-\echo           meta.pgvers.forEach(function(t){
-\echo             if (Math.trunc(setval) == Math.trunc(t)){
-\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
-\echo             }
-\echo           })  
-\echo         }
 \echo         break;
 \echo       case "huge_page_size":
 \echo         val.classList.add("lime");
 \echo         break;
-\echo       case "checkpoint_timeout":
-\echo         if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
-\echo         break;
 \echo       case "hot_standby_feedback":
 \echo         val.classList.add("lime");
+\echo         break;
+\echo       case "jit":
+\echo         if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
+\echo         break;
+\echo       case "maintenance_work_mem":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
 \echo         break;
 \echo       case "shared_buffers":
 \echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
@@ -455,14 +446,28 @@ SELECT to_jsonb(r) FROM
 \echo       case "random_page_cost":
 \echo         if(val.innerText > 1.2) val.classList.add("warn");
 \echo         break;
-\echo       case "jit":
-\echo         if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
-\echo         break;
 \echo       case "server_version":
-\echo         val.classList.add("lime");
+\echo         val.classList.add("lime"); let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+\echo         if ( mgrver < Math.trunc(meta.pgvers[0])){
+\echo           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+\echo         } else {
+\echo           meta.pgvers.forEach(function(t){
+\echo             if (Math.trunc(setval) == Math.trunc(t)){
+\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+\echo             }
+\echo           })  
+\echo         }
 \echo         break;
 \echo       case "synchronous_standby_names":
 \echo         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+\echo         break;
+\echo       case "wal_compression":
+\echo         val.classList.add("lime");
+\echo         walcomprz = val.innerText;
+\echo         break;
+\echo       case "work_mem":
+\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         if(val.innerText > 98304) val.classList.add("warn");
 \echo         break;
 \echo     }
 \echo   }
