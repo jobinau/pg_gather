@@ -355,7 +355,11 @@ function checkfindings(){
   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
   if (obj.wmemuse !== null &&  obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
-  if (obj.sumry !== null) strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds</b></li><li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>";
+  if (obj.sumry !== null){ strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds. </b>";
+     if ( obj.sumry.f1 < 23 ) strfind += "System response is good</li>";
+     else if ( obj.sumry.f1 < 28 ) strfind += "System response is below average</li>";
+     else strfind += "System response appears to be poor</li>";
+     strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>"; }
   if ( mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
