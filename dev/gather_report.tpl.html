@@ -597,6 +597,7 @@ function tabdtls(th){
   if (o.f2 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f2/(o.f2+o.f1)+ 20*o.f2*o.f4/((o.f2+o.f1)*o.f2));
   if (vac/obj.dbts.f4 > 50) { 
     let threshold = Math.round((Math.round(o.f2/obj.dbts.f4) + Math.round(o.f3/obj.dbts.f4))/48);
+    if (threshold < 500) threshold = 500;
     str += "<br/>AUTOVACUUM recommendation : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
   }
   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
