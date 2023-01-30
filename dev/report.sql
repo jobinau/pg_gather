@@ -143,7 +143,6 @@ WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','
 GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
-\echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
@@ -302,7 +301,6 @@ SELECT to_jsonb(r) FROM
 
 \echo </div>
 \echo </div> <!--End of "sections"-->
-\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
 \echo meta={pgvers:["10.23","11.18","12.13","13.9","14.6","15.1"]};
@@ -312,11 +310,22 @@ SELECT to_jsonb(r) FROM
 \echo totdb=0;
 \echo totCPU=0;
 \echo totMem=0;
+\echo let blokers = []
+\echo let blkvictims = []
 \echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse( document.getElementById("analdata").innerText);
+\echo obj.victims.forEach(function(victim){
+\echo   blkvictims.push(victim.f1);
+\echo });
+\echo obj.victims.forEach(function(victim){
+\echo   victim.f2.forEach(function(blker){
+\echo     if (blkvictims.indexOf(blker) == -1 && blokers.indexOf(blker) == -1) blokers.push(blker);
+\echo   });
+\echo });
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
+\echo checksess();
 \echo checkfindings();
 \echo });
 \echo window.onload = function() {
@@ -342,7 +351,8 @@ SELECT to_jsonb(r) FROM
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
 \echo   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
 \echo   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
-\echo   if (obj.wmemuse !== null &&  obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
+\echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
+\echo   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li>There are <b>" + obj.victims.length + " sessions blocked.</b></li>"
 \echo   if (obj.sumry !== null){ strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds. </b>";
 \echo      if ( obj.sumry.f1 < 23 ) strfind += "System response is good</li>";
 \echo      else if ( obj.sumry.f1 < 28 ) strfind += "System response is below average</li>";
@@ -354,12 +364,10 @@ SELECT to_jsonb(r) FROM
 \echo   strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo  }
-\echo   //Add footer to database details table at the top
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
 \echo   dbs=document.getElementById("dbs");
 \echo   dbs.appendChild(el);
-\echo   //Add footer to Sessions Summary table
 \echo   el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
 \echo   tblss=document.getElementById("tblss");
@@ -487,21 +495,15 @@ SELECT to_jsonb(r) FROM
 \echo   const len=trs.length;
 \echo   [10,16,17].forEach(function(num){trs[0].cells[num].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
 \echo   for(var i=1;i<len;i++){
-\echo   //TODO : trs.forEach (convert the for loop to forEach if possible)
 \echo     tr=trs[i]; let TotTab=tr.cells[8]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[9]; TabIndSize=(TabInd.innerHTML);
 \echo     if(TotTabSize > 5000000000 ) { TotTab.classList.add("lime"); TotTab.title = bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge"; 
 \echo     } else TotTab.title=bytesToSize(TotTabSize);
-\echo     //Tab above 20MB and with Index bigger than Tab
 \echo     if( TabIndSize > 2*TotTabSize && TotTabSize > 2000000 ){ TabInd.classList.add("warn"); TabInd.title="Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize)
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
-\echo     //Tab+Ind > 10GB
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
-\echo     //Check vacuum frequncy
 \echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12) tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day";
-\echo     //Check the TOAST size
 \echo     if (tr.cells[15].innerText > 10000) { 
 \echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
-\echo       //if TOAST is more than 10GB
 \echo       if (tr.cells[15].innerText > 10737418240) tr.cells[15].classList.add("warn")
 \echo       else tr.cells[15].classList.add("lime")
 \echo     }
@@ -513,7 +515,6 @@ SELECT to_jsonb(r) FROM
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
 \echo }
 \echo function checkdbs(){
-\echo   //second column in the table is hidden, be careful
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
 \echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
@@ -597,29 +598,17 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("tableConten").remove();
 \echo   document.getElementById("time").innerText="Database wait events are not found"  
 \echo }
-\echo let blokers = []
-\echo let blkvictims = []
-\echo trs=document.getElementById("tblblk").rows;
-\echo for (let tr of trs) {
-\echo   victim=tr.cells[0].innerText;
-\echo   blkr=tr.cells[9].innerText;
-\echo   if (victim > 0) blkvictims.push(victim);
-\echo   if (blkr > 0) blokers.push(blkr);
-\echo }
+\echo function checksess(){
 \echo trs=document.getElementById("tblsess").rows;
 \echo for (let tr of trs){
 \echo  pid=tr.cells[0];
 \echo  xidage=tr.cells[5];
 \echo  stime=tr.cells[7];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
-\echo  //if pid exists in blockers list
-\echo  if (blokers.indexOf(pid.innerText) > -1){ 
-\echo      pid.classList.add("warn"); pid.title="Blocker";
-\echo      //In case the pid is not there in vicitms list, it is the first blocker
-\echo      if (blkvictims.indexOf(pid.innerText) == -1) pid.classList.add("high");
-\echo   };
-\echo   if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
-\echo }
+\echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
+\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
+\echo if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
+\echo }}
 \echo if(document.getElementById("tblblk").rows.length < 2){ 
 \echo   document.getElementById("tblblk").remove();
 \echo   document.getElementById("blocking").innerText="No Blocking Sessions Found";
@@ -670,7 +659,6 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo document.onkeyup = function(e) {
 \echo   if (e.altKey && e.which === 73) document.getElementById("topics").scrollIntoView({behavior: "smooth"});
-\echo   //       e.preventDefault();
 \echo }
 \echo </script>
 \echo </html>
