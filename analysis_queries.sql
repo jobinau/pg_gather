@@ -117,7 +117,14 @@ select  (
  as sz from pg_archiver_stat JOIN pg_gather ON TRUE
 ) a;
 
-
+--16. FILLFACTOR recommendations - Statement generator
+WITH  tabs AS 
+(SELECT ns.nsname, c.relname , r.n_tup_ins, r.n_tup_upd, r.n_tup_del, r.n_tup_hot_upd
+FROM pg_get_rel r
+JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p') AND r.n_tup_upd > 0
+JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid)
+SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( FILLFACTOR='|| 100 - 20*n_tup_upd/(n_tup_ins+n_tup_upd) + 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd) || ' );'
+FROM tabs;
 
 
 =======================HISTORY SCHEMA ANALYSIS=========================
