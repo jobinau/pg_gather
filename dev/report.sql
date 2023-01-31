@@ -314,6 +314,7 @@ SELECT to_jsonb(r) FROM
 \echo let blkvictims = []
 \echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse( document.getElementById("analdata").innerText);
+\echo if (obj.victims !== null){
 \echo obj.victims.forEach(function(victim){
 \echo   blkvictims.push(victim.f1);
 \echo });
@@ -322,6 +323,7 @@ SELECT to_jsonb(r) FROM
 \echo     if (blkvictims.indexOf(blker) == -1 && blokers.indexOf(blker) == -1) blokers.push(blker);
 \echo   });
 \echo });
+\echo }
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();

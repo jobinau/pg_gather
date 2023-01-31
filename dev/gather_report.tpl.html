@@ -324,6 +324,7 @@ let blkvictims = []
 document.addEventListener("DOMContentLoaded", () => {
 obj=JSON.parse( document.getElementById("analdata").innerText);
 // New code for preparting victims and blockers
+if (obj.victims !== null){
 obj.victims.forEach(function(victim){
   blkvictims.push(victim.f1);
 });
@@ -332,7 +333,7 @@ obj.victims.forEach(function(victim){
     if (blkvictims.indexOf(blker) == -1 && blokers.indexOf(blker) == -1) blokers.push(blker);
   });
 });
-
+}
 checkpars();
 checktabs();
 checkdbs();
