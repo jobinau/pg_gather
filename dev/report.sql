@@ -303,7 +303,7 @@ SELECT to_jsonb(r) FROM
 \echo </div> <!--End of "sections"-->
 \echo <script type="text/javascript">
 \echo obj={};
-\echo meta={pgvers:["10.23","11.18","12.13","13.9","14.6","15.1"]};
+\echo meta={pgvers:["11.19","12.14","13.10","14.7","15.2"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
