@@ -38,7 +38,7 @@ BEGIN {
       print
     } else if ( /^\s*$/ ) {  ## Empty lines for readability can be removed
       #print
-    } else if ( /\w*\/\// ) {  ## Comments with double slash can be removed
+    } else if ( /^\s*\/\// ) {  ## Comments with double slash can be removed
 
     } else {                 ## Remaining lines (HTML tags) echo as it is
       sub(/^/, "\\echo ");
