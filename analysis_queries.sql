@@ -123,8 +123,25 @@ WITH  tabs AS
 FROM pg_get_rel r
 JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p') AND r.n_tup_upd > 0
 JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid)
-SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( FILLFACTOR='|| 100 - 20*n_tup_upd/(n_tup_ins+n_tup_upd) + 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd) || ' );'
-FROM tabs;
+SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( FILLFACTOR='|| 100 - 20*n_tup_upd/(n_tup_ins+n_tup_upd) + 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd) || ' );',
+--(20*n_tup_upd/(n_tup_ins+n_tup_upd) - 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd))
+FROM tabs
+WHERE (20*n_tup_upd/(n_tup_ins+n_tup_upd) - 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd)) > 1 ;
+
+--17. Table level AUTOVACUUM recommendations
+WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
+    cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts),
+    tabs AS (SELECT ns.nsname, c.relname , r.n_tup_ins, r.n_tup_upd, r.n_tup_del, r.n_tup_hot_upd, r.vac_nos
+           FROM pg_get_rel r
+           JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p') AND r.n_tup_upd > 0
+           JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid),
+    curstatus AS (SELECT curdb,stats_reset,c_ts,days FROM 
+    curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
+    LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
+    LEFT JOIN cts ON true)
+SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( autovacuum_vacuum_threshold='|| GREATEST(ROUND((n_tup_upd/curstatus.days + n_tup_del/curstatus.days)/48),500) ||', autovacuum_analyze_threshold='|| GREATEST(ROUND((n_tup_upd/curstatus.days + n_tup_del/curstatus.days)/48),500) || ' );'
+FROM tabs JOIN curstatus ON TRUE
+WHERE tabs.vac_nos/curstatus.days > 48;
 
 
 =======================HISTORY SCHEMA ANALYSIS=========================
