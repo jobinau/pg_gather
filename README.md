@@ -75,8 +75,9 @@ If the connection is to `template1` database, the gather script will collect onl
 The collected data can be imported to a PostgreSQL Instance. This creates required schema objects in the `public` schema of the database. 
 **CAUTION :** Please avoid importing the data into any critical environments/databases. A temporary PostgreSQL instance is preferable.
 ```
-sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -f -
+ psql -f gather_schema.sql -f out.txt
 ```
+Deprecated usage of `sed` : sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -
 ## 2.2 Generating Report
 The analysis report in HTML format can be generated as follows.
 ```
