@@ -143,6 +143,7 @@ WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','
 GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
+\echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
@@ -301,6 +302,7 @@ SELECT to_jsonb(r) FROM
 
 \echo </div>
 \echo </div> <!--End of "sections"-->
+\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
 \echo meta={pgvers:["11.19","12.14","13.10","14.7","15.2"]};
