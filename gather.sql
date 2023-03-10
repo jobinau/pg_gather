@@ -1,7 +1,7 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 -- pg_gather version
-\set ver 19
+\set ver 20
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( current_database() != 'template1' ) as fullgather \gset
@@ -174,44 +174,6 @@ COPY (select oid,extname,extowner,extnamespace,extrelocatable,extversion from pg
 \echo '\\.'
 
 \endif
-
---Blocking information
-\echo COPY pg_get_block FROM stdin;
-COPY (SELECT blocked_locks.pid  AS blocked_pid,
-       blocked_activity.usename  AS blocked_user,
-       blocked_activity.client_addr as blocked_client_addr,
-       blocked_activity.client_hostname as blocked_client_hostname,
-       blocked_activity.application_name as blocked_application_name,
-       blocked_activity.wait_event_type as blocked_wait_event_type,
-       blocked_activity.wait_event as blocked_wait_event,
-       blocked_activity.query   AS blocked_statement,
-       blocked_activity.xact_start AS blocked_xact_start,
-       blocking_locks.pid  AS blocking_pid,
-       blocking_activity.usename AS blocking_user,
-       blocking_activity.client_addr as blocking_client_addr,
-       blocking_activity.client_hostname as blocking_client_hostname,
-       blocking_activity.application_name as blocking_application_name,
-       blocking_activity.wait_event_type as blocking_wait_event_type,
-       blocking_activity.wait_event as blocking_wait_event,
-       blocking_activity.query AS current_statement_in_blocking_process,
-       blocking_activity.xact_start AS blocking_xact_start
-FROM  pg_catalog.pg_locks   blocked_locks
-   JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid
-   JOIN pg_catalog.pg_locks  blocking_locks 
-        ON blocking_locks.locktype = blocked_locks.locktype
-        AND blocking_locks.DATABASE IS NOT DISTINCT FROM blocked_locks.DATABASE
-        AND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation
-        AND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page
-        AND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple
-        AND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid
-        AND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid
-        AND blocking_locks.classid IS NOT DISTINCT FROM blocked_locks.classid
-        AND blocking_locks.objid IS NOT DISTINCT FROM blocked_locks.objid
-        AND blocking_locks.objsubid IS NOT DISTINCT FROM blocked_locks.objsubid
-        AND blocking_locks.pid != blocked_locks.pid
-   JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid
-WHERE NOT blocked_locks.granted ORDER BY blocked_activity.pid ) TO stdin;
-\echo '\\.'
 
 --Lock chain info
 \echo COPY pg_get_pidblock(victim_pid,blocking_pids) FROM stdin;

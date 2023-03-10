@@ -12,7 +12,7 @@ DROP TABLE IF EXISTS pg_get_index;
 DROP TABLE IF EXISTS pg_get_rel;
 DROP TABLE IF EXISTS pg_get_inherits;
 DROP TABLE IF EXISTS pg_srvr;
-DROP TABLE IF EXISTS pg_get_block;
+DROP TABLE IF EXISTS pg_get_block;  --Deprecated in v20
 DROP TABLE IF EXISTS pg_get_pidblock;
 DROP TABLE IF EXISTS pg_pid_wait;
 DROP TABLE IF EXISTS pg_replication_stat;
