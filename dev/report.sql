@@ -149,14 +149,14 @@ GROUP BY 1 ORDER BY count(*) DESC;
 SELECT * FROM (
   WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state, CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+  SELECT a.pid,a.state,r.rolname "User",client_addr "From", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
-   LEFT JOIN (SELECT pid,sum(cnt) tot FROM w GROUP BY 1) s ON a.pid = s.pid
    LEFT JOIN g ON true
-  GROUP BY 1,2,3,4,5,6,7,8 ORDER BY 6 DESC NULLS LAST) AS sess
-WHERE waits IS NOT NULL OR state != 'idle'; 
+   LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
+  GROUP BY 1,2,3,4,5,6,7,8,9,10 ORDER BY 8 DESC NULLS LAST) AS sess
+WHERE waits IS NOT NULL OR state != 'idle';
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 \pset tableattr 'id="tblblk"'
 SELECT * FROM pg_get_block; 
@@ -588,7 +588,7 @@ SELECT to_jsonb(r) FROM
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 \echo })));
-\echo document.querySelectorAll("#tblsess tr td:nth-child(3)").forEach(td => td.addEventListener("dblclick", (() => {
+\echo document.querySelectorAll("#tblsess tr td:nth-child(5)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
@@ -620,15 +620,13 @@ SELECT to_jsonb(r) FROM
 \echo function checksess(){
 \echo trs=document.getElementById("tblsess").rows;
 \echo for (let tr of trs){
-\echo  pid=tr.cells[0];
-\echo  xidage=tr.cells[5];
-\echo  stime=tr.cells[7];
+\echo  pid=tr.cells[0]; sql=tr.cells[4]; xidage=tr.cells[7]; stime=tr.cells[9];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
 \echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
 \echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
 \echo  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
-\echo  if (tr.cells[2].innerText.length > 10 && !tr.cells[2].innerText.startsWith("**") ){ tr.cells[2].title = tr.cells[2].innerText; 
-\echo   tr.cells[2].innerText = tr.cells[2].innerText.substring(0, 100); 
+\echo  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
+\echo  sql.innerText = sql.innerText.substring(0, 100); 
 \echo }
 \echo }}
 \echo if(document.getElementById("tblblk").rows.length < 2){ 
