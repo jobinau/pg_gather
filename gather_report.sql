@@ -588,8 +588,17 @@ SELECT to_jsonb(r) FROM
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 \echo })));
-\echo document.querySelectorAll("#tblsess tr td:nth-child(3)").forEach(td => td.addEventListener("click", (() => {
+\echo document.querySelectorAll("#tblsess tr td:nth-child(3)").forEach(td => td.addEventListener("dblclick", (() => {
+\echo   if (td.title){
 \echo   console.log(td.title);
+\echo   navigator.clipboard.writeText(td.title).then(() => {  
+\echo     var el=document.createElement("div");
+\echo     el.setAttribute("id", "cur");
+\echo     el.textContent = "SQL text is Copied to clipboard";
+\echo     td.appendChild(el);
+\echo     setTimeout(() => { el.remove();},2000);
+\echo    });
+\echo }
 \echo })));
 \echo trs=document.getElementById("IndInfo").rows;
 \echo for (let tr of trs) {
@@ -618,7 +627,7 @@ SELECT to_jsonb(r) FROM
 \echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
 \echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
 \echo  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
-\echo  if (tr.cells[2].innerText.length > 100 ){ tr.cells[2].title = tr.cells[2].innerText; 
+\echo  if (tr.cells[2].innerText.length > 10 && !tr.cells[2].innerText.startsWith("**") ){ tr.cells[2].title = tr.cells[2].innerText; 
 \echo   tr.cells[2].innerText = tr.cells[2].innerText.substring(0, 100); 
 \echo }
 \echo }}

@@ -640,9 +640,18 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
 })));
 //################End of popup box##########################
 
-//################ Expand Box for query string #####################
-document.querySelectorAll("#tblsess tr td:nth-child(3)").forEach(td => td.addEventListener("click", (() => {
+//################ SQL query string handling #####################
+document.querySelectorAll("#tblsess tr td:nth-child(3)").forEach(td => td.addEventListener("dblclick", (() => {
+  if (td.title){
   console.log(td.title);
+  navigator.clipboard.writeText(td.title).then(() => {  
+    var el=document.createElement("div");
+    el.setAttribute("id", "cur");
+    el.textContent = "SQL text is Copied to clipboard";
+    td.appendChild(el);
+    setTimeout(() => { el.remove();},2000);
+   });
+}
 })));
 //################ End of Expand box for query string ###############
 
@@ -668,15 +677,6 @@ if (trs.length > 1){
 }
 
 
-// Old code for preparing victims and blockers
-// trs=document.getElementById("tblblk").rows;
-// for (let tr of trs) {
-//   victim=tr.cells[0].innerText;
-//   blkr=tr.cells[9].innerText;
-//   if (victim > 0) blkvictims.push(victim);
-//   if (blkr > 0) blokers.push(blkr);
-// }
-
 //Session information.
 function checksess(){
 trs=document.getElementById("tblsess").rows;
@@ -690,7 +690,7 @@ for (let tr of trs){
  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
  //if query text is more than 100 chars, copy that to title and trim the query string to 100
- if (tr.cells[2].innerText.length > 100 ){ tr.cells[2].title = tr.cells[2].innerText; 
+ if (tr.cells[2].innerText.length > 10 && !tr.cells[2].innerText.startsWith("**") ){ tr.cells[2].title = tr.cells[2].innerText; 
   tr.cells[2].innerText = tr.cells[2].innerText.substring(0, 100); 
 }
 }}
