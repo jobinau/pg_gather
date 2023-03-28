@@ -143,6 +143,9 @@ SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( autovacuum_vacuum_threshold
 FROM tabs JOIN curstatus ON TRUE
 WHERE tabs.vac_nos/curstatus.days > 48;
 
+--18. Oldest transactions which are still not completed
+select pid,backend_xid::text::int from pg_get_activity order by 2;
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
