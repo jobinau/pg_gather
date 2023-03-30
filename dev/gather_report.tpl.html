@@ -147,15 +147,16 @@ GROUP BY 1 ORDER BY count(*) DESC;
 <h2 id="sess" style="clear: both">Session Details</h2>
 <% \pset tableattr 'id="tblsess"' 
 SELECT * FROM (
-  WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
+    WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
+    (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state,r.rolname "User",client_addr "From", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
-   g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
+  SELECT a.pid,a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+   g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN g ON true
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
-  GROUP BY 1,2,3,4,5,6,7,8,9,10 ORDER BY 8 DESC NULLS LAST) AS sess
+  ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';%>
 <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 <% \pset tableattr 'id="tblblk"'
@@ -635,6 +636,7 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
   th.cells[2].appendChild(el);
 })));
 
+//On mouseout, remove the div element. "fistchild" don't have the div element
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 })));
