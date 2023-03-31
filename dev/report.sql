@@ -79,7 +79,7 @@ FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats
 \echo <li><a href="#indexes">Indexes</a></li>
 \echo <li><a href="#parameters">Parameters / Settings</a></li>
 \echo <li><a href="#extensions">Extensions</a></li>
-\echo <li><a href="#activiy">Sessions Summary</a></li>
+\echo <li><a href="#activiy">Connection Summary</a></li>
 \echo <li><a href="#time">Database Time</a></li>
 \echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#blocking">Blocking Sessions</a></li>
@@ -129,9 +129,9 @@ GROUP BY 1,2,3,4 ORDER BY 1;
 \echo <h2 id="extensions">Extensions</h2>
 SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
-\echo <h2 id="activiy">Session Summary</h2>
+\echo <h2 id="activiy">Connection Summary</h2>
 \pset footer off
-\pset tableattr 'id="tblss"'
+\pset tableattr 'id="tblcs"'
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
@@ -145,17 +145,18 @@ GROUP BY 1 ORDER BY count(*) DESC;
 
 \echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
-\pset tableattr 'id="tblsess"' 
+\pset tableattr 'id="tblsess" class="thidden"' 
 SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN g ON true
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
+   LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
@@ -377,8 +378,8 @@ SELECT to_jsonb(r) FROM
 \echo   dbs.appendChild(el);
 \echo   el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
-\echo   tblss=document.getElementById("tblss");
-\echo   tblss.appendChild(el);
+\echo   tblcs=document.getElementById("tblcs");
+\echo   tblcs.appendChild(el);
 \echo }
 \echo document.getElementById("cpus").addEventListener("change", (event) => {
 \echo   totCPU = event.target.value;
@@ -576,6 +577,14 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
+\echo function sessdtls(th){
+\echo   let o=JSON.parse(th.cells[1].innerText); let str="";
+\echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
+\echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
+\echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
+\echo   if (str.length < 1) str+="Independent/Background process";
+\echo   return str;
+\echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
 \echo   tab=th.closest("table");
@@ -584,12 +593,13 @@ SELECT to_jsonb(r) FROM
 \echo   el.setAttribute("align","left");
 \echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
 \echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
+\echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(th);
 \echo   th.cells[2].appendChild(el);
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 \echo })));
-\echo document.querySelectorAll("#tblsess tr td:nth-child(5)").forEach(td => td.addEventListener("dblclick", (() => {
+\echo document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
@@ -621,7 +631,7 @@ SELECT to_jsonb(r) FROM
 \echo function checksess(){
 \echo trs=document.getElementById("tblsess").rows;
 \echo for (let tr of trs){
-\echo  pid=tr.cells[0]; sql=tr.cells[4]; xidage=tr.cells[7]; stime=tr.cells[9];
+\echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
 \echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
 \echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };

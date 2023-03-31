@@ -79,7 +79,7 @@ FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats
 <li><a href="#indexes">Indexes</a></li>
 <li><a href="#parameters">Parameters / Settings</a></li>
 <li><a href="#extensions">Extensions</a></li>
-<li><a href="#activiy">Sessions Summary</a></li>
+<li><a href="#activiy">Connection Summary</a></li>
 <li><a href="#time">Database Time</a></li>
 <li><a href="#sess">Session Details</a></li>
 <li><a href="#blocking">Blocking Sessions</a></li>
@@ -129,9 +129,9 @@ GROUP BY 1,2,3,4 ORDER BY 1; %>
 <h2 id="extensions">Extensions</h2>
 <% SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; %>
-<h2 id="activiy">Session Summary</h2>
+<h2 id="activiy">Connection Summary</h2>
 <% \pset footer off
-\pset tableattr 'id="tblss"'
+\pset tableattr 'id="tblcs"'
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; %>
@@ -145,17 +145,18 @@ GROUP BY 1 ORDER BY count(*) DESC;
 %>
 <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
 <h2 id="sess" style="clear: both">Session Details</h2>
-<% \pset tableattr 'id="tblsess"' 
+<% \pset tableattr 'id="tblsess" class="thidden"' 
 SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN g ON true
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
+   LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';%>
 <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
@@ -394,8 +395,8 @@ function checkfindings(){
   //Add footer to Sessions Summary table
   el=document.createElement("tfoot");
   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
-  tblss=document.getElementById("tblss");
-  tblss.appendChild(el);
+  tblcs=document.getElementById("tblcs");
+  tblcs.appendChild(el);
 
 }
 
@@ -595,6 +596,7 @@ document.querySelectorAll(''th'').forEach(th => th.addEventListener(''click'', (
 })));
 
 /////############## Pop-up details box######################
+//Pop-up at DB info
 function dbsdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
   let str="";
@@ -602,6 +604,7 @@ function dbsdtls(th){
   return "<b>" + th.cells[0].innerText + "</b>" + str + "<br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " + o.f3 + "<br/>Stats Reset : " + o.f4 ;
 }
 
+//Pop-up for Tables.
 function tabdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
   let vac=th.cells[13].innerText;
@@ -623,6 +626,15 @@ function tabdtls(th){
   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
 }
 
+//Pop-up for Session details
+function sessdtls(th){
+  let o=JSON.parse(th.cells[1].innerText); let str="";
+  if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
+  if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
+  if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
+  if (str.length < 1) str+="Independent/Background process";
+  return str;
+}
 
 //Every HTML Table with hidden columns
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
@@ -633,6 +645,7 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
   el.setAttribute("align","left");
   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
+  if(tab.id=="tblsess") el.innerHTML=sessdtls(th);
   th.cells[2].appendChild(el);
 })));
 
@@ -643,7 +656,7 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
 //################End of popup box##########################
 
 //################ SQL query string handling #####################
-document.querySelectorAll("#tblsess tr td:nth-child(5)").forEach(td => td.addEventListener("dblclick", (() => {
+document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
   if (td.title){
   console.log(td.title);
   navigator.clipboard.writeText(td.title).then(() => {  
@@ -684,7 +697,7 @@ function checksess(){
 trs=document.getElementById("tblsess").rows;
 for (let tr of trs){
  //column references
- pid=tr.cells[0]; sql=tr.cells[4]; xidage=tr.cells[7]; stime=tr.cells[9];
+ pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
  if(xidage.innerText > 20) xidage.classList.add("warn");
  //if pid exists in blockers list and victims list
  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
