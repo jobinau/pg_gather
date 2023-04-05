@@ -5,6 +5,10 @@ Always refer to PostgreSQL documentation [here](https://www.postgresql.org/docs/
 ## BufferIO
 buffer I/O. Backends will be trying to clear the Buffers. High value indicates that there is not sufficient `shared_buffers`. Generally it is expected to have assoicated `DataFileRead` also
 
+## BufferMapping
+This indicates the heavy activity in shared_buffers. Loading or removing pages from shared_buffers requires exclusive lock on the page. Each session also can put a shared lock on the page.
+High BufferMapping can indicate that big working set of data by each session which the system is struggling to accomodate. Excesssive indexes and bloated indexes can also cause high BufferMapping.
+
 ## BufferPin
 An open cursor or frequent HOT updates could be holding BufferPins on Buffer pages. Buffer pinning can prevent VACUUM FREEZE operation on those pages.
 
