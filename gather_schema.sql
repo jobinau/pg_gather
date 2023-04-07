@@ -151,12 +151,13 @@ CREATE UNLOGGED TABLE pg_get_file_confs (
     error text
 );
 
---TODO : Add relpersistence to the table for identifying the temporary tables
 CREATE UNLOGGED TABLE pg_get_class (
     reloid oid,
     relname text,
     relkind char(1),
-    relnamespace oid
+    relnamespace oid,
+    relpersistence char,
+    reloptions text[]
 );
 
 CREATE UNLOGGED TABLE pg_get_inherits(

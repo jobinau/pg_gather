@@ -115,9 +115,8 @@ COPY ( SELECT sourcefile,name,setting,applied,error FROM pg_file_settings) TO st
 \echo '\\.'
 
 --Major tables and indexes in current schema
---TODO : Add relpersistence to the list
-\echo COPY pg_get_class (reloid,relname,relkind,relnamespace) FROM stdin;
-COPY (SELECT oid,relname,relkind,relnamespace FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
+\echo COPY pg_get_class (reloid,relname,relkind,relnamespace,relpersistence,reloptions) FROM stdin;
+COPY (SELECT oid,relname,relkind,relnamespace,relpersistence,reloptions FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
 \echo '\\.'
 
 --Index usage info
