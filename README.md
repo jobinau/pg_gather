@@ -79,11 +79,13 @@ The collected data can be imported to a PostgreSQL Instance. This creates requir
 ```
 Deprecated usage of `sed` : sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -
 ## 2.2 Generating Report
-The analysis report in HTML format can be generated as follows.
+An analysis report in HTML format can be generated from the imported data as follows.
 ```
 psql -X -f gather_report.sql > GatherReport.html
 ```
 You may use your favourite web browser to read the report.
+
+NOTE: PostgreSQL version 13 or above is required to generate the analysis report.
 
 ## 2.3 Importing "*Partial*" data
 As mentioned in the previous section, partial data gathering is helpful if we schedule the `gather.sql` as a simple continuous monitoring tool. A separate schema with the name `history` can hold the imported data.
