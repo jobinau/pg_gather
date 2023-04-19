@@ -677,6 +677,11 @@ SELECT to_jsonb(r) FROM
 \echo      }
 \echo     });
 \echo     [14,15].forEach(function(num){  if(row.cells[num].innerText > 20) row.cells[num].classList.add("warn"); });
+\echo     if (row.cells[13].innerText == "f" || row.cells[2].innerText == "") {
+\echo       row.cells[8].classList.add("high");
+\echo       row.cells[8].title="Abandoned replication slot";
+\echo       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
+\echo     }
 \echo   }
 \echo }else{
 \echo   tab.remove()

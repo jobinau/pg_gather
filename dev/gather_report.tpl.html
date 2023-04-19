@@ -752,7 +752,14 @@ if (tab.rows.length > 1){
       cell.classList.add("lime");
      }
     });
+    //xmin age check
     [14,15].forEach(function(num){  if(row.cells[num].innerText > 20) row.cells[num].classList.add("warn"); });
+    //check for abandoned replication slots
+    if (row.cells[13].innerText == "f" || row.cells[2].innerText == "") {
+      row.cells[8].classList.add("high");
+      row.cells[8].title="Abandoned replication slot";
+      document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
+    }
   }
 }else{
   tab.remove()
