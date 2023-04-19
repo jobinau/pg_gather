@@ -7,7 +7,7 @@ buffer I/O. Backends will be trying to clear the Buffers. High value indicates t
 
 ## BufferMapping
 This indicates the heavy activity in shared_buffers. Loading or removing pages from shared_buffers requires exclusive lock on the page. Each session also can put a shared lock on the page.
-High BufferMapping can indicate that big working set of data by each session which the system is struggling to accomodate. Excesssive indexes and bloated indexes can also cause high BufferMapping.
+High BufferMapping can indicate that big working-set-of-data by each session which the system is struggling to accomodate. Excesssive indexes and bloated indexes and unpartitioned huge tables are the common reasons.
 
 ## BufferPin
 An open cursor or frequent HOT updates could be holding BufferPins on Buffer pages. Buffer pinning can prevent VACUUM FREEZE operation on those pages.
