@@ -139,7 +139,7 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info.'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
-WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
 GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
@@ -271,9 +271,10 @@ SELECT to_jsonb(r) FROM
     AND backend_type='client backend') cn) AS cn,
   (select count(*) from pg_get_class where relkind='p') as ptabs,
   (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
-   count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
-   count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
-   FROM pg_get_activity) as sess,
+  count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
+  count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) ,
+  count(*),   count(distinct backend_type)))
+  FROM pg_get_activity) as sess,
   (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
     cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
     SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
@@ -335,15 +336,21 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("busy").style="display:none";
 \echo };
 \echo function checkfindings(){
-\echo   let strfind = "";
-\echo   if (obj.cn.f1 > 0){
-\echo     strfind="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
+\echo  let strfind = "";
+\echo  if (obj.sess.f7 < 4){ 
+\echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have proper access / privilege</b> Please run the script as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege.</li>"
+\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper access / privilege. Please refer the Findings section";
+\echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
+\echo   document.getElementById("tableConten").classList.add("high");
+\echo  }
+\echo  if (obj.cn.f1 > 0){
+\echo     strfind +="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
 \echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
 \echo       strfind+="Please consider this for improving connection pooling"
 \echo     } 
 \echo     strfind += "</li>";
-\echo   }
-\echo   if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+\echo  }
+\echo  if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
