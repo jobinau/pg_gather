@@ -28,5 +28,9 @@ Time spend in the computation. Divide the wait event count by 2000 to get approx
 The page required is not there in the shared buffers and waiting to fetch it. High percentage of waits can indicate poor cacheing.
 
 ## WalSenderMain
-The WAL Senders are just waiting in the main loop. Ignorable
+WAL Sender process is just waiting in the main loop. Ignorable
+
+## WalSenderWaitForWAL
+WAL Sender process is waiting for the WAL to be flushed. The WAL sender sleeps for sometime and wakes up if scoket is available.
+This wait-event is seen in logical replication.
 
