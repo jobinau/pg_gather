@@ -79,7 +79,7 @@ FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats
 \echo <li><a href="#indexes">Indexes</a></li>
 \echo <li><a href="#parameters">Parameters / Settings</a></li>
 \echo <li><a href="#extensions">Extensions</a></li>
-\echo <li><a href="#activiy">Sessions Summary</a></li>
+\echo <li><a href="#activiy">Connection Summary</a></li>
 \echo <li><a href="#time">Database Time</a></li>
 \echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#blocking">Blocking Sessions</a></li>
@@ -129,9 +129,9 @@ GROUP BY 1,2,3,4 ORDER BY 1;
 \echo <h2 id="extensions">Extensions</h2>
 SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
-\echo <h2 id="activiy">Session Summary</h2>
+\echo <h2 id="activiy">Connection Summary</h2>
 \pset footer off
-\pset tableattr 'id="tblss"'
+\pset tableattr 'id="tblcs"'
  SELECT d.datname,state,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
@@ -139,23 +139,25 @@ JOIN pg_get_roles on extowner=pg_get_roles.oid;
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info.'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
-WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
 GROUP BY 1 ORDER BY count(*) DESC;
 \C
 
 \echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
-\pset tableattr 'id="tblsess"' 
+\pset tableattr 'id="tblsess" class="thidden"' 
 SELECT * FROM (
-  WITH w AS (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY 1,2),
+    WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
+    (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,a.state,r.rolname "User",client_addr "From", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
-   g.ts - query_start "Statement since",g.ts - state_change "State since", string_agg( w.wait_event ||':'|| w.cnt,',') waits 
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+   g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits 
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN g ON true
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
-  GROUP BY 1,2,3,4,5,6,7,8,9,10 ORDER BY 8 DESC NULLS LAST) AS sess
+   LEFT JOIN pg_get_db d on a.datid = d.datid
+  ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';
 \echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
 \pset tableattr 'id="tblblk"'
@@ -218,11 +220,6 @@ WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in tran
 SELECT CASE WHEN val > 0 
   THEN '<li>There are '||val||' idle in transaction session(s) </li>' 
   ELSE NULL END 
-FROM W; 
-WITH W AS (SELECT count(*) AS val from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p'))
-SELECT CASE WHEN val > 10000
-  THEN '<li>There are <b>'||val||' tables!</b> in this database, Only the biggest 10000 will be listed in this report under <a href= "#tabInfo" >Tables Info</a>. Please use query No. 10. from the analysis_quries.sql for full details </li>'
-  ELSE NULL END
 FROM W;
 WITH W AS (select last_failed_time,last_archived_time,last_archived_wal from pg_archiver_stat where last_archived_time < last_failed_time)
 SELECT CASE WHEN last_archived_time IS NOT NULL
@@ -274,9 +271,10 @@ SELECT to_jsonb(r) FROM
     AND backend_type='client backend') cn) AS cn,
   (select count(*) from pg_get_class where relkind='p') as ptabs,
   (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
-   count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
-   count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) , count(*)))
-   FROM pg_get_activity) as sess,
+  count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
+  count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) ,
+  count(*),   count(distinct backend_type)))
+  FROM pg_get_activity) as sess,
   (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
     cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
     SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
@@ -338,21 +336,27 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("busy").style="display:none";
 \echo };
 \echo function checkfindings(){
-\echo   let strfind = "";
-\echo   if (obj.cn.f1 > 0){
-\echo     strfind="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
+\echo  let strfind = "";
+\echo  if (obj.sess.f7 < 4){ 
+\echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have proper access / privilege</b> Please run the script as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege.</li>"
+\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper access / privilege. Please refer the Findings section";
+\echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
+\echo   document.getElementById("tableConten").classList.add("high");
+\echo  }
+\echo  if (obj.cn.f1 > 0){
+\echo     strfind +="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
 \echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
 \echo       strfind+="Please consider this for improving connection pooling"
 \echo     } 
 \echo     strfind += "</li>";
-\echo   }
-\echo   if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+\echo  }
+\echo  if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
 \echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
 \echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
-\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only 10000 will be displayed in the report. Avoid too many tables in single database</li>";
+\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
 \echo   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
 \echo   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
 \echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
@@ -376,8 +380,8 @@ SELECT to_jsonb(r) FROM
 \echo   dbs.appendChild(el);
 \echo   el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
-\echo   tblss=document.getElementById("tblss");
-\echo   tblss.appendChild(el);
+\echo   tblcs=document.getElementById("tblcs");
+\echo   tblcs.appendChild(el);
 \echo }
 \echo document.getElementById("cpus").addEventListener("change", (event) => {
 \echo   totCPU = event.target.value;
@@ -575,6 +579,14 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
+\echo function sessdtls(th){
+\echo   let o=JSON.parse(th.cells[1].innerText); let str="";
+\echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
+\echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
+\echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
+\echo   if (str.length < 1) str+="Independent/Background process";
+\echo   return str;
+\echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
 \echo   tab=th.closest("table");
@@ -583,12 +595,13 @@ SELECT to_jsonb(r) FROM
 \echo   el.setAttribute("align","left");
 \echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
 \echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
+\echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(th);
 \echo   th.cells[2].appendChild(el);
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 \echo })));
-\echo document.querySelectorAll("#tblsess tr td:nth-child(5)").forEach(td => td.addEventListener("dblclick", (() => {
+\echo document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
@@ -620,7 +633,7 @@ SELECT to_jsonb(r) FROM
 \echo function checksess(){
 \echo trs=document.getElementById("tblsess").rows;
 \echo for (let tr of trs){
-\echo  pid=tr.cells[0]; sql=tr.cells[4]; xidage=tr.cells[7]; stime=tr.cells[9];
+\echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
 \echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
 \echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
@@ -671,6 +684,11 @@ SELECT to_jsonb(r) FROM
 \echo      }
 \echo     });
 \echo     [14,15].forEach(function(num){  if(row.cells[num].innerText > 20) row.cells[num].classList.add("warn"); });
+\echo     if (row.cells[13].innerText == "f" || row.cells[2].innerText == "") {
+\echo       row.cells[8].classList.add("high");
+\echo       row.cells[8].title="Abandoned replication slot";
+\echo       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
+\echo     }
 \echo   }
 \echo }else{
 \echo   tab.remove()
