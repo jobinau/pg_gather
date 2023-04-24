@@ -16,7 +16,12 @@ An open cursor or frequent HOT updates could be holding BufferPins on Buffer pag
 Reading from buffered Temporary Files, All sorts of temporary files including the one used for sort and hashjoins, parallel execution, And files used by single sessions (refer: buffile.c)
 
 ## ClientRead
-Waiting to read data from the client/application. High value indcates that application/client is responding fast enough. combined with "idle-in-transaction" can cause contention in the server.
+Waiting to read/hear from the client/application. Two reasons generally cause high values for this wait-event
+1. Network latency: The communication channel between the database and the application/client may have high latency. For example, there could be too many network hops. Many of the Cloud, Virtualization, Containerization, Firewall, and Routing (sometimes multi-layer routing) are found to cause high network latency. Latency has nothing to do with network bandwidth. Even a very high bandwidth connection can have high latency and affect the database performance.  
+2. Application response: The application side might be taking too long to respond to the database. For example, a transaction in progress might not be sending a COMMIT or ROLLBACK fast enough after sending the DML to the database server. 
+
+This "ClientRead" wait-event combined with "idle-in-transaction" can cause contention in the server. 
+
 
 ## ClientWrite
 Waiting to write data to client/application, Generally caused by application retriving large amount of data at ones.
