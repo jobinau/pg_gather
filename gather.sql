@@ -162,6 +162,11 @@ JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_
 COPY (SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
 \echo '\\.'
 
+--Partitioning
+\echo COPY pg_get_inherits (inhrelid,inhparent) FROM stdin;
+COPY (SELECT inhrelid,inhparent FROM pg_inherits) TO stdin;
+\echo '\\.'
+
 --namespaces/schemas
 \echo COPY pg_get_ns(nsoid,nsname) FROM stdin;
 COPY (SELECT oid,nspname FROM pg_namespace) TO stdout;
