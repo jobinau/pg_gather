@@ -1,6 +1,6 @@
 # PostgreSQL Wait Events
-This page lists the major wait events and their implications
-Always refer to PostgreSQL documentation [here](https://www.postgresql.org/docs/current/monitoring-stats.html#WAIT-EVENT-ACTIVITY-TABLE) onwards
+This page lists the major wait events which generally appears on pg_gather report and their implications  
+Please refer to PostgreSQL documentation [here](https://www.postgresql.org/docs/current/monitoring-stats.html#WAIT-EVENT-ACTIVITY-TABLE) onwards for additional wait-events and details.
 
 ## BufferIO
 buffer I/O. Backends will be trying to clear the Buffers. High value indicates that there is not sufficient `shared_buffers`. Generally it is expected to have assoicated `DataFileRead` also
@@ -17,11 +17,17 @@ Reading from buffered Temporary Files, All sorts of temporary files including th
 
 ## ClientRead
 Waiting to read/hear from the client/application. Two reasons generally cause high values for this wait-event
-1. Network latency: The communication channel between the database and the application/client may have high latency. For example, there could be too many network hops. Many of the Cloud, Virtualization, Containerization, Firewall, and Routing (sometimes multi-layer routing) are found to cause high network latency. Latency has nothing to do with network bandwidth. Even a very high bandwidth connection can have high latency and affect the database performance.  
-2. Application response: The application side might be taking too long to respond to the database. For example, a transaction in progress might not be sending a COMMIT or ROLLBACK fast enough after sending the DML to the database server. 
+### 1. Network : 
+The communication channel between the database and the application/client may have low bandwith or high latency. For example, there could be too many network hops. Many of the Cloud, Virtualization, Containerization, Firewall, and Routing (sometimes multi-layer routing) are found to cause high network latency. Latency has nothing to do with network bandwidth. Even a very high bandwidth connection can have high latency and affect the database performance.  
+   The network related waits within the trasactions are generally accounted as "ClientRead"
+### 2. Application response: 
+The application side might be taking too long to respond to the database. For example, a transaction in progress might not be sending a COMMIT or ROLLBACK fast enough after sending the DML to the database server. 
 
 This "ClientRead" wait-event combined with "idle-in-transaction" can cause contention in the server. 
 
+## Net/Delay*
+Network / Delay won't always result in "ClientRead", because the network delay can affect select statements also, which are indepent of transaction block.
+This is the estimate of each session wasting its time waiting for communication outside a transaction block.
 
 ## ClientWrite
 Waiting to write data to client/application, Generally caused by application retriving large amount of data at ones.

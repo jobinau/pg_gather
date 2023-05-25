@@ -69,3 +69,36 @@ SELECT to_jsonb(r) FROM
 ) r;
 ```
 
+## Wait-events per session
+```
+SELECT * FROM (
+    --Stage 2. Group by PID, get wait_event list with its count, get total wait event `pidwcnt` for the pid
+    WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
+    --Stage 1, Findout the waitevents for each PID, NULL indicates the CPU usage.
+    (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) 
+       pw GROUP BY 1),
+    --Independent sub query to get Max of timestamp and xid
+  g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity),
+  --Stage 3, Get the maximum value of itr from the pg_pid_wait
+  itr AS (SELECT max(itr_max) gitr_max FROM w)
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client"
+  , CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement"
+  , g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+   g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits ||
+   CASE WHEN (itr_max - itr_min)::float/itr.gitr_max*2000 - pidwcnt > 0 THEN
+    ', Net/Delay*:' || ((itr_max - itr_min)::float/itr.gitr_max*2000 - pidwcnt)::int
+   ELSE '' END waits
+  FROM pg_get_activity a 
+   LEFT JOIN w ON a.pid = w.pid
+   LEFT JOIN itr ON true
+   LEFT JOIN g ON true
+   LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
+   LEFT JOIN pg_get_db d on a.datid = d.datid
+  ORDER BY "xmin age" DESC NULLS LAST) AS sess
+WHERE waits IS NOT NULL OR state != 'idle';
+```
+The above query collects the wait events per pid, like
+```
+SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
+    (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1;
+```
