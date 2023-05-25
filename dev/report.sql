@@ -205,9 +205,9 @@ round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
 (SELECT 
-    round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric min_since_reset,
+    NULLIF(round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric,0) min_since_reset,
     GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
-    checkpoints_timed+checkpoints_req tot_cp 
+    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp 
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
