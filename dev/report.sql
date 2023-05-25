@@ -303,7 +303,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo meta={pgvers:["11.19","12.14","13.10","14.7","15.2"]};
+\echo meta={pgvers:["11.20","12.15","13.11","14.8","15.3"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
@@ -475,7 +475,7 @@ SELECT to_jsonb(r) FROM
 \echo         } else {
 \echo           meta.pgvers.forEach(function(t){
 \echo             if (Math.trunc(setval) == Math.trunc(t)){
-\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
 \echo             }
 \echo           })  
 \echo         }

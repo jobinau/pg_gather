@@ -304,7 +304,7 @@ SELECT to_jsonb(r) FROM
 <script type="text/javascript">
 //Global object to hold json values passed from the SQL analysis
 obj={};
-meta={pgvers:["11.19","12.14","13.10","14.7","15.2"]};
+meta={pgvers:["11.20","12.15","13.11","14.8","15.3"]};
 mgrver="";
 walcomprz="";
 //Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
@@ -503,7 +503,7 @@ function checkpars(){
         } else {
           meta.pgvers.forEach(function(t){
             if (Math.trunc(setval) == Math.trunc(t)){
-               if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+               if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
             }
           })  
         }
