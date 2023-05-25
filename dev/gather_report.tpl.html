@@ -746,6 +746,12 @@ if (trs.length > 1){
       }
     }
   }
+  //if "Reset days" is empty
+  if (tr.cells[16].innerText.trim() == "" ){
+    tr.cells[16].classList.add("high"); tr.cells[16].title="bgwriter stats are not available";
+    document.getElementById("tblchkpnt").classList.add("high");
+    document.getElementById("tblchkpnt").title = "The bgwriter stats are not yet available. This could happen if data is collected immediately after the stats reset";
+  }
 }
 
 //Check Replication status

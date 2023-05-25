@@ -671,6 +671,11 @@ SELECT to_jsonb(r) FROM
 \echo       }
 \echo     }
 \echo   }
+\echo   if (tr.cells[16].innerText.trim() == "" ){
+\echo     tr.cells[16].classList.add("high"); tr.cells[16].title="bgwriter stats are not available";
+\echo     document.getElementById("tblchkpnt").classList.add("high");
+\echo     document.getElementById("tblchkpnt").title = "The bgwriter stats are not yet available. This could happen if data is collected immediately after the stats reset";
+\echo   }
 \echo }
 \echo tab=document.getElementById("tblreplstat")
 \echo if (tab.rows.length > 1){
