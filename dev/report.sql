@@ -9,9 +9,9 @@
 \echo h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
 \echo caption { font-size: larger }
 \echo ol { width: fit-content;}
-\echo .warn { font-weight:bold; background-color: #FAA }
+\echo .warn { font-weight:bold; background-color: #FBA }
 \echo .high { border: 5px solid red;font-weight:bold}
-\echo .lime { font-weight:bold}
+\echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:0 9px 4px 0 }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
@@ -218,7 +218,7 @@ CROSS JOIN
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
-\echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
+\echo <p>**1 Percentage of bgwriter runs results in a halt, **2 Percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 \echo <h2 id="findings" >Findings</h2>
 \echo <ol id="finditem" style="padding:2em;position:relative">
 \pset format aligned
@@ -476,7 +476,7 @@ SELECT to_jsonb(r) FROM
 \echo         if(val.innerText > 1.2) val.classList.add("warn");
 \echo         break;
 \echo       case "server_version":
-\echo         val.classList.add("lime"); let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+\echo          let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
 \echo         if ( mgrver < Math.trunc(meta.pgvers[0])){
 \echo           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
 \echo         } else {
@@ -486,6 +486,7 @@ SELECT to_jsonb(r) FROM
 \echo             }
 \echo           })  
 \echo         }
+\echo         if(val.classList.length < 1) val.classList.add("lime");
 \echo         break;
 \echo       case "synchronous_standby_names":
 \echo         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
@@ -495,8 +496,9 @@ SELECT to_jsonb(r) FROM
 \echo         walcomprz = val.innerText;
 \echo         break;
 \echo       case "work_mem":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
 \echo         if(val.innerText > 98304) val.classList.add("warn");
+\echo         else val.classList.add("lime");
 \echo         break;
 \echo     }
 \echo   }
@@ -539,8 +541,8 @@ SELECT to_jsonb(r) FROM
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
-\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
 \echo     if(tr.cells[7].innerHTML > 50000000000) tr.cells[7].classList.add("warn");
+\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
 \echo     totdb=totdb+Number(tr.cells[8].innerText);
 \echo     aged(tr.cells[9]);
 \echo   }  

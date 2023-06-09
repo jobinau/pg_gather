@@ -9,9 +9,9 @@ tr:hover { background-color: #FFFFCA}
 h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
 caption { font-size: larger }
 ol { width: fit-content;}
-.warn { font-weight:bold; background-color: #FAA }
+.warn { font-weight:bold; background-color: #FBA }
 .high { border: 5px solid red;font-weight:bold}
-.lime { font-weight:bold}
+.lime { font-weight:bold;background-color: #FFD}
 .lineblk {float: left; margin:0 9px 4px 0 }
 .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
@@ -218,7 +218,7 @@ CROSS JOIN
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; %>
-<p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
+<p>**1 Percentage of bgwriter runs results in a halt, **2 Percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 <h2 id="findings" >Findings</h2>
 <ol id="finditem" style="padding:2em;position:relative">
 <% \pset format aligned
@@ -504,7 +504,7 @@ function checkpars(){
         if(val.innerText > 1.2) val.classList.add("warn");
         break;
       case "server_version":
-        val.classList.add("lime"); let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+         let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
         if ( mgrver < Math.trunc(meta.pgvers[0])){
           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
         } else {
@@ -514,6 +514,8 @@ function checkpars(){
             }
           })  
         }
+        //if no problems found, just highlight the data
+        if(val.classList.length < 1) val.classList.add("lime");
         break;
       case "synchronous_standby_names":
         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
@@ -523,8 +525,9 @@ function checkpars(){
         walcomprz = val.innerText;
         break;
       case "work_mem":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+        val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
         if(val.innerText > 98304) val.classList.add("warn");
+        else val.classList.add("lime");
         break;
     }
   }
@@ -580,8 +583,8 @@ function checkdbs(){
   for(var i=1;i<len;i++){
     tr=trs[i];
     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
-    [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
     if(tr.cells[7].innerHTML > 50000000000) tr.cells[7].classList.add("warn");
+    [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
     totdb=totdb+Number(tr.cells[8].innerText);
     aged(tr.cells[9]);
   }  
