@@ -27,7 +27,7 @@ This "ClientRead" wait-event combined with "idle-in-transaction" can cause conte
 
 ## Net/Delay*
 Network / Delay won't always result in "ClientRead", because the network delay can affect select statements also, which are indepent of transaction block.
-This is the estimate of each session wasting its time waiting for communication outside a transaction block.
+This is the estimate of each session wasting its time by waiting for communication outside a transaction block. For example, Application sends first SELECT statement, then takes a delay before sending the next SELECT statement. Poor network performance (high latency) is a common cause of this waits.
 
 ## ClientWrite
 Waiting to write data to client/application, Generally caused by application retriving large amount of data at ones.
