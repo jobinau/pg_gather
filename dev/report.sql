@@ -48,10 +48,10 @@ SELECT * FROM
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v20"
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v21"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v20" IS NOT NULL ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v21" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
 SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
@@ -127,6 +127,7 @@ FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower
 GROUP BY 1,2,3,4 ORDER BY 1; 
 \pset tableattr
 \echo <h2 id="extensions">Extensions</h2>
+\pset tableattr 'id="tblextn"'
 SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
 \echo <h2 id="activiy">Connection Summary</h2>
@@ -310,7 +311,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo meta={pgvers:["11.20","12.15","13.11","14.8","15.3"]};
+\echo meta={pgvers:["11.20","12.15","13.11","14.8","15.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
@@ -334,6 +335,7 @@ SELECT to_jsonb(r) FROM
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
+\echo checkextn();
 \echo checksess();
 \echo checkfindings();
 \echo });
@@ -537,15 +539,30 @@ SELECT to_jsonb(r) FROM
 \echo function checkdbs(){
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
+\echo   let aborts=[];
 \echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
-\echo     if(tr.cells[7].innerHTML > 50000000000) tr.cells[7].classList.add("warn");
+\echo     if(tr.cells[3].innerHTML > 4000){ tr.cells[3].classList.add("warn"); tr.cells[3].title = "High number of transaction aborts/rollbacks. Please inspect PostgreSQL logs"; 
+\echo      aborts.push(tr.cells[0].innerHTML)
+\echo      }
 \echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
+\echo     if(tr.cells[7].innerHTML > 50000000000) {  tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); tr.cells[7].title += ", High temporary file generation per day. It can cause I/O performance issues" }
 \echo     totdb=totdb+Number(tr.cells[8].innerText);
 \echo     aged(tr.cells[9]);
-\echo   }  
+\echo   }
+\echo   document.getElementById("finditem").innerHTML += "<li>High number of trasaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo }
+\echo function checkextn(){
+\echo   const trs=document.getElementById("tblextn").rows
+\echo   const len=trs.length;
+\echo   let riskyExtn=[];
+\echo   for(var i=1;i<len;i++){
+\echo     tr=trs[i];
+\echo     if (meta.riskyExtn.includes(tr.cells[1].innerHTML)){ tr.cells[1].classList.add("warn"); tr.cells[1].title = "Risky to use in mission critical systems without support aggrement. Crashes are reported" ; }
+\echo     else if (!meta.commonExtn.includes(tr.cells[1].innerHTML)) tr.cells[1].classList.add("lime");
+\echo   }
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
