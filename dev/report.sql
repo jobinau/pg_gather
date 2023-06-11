@@ -367,7 +367,7 @@ SELECT to_jsonb(r) FROM
 \echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
 \echo   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
-\echo   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
+\echo   if (obj.crash) strfind += "<li><b>Possible crash around "+ obj.crash +"</b>, please verify PG logs</li>";
 \echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
 \echo   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li>There are <b>" + obj.victims.length + " sessions blocked.</b></li>"
 \echo   if (obj.sumry !== null){ strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds. </b>";
@@ -552,7 +552,8 @@ SELECT to_jsonb(r) FROM
 \echo     totdb=totdb+Number(tr.cells[8].innerText);
 \echo     aged(tr.cells[9]);
 \echo   }
-\echo   document.getElementById("finditem").innerHTML += "<li>High number of trasaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo   if (aborts.length >0)
+\echo     document.getElementById("finditem").innerHTML += "<li>High number of trasaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
 \echo }
 \echo function checkextn(){
 \echo   const trs=document.getElementById("tblextn").rows
