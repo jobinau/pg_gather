@@ -170,6 +170,7 @@ CREATE UNLOGGED TABLE pg_get_index (
     indrelid oid,
     indisunique boolean,
     indisprimary boolean,
+    indisvalid boolean,
     numscans bigint,
     size bigint
 );
