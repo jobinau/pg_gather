@@ -9,9 +9,9 @@
 \echo h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
 \echo caption { font-size: larger }
 \echo ol { width: fit-content;}
-\echo .warn { font-weight:bold; background-color: #FAA }
+\echo .warn { font-weight:bold; background-color: #FBA }
 \echo .high { border: 5px solid red;font-weight:bold}
-\echo .lime { font-weight:bold}
+\echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:0 9px 4px 0 }
 \echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
@@ -48,10 +48,10 @@ SELECT * FROM
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v20"
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v21"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v20" IS NOT NULL ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v21" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
 SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
@@ -127,6 +127,7 @@ FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower
 GROUP BY 1,2,3,4 ORDER BY 1; 
 \pset tableattr
 \echo <h2 id="extensions">Extensions</h2>
+\pset tableattr 'id="tblextn"'
 SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
 JOIN pg_get_roles on extowner=pg_get_roles.oid; 
 \echo <h2 id="activiy">Connection Summary</h2>
@@ -147,13 +148,20 @@ GROUP BY 1 ORDER BY count(*) DESC;
 \echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess" class="thidden"' 
 SELECT * FROM (
-    WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
-    (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
-  g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
-  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client", CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement", g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
-   g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits 
+    WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
+    (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
+  g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity),
+  itr AS (SELECT max(itr_max) gitr_max FROM w)
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client"
+  , CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement"
+  , g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
+   g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits ||
+   CASE WHEN (itr_max - itr_min)::float/itr.gitr_max*2000 - pidwcnt > 0 THEN
+    ', Net/Delay*:' || ((itr_max - itr_min)::float/itr.gitr_max*2000 - pidwcnt)::int
+   ELSE '' END waits
   FROM pg_get_activity a 
    LEFT JOIN w ON a.pid = w.pid
+   LEFT JOIN itr ON true
    LEFT JOIN g ON true
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
    LEFT JOIN pg_get_db d on a.datid = d.datid
@@ -205,13 +213,13 @@ round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
 (SELECT 
-    round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric min_since_reset,
+    NULLIF(round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric,0) min_since_reset,
     GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
-    checkpoints_timed+checkpoints_req tot_cp 
+    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp 
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
-\echo <p>**1 What percentage of bgwriter runs results in a halt, **2 What percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
+\echo <p>**1 Percentage of bgwriter runs results in a halt, **2 Percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
 \echo <h2 id="findings" >Findings</h2>
 \echo <ol id="finditem" style="padding:2em;position:relative">
 \pset format aligned
@@ -303,7 +311,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo meta={pgvers:["11.19","12.14","13.10","14.7","15.2"]};
+\echo meta={pgvers:["11.20","12.15","13.11","14.8","15.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
@@ -327,6 +335,7 @@ SELECT to_jsonb(r) FROM
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
+\echo checkextn();
 \echo checksess();
 \echo checkfindings();
 \echo });
@@ -358,7 +367,7 @@ SELECT to_jsonb(r) FROM
 \echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
 \echo   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
-\echo   if (obj.crash) strfind += "<li><b>Crash detected around "+ obj.crash +"</b>, please check PG logs</li>";
+\echo   if (obj.crash) strfind += "<li><b>Possible crash around "+ obj.crash +"</b>, please verify PG logs</li>";
 \echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
 \echo   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li>There are <b>" + obj.victims.length + " sessions blocked.</b></li>"
 \echo   if (obj.sumry !== null){ strfind += "<li>Data collection took <b>" + obj.sumry.f1 + " seconds. </b>";
@@ -469,16 +478,17 @@ SELECT to_jsonb(r) FROM
 \echo         if(val.innerText > 1.2) val.classList.add("warn");
 \echo         break;
 \echo       case "server_version":
-\echo         val.classList.add("lime"); let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+\echo          let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
 \echo         if ( mgrver < Math.trunc(meta.pgvers[0])){
 \echo           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
 \echo         } else {
 \echo           meta.pgvers.forEach(function(t){
 \echo             if (Math.trunc(setval) == Math.trunc(t)){
-\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Urgent!"; }
+\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
 \echo             }
 \echo           })  
 \echo         }
+\echo         if(val.classList.length < 1) val.classList.add("lime");
 \echo         break;
 \echo       case "synchronous_standby_names":
 \echo         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
@@ -488,8 +498,9 @@ SELECT to_jsonb(r) FROM
 \echo         walcomprz = val.innerText;
 \echo         break;
 \echo       case "work_mem":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
+\echo         val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
 \echo         if(val.innerText > 98304) val.classList.add("warn");
+\echo         else val.classList.add("lime");
 \echo         break;
 \echo     }
 \echo   }
@@ -528,15 +539,31 @@ SELECT to_jsonb(r) FROM
 \echo function checkdbs(){
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
+\echo   let aborts=[];
 \echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
-\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
-\echo     if(tr.cells[7].innerHTML > 50000000000) tr.cells[7].classList.add("warn");
+\echo     if(tr.cells[3].innerHTML > 4000){ tr.cells[3].classList.add("warn"); tr.cells[3].title = "High number of transaction aborts/rollbacks. Please inspect PostgreSQL logs"; 
+\echo      aborts.push(tr.cells[0].innerHTML)
+\echo      }
+\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
+\echo     if(tr.cells[7].innerHTML > 50000000000) {  tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); tr.cells[7].title += ", High temporary file generation per day. It can cause I/O performance issues" }
 \echo     totdb=totdb+Number(tr.cells[8].innerText);
 \echo     aged(tr.cells[9]);
-\echo   }  
+\echo   }
+\echo   if (aborts.length >0)
+\echo     document.getElementById("finditem").innerHTML += "<li>High number of trasaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo }
+\echo function checkextn(){
+\echo   const trs=document.getElementById("tblextn").rows
+\echo   const len=trs.length;
+\echo   let riskyExtn=[];
+\echo   for(var i=1;i<len;i++){
+\echo     tr=trs[i];
+\echo     if (meta.riskyExtn.includes(tr.cells[1].innerHTML)){ tr.cells[1].classList.add("warn"); tr.cells[1].title = "Risky to use in mission critical systems without support aggrement. Crashes are reported" ; }
+\echo     else if (!meta.commonExtn.includes(tr.cells[1].innerHTML)) tr.cells[1].classList.add("lime");
+\echo   }
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
@@ -670,6 +697,11 @@ SELECT to_jsonb(r) FROM
 \echo         tr.cells[15].classList.add("high"); tr.cells[15].title="bgwriter halts too frequently. increase bgwriter_lru_maxpages";
 \echo       }
 \echo     }
+\echo   }
+\echo   if (tr.cells[16].innerText.trim() == "" ){
+\echo     tr.cells[16].classList.add("high"); tr.cells[16].title="bgwriter stats are not available";
+\echo     document.getElementById("tblchkpnt").classList.add("high");
+\echo     document.getElementById("tblchkpnt").title = "The bgwriter stats are not yet available. This could happen if data is collected immediately after the stats reset";
 \echo   }
 \echo }
 \echo tab=document.getElementById("tblreplstat")
