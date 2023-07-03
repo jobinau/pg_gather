@@ -782,10 +782,10 @@ if (trs.length > 1){
     }
   }
   //if "Reset days" is empty
-  if (tr.cells[16].innerText.trim() == "" ){
-    tr.cells[16].classList.add("high"); tr.cells[16].title="bgwriter stats are not available";
+  if (tr.cells[16].innerText.trim() == "" || tr.cells[16].innerText < 1 ){
+    tr.cells[16].classList.add("high"); tr.cells[16].title="sufficient bgwriter stats are not available";
     document.getElementById("tblchkpnt").classList.add("high");
-    document.getElementById("tblchkpnt").title = "The bgwriter stats are not yet available. This could happen if data is collected immediately after the stats reset";
+    document.getElementById("tblchkpnt").title = "Sufficient bgwriter stats are not available. This could happen if data is collected immediately after the stats reset or a crash. At least one day of stats are required to do meaningful calculations";
   }
 }
 
