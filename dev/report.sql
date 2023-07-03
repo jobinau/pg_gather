@@ -34,7 +34,7 @@ SET max_parallel_workers_per_gather = 0;
 \echo    </svg>
 \echo    <b id="busy" class="warn"> Loading... </b>
 \echo </h1>
-\pset tableattr 'class="lineblk"'
+\pset tableattr 'id="tblgather" class="lineblk"'
 SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines \gset
 \if :conlines
   \echo "There is serious problem with the data. Please make sure that all tables are dropped and recreated as part of importing data (gather_schema.sql) and there was no error"
@@ -48,10 +48,10 @@ SELECT * FROM
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v21"
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v21" IS NOT NULL ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
 SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
@@ -311,6 +311,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
+\echo ver="21";
 \echo meta={pgvers:["11.20","12.15","13.11","14.8","15.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
@@ -332,6 +333,7 @@ SELECT to_jsonb(r) FROM
 \echo   });
 \echo });
 \echo }
+\echo checkgather();
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
@@ -344,6 +346,24 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("sections").style="display:table";
 \echo   document.getElementById("busy").style="display:none";
 \echo };
+\echo function checkgather(){
+\echo    const trs=document.getElementById("tblgather").rows
+\echo   for (let i = 0; i < trs.length; i++) {
+\echo     val = trs[i].cells[1];
+\echo     switch(trs[i].cells[0].innerText){
+\echo       case "pg_gather" :
+\echo         val.innerText = val.innerText + "-v" + ver;
+\echo         break;
+\echo       case "Collected By" :
+\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data collected using older version of gather.sql file" }
+\echo         break;
+\echo       case "In recovery?" :
+\echo         console.log(val.innerText);
+\echo         if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby";}
+\echo         break;
+\echo     }
+\echo   }
+\echo }
 \echo function checkfindings(){
 \echo  let strfind = "";
 \echo  if (obj.sess.f7 < 4){ 
