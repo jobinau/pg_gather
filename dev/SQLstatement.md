@@ -66,6 +66,36 @@ SELECT to_jsonb(r) FROM
   --
   --Array of schema names
   (select json_agg(pg_get_ns) from pg_get_ns where nsoid > 16384 or nsname='public') AS ns
+
+  --WAL archival is still failing (last 5 minutes)
+  (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail,
+
+  --Any Archive library is used or not
+  (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib,
+  
+  --A crash can be reported if all stats are rest in 2 mintues
+  (SELECT CASE WHEN max(stats_reset)-min(stats_reset) < '2 minute' :: interval THEN min(stats_reset) ELSE NULL END 
+  FROM (SELECT stats_reset FROM pg_get_db UNION SELECT stats_reset FROM pg_get_bgwriter) reset) crash,
+
+  --Blocking sessions information
+  (WITH blockers AS (select array_agg(victim_pid) OVER () victim,blocking_pids blocker from pg_get_pidblock),
+   ublokers as (SELECT unnest(blocker) AS blkr FROM blockers)
+   SELECT json_agg(blkr) FROM ublokers
+   WHERE NOT EXISTS (SELECT 1 FROM blockers WHERE ublokers.blkr = ANY(victim))) blkrs,
+  
+  --Victims of blockers
+  (select json_agg((victim_pid,blocking_pids)) from pg_get_pidblock) victims,
+
+  --Time it took for collecting pg_gather info
+  (select to_jsonb((EXTRACT(epoch FROM (end_ts-collect_ts)),pg_wal_lsn_diff(end_lsn,current_wal)*60*60/EXTRACT(epoch FROM (end_ts-collect_ts)))) 
+  from pg_gather,pg_gather_end) sumry,
+
+  --Database objects which uses highest maintenance_work_mem
+  (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
+   FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
+   ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
+
+  (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid
 ) r;
 ```
 
