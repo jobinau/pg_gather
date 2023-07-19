@@ -303,7 +303,8 @@ SELECT to_jsonb(r) FROM
   from pg_gather,pg_gather_end) sumry,
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
-   ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse
+   ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
+   (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid
 ) r;
 
 \echo </div>
@@ -379,7 +380,8 @@ SELECT to_jsonb(r) FROM
 \echo     } 
 \echo     strfind += "</li>";
 \echo  }
-\echo  if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+\echo  if (obj.indinvalid > 0 ) strfind += "<li><b>"+ obj.indinvalid +" Invalid Indexe(s)</b> found. Recreate or drop them</li>";
+\echo  if (obj.ptabs > 0) strfind += "<li><b>"+ obj.ptabs +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
@@ -401,8 +403,8 @@ SELECT to_jsonb(r) FROM
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
 \echo    strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
 \echo   }
-\echo   document.getElementById("finditem").innerHTML += strfind;
 \echo  }
+\echo   document.getElementById("finditem").innerHTML += strfind;
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
 \echo   dbs=document.getElementById("dbs");
