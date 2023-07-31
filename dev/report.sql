@@ -633,6 +633,7 @@ SELECT to_jsonb(r) FROM
 \echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
 \echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
 \echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
+\echo   if (typeof o.f5 != "undefined") str += ''''<div class="warn">Victim of Blocker :'''' + o.f5 + "<div>";
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
 \echo }
@@ -685,7 +686,9 @@ SELECT to_jsonb(r) FROM
 \echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
 \echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
-\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
+\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); 
+\echo         tr.cells[1].innerText = tr.cells[1].innerText.slice(0,-1) + '''',"f5":"' + obj.victims.find(el => el.f1 == pid.innerText).f2.toString() + '"}'''';
+\echo       };
 \echo  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
 \echo  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
 \echo  sql.innerText = sql.innerText.substring(0, 100); 

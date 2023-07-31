@@ -335,11 +335,16 @@ document.addEventListener("DOMContentLoaded", () => {
 obj=JSON.parse( document.getElementById("analdata").innerText);
 // New code for preparting victims and blockers
 if (obj.victims !== null){
+//each victim will have associated blockers like : victim1 : blocker1, blocker2 
+//prepare the list of victims
 obj.victims.forEach(function(victim){
   blkvictims.push(victim.f1);
 });
+//prepare the list of blockers
 obj.victims.forEach(function(victim){
+  //for each victim there can be multiple blockers
   victim.f2.forEach(function(blker){
+    //if the blocker is not appearing in victim's list and blocker is not allready added to blockers list, add 
     if (blkvictims.indexOf(blker) == -1 && blokers.indexOf(blker) == -1) blokers.push(blker);
   });
 });
@@ -697,6 +702,7 @@ function sessdtls(th){
   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
+  if (typeof o.f5 != "undefined") str += ''<div class="warn">Victim of Blocker :'' + o.f5 + "<div>";
   if (str.length < 1) str+="Independent/Background process";
   return str;
 }
@@ -766,7 +772,10 @@ for (let tr of trs){
  if(xidage.innerText > 20) xidage.classList.add("warn");
  //if pid exists in blockers list and victims list
  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
- if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
+ if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); 
+        //pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); 
+        tr.cells[1].innerText = tr.cells[1].innerText.slice(0,-1) + '',"f5":"' + obj.victims.find(el => el.f1 == pid.innerText).f2.toString() + '"}'';
+      };
  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
  //if query text is more than 100 chars, copy that to title and trim the query string to 100
  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
