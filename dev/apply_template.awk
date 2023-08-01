@@ -42,6 +42,8 @@ BEGIN {
 
     } else {                 ## Remaining lines (HTML tags) echo as it is
       sub(/^/, "\\echo ");
+      split($0,a," //");     ##split the line based an in-line comment, But there should be a space before //
+      $0=a[1];               ##Remove the inline comment part
       psql_echo_escape()     ## Replace single quotes outside double quotes with escaped value
       printf("\n")
     }
