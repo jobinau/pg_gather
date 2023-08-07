@@ -12,10 +12,11 @@ DROP TABLE IF EXISTS pg_get_index;
 DROP TABLE IF EXISTS pg_get_rel;
 DROP TABLE IF EXISTS pg_get_inherits;
 DROP TABLE IF EXISTS pg_srvr;
-DROP TABLE IF EXISTS pg_get_block;  --Deprecated in v20
+DROP TABLE IF EXISTS pg_get_block;  --Deprecated in v20, logic completely removed for v22
 DROP TABLE IF EXISTS pg_get_pidblock;
 DROP TABLE IF EXISTS pg_pid_wait;
 DROP TABLE IF EXISTS pg_replication_stat;
+DROP TABLE IF EXISTS pg_get_wal;
 DROP TABLE IF EXISTS pg_archiver_stat;
 DROP TABLE IF EXISTS pg_tab_bloat;
 DROP TABLE IF EXISTS pg_get_toast;
@@ -196,9 +197,8 @@ CREATE UNLOGGED TABLE pg_get_rel (
     vac_nos bigint
 );
 
---rel_size is "main" fork size
---tab_size includes toast also
 
+--TODO : Remove. This table is no longer used from v22 onwards
 CREATE UNLOGGED TABLE pg_get_block (
     blocked_pid integer,
     blocked_user text,
@@ -226,7 +226,7 @@ CREATE UNLOGGED TABLE pg_get_pidblock(
   blocking_pids int[]
 );
 
---TODO : Username, client_addr and client_hostname should go on the long term
+--TODO : Username, client_addr and client_hostname should be removed on the long term
 CREATE UNLOGGED TABLE pg_replication_stat (
     usename text,
     client_addr text,
@@ -281,6 +281,18 @@ CREATE UNLOGGED TABLE pg_get_extension(
     extnamespace oid,
     extrelocatable boolean,
     extversion text
+);
+
+CREATE UNLOGGED TABLE pg_get_wal(
+ wal_records bigint,
+ wal_fpi bigint,
+ wal_bytes numeric,
+ wal_buffers_full bigint,
+ wal_write bigint,
+ wal_sync bigint,
+ wal_write_time double precision,
+ wal_sync_time double precision,
+ stats_reset timestamp with time zone
 );
 
 CREATE UNLOGGED TABLE pg_get_slots(

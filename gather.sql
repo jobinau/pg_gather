@@ -203,6 +203,14 @@ select archived_count,last_archived_wal,last_archived_time,last_failed_wal,last_
 ) TO stdin;
 \echo '\\.'
 
+
+--WAL stats
+\if :pg14
+\echo COPY pg_get_wal(wal_records,wal_fpi,wal_bytes,wal_buffers_full,wal_write,wal_sync,wal_write_time,wal_sync_time,stats_reset) FROM stdin;
+COPY (SELECT wal_records,wal_fpi,wal_bytes,wal_buffers_full,wal_write,wal_sync,wal_write_time,wal_sync_time,stats_reset FROM pg_stat_wal) TO stdout;
+\echo '\\.'
+\endif
+
 --bgwriter
 \echo COPY pg_get_bgwriter FROM stdin;
 COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
