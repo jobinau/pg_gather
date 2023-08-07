@@ -53,11 +53,13 @@ FROM pg_gather LEFT JOIN TZ ON TRUE
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
-WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
+WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather),
+  wal_stat AS (SELECT stats_reset FROM pg_get_wal)
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(pg_get_db.stats_reset,'YYYY-MM-DD HH24-MI-SS')))
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
-FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
+FROM pg_get_db LEFT JOIN wal_stat ON true
+LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.stats_reset,wal_stat.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
 \pset tableattr off
 %>
 <div>
@@ -167,9 +169,6 @@ SELECT * FROM (
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';%>
-<h2 id="blocking" style="clear: both">Blocking Sessions</h2>
-<% \pset tableattr 'id="tblblk"'
-SELECT * FROM pg_get_block; %>
 <h2 id="statements" style="clear: both">Top 10 Statements</h2>
 <% \pset tableattr 'id="tblstmnt"'
 \C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
@@ -781,13 +780,7 @@ for (let tr of trs){
  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
  sql.innerText = sql.innerText.substring(0, 100); 
 }
-}}
-
-//If blocking session section is empty
-if(document.getElementById("tblblk").rows.length < 2){ 
-  document.getElementById("tblblk").remove();
-  document.getElementById("blocking").innerText="No Blocking Sessions Found";
-}
+}} //editor may show extra } :)
 
 //if there is no info from pg_stat_statements
 if(document.getElementById("tblstmnt").rows.length < 2){ 
