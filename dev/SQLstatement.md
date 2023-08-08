@@ -1,11 +1,27 @@
 # Explanation for SQL statements in the project
 embedding detailed comments inside SQL statement is not a great option because the SQL string will be send to server as it is.
 This documentation fills the gap with detailed explanation
+## DB level information
+```
+--Findout the lastest timestamp available in the data collection
+WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather),
+--Get when was the last stats_reset of pg_stat_wal, 
+--use this as another reference if database level stat_reset is not available
+  wal_stat AS (SELECT stats_reset FROM pg_get_wal)
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(pg_get_db.stats_reset,'YYYY-MM-DD HH24-MI-SS')))
+,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
+,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
+FROM pg_get_db LEFT JOIN wal_stat ON true
+--if pg_get_db.stats_reset is NULL, use wal_stat.stats_reset. 
+--Atleast one day is considered for calculation
+LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.stats_reset,wal_stat.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
+```
+
 
 ##  Table level information query
-The query under id="tabInfo
+The query under id="tabInfo"
 ```
-ELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
+SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
 --
 --Second column is a json message for displaying in popup box. the "nsname" is just a dummy value, not used anymore.
 to_jsonb(ROW(ns.nsname)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks||'%' ELSE '' END "Bloat*",
@@ -57,12 +73,15 @@ SELECT to_jsonb(r) FROM
   FROM pg_get_activity) as sess,
   ---
   ---Current database selected and its stats reset ts, collection ts, number of days
-  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"[[:word:]]*\"')) "curdb" FROM pg_srvr),
-  cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
-  SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
-  curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
-  LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
-  LEFT JOIN cts ON true) as dbts,
+  (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
+    cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
+    SELECT to_jsonb(ROW(curdb,COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset),c_ts,days))  -- stats_reset (dbts.f2) and c_ts(dbts.f3) are still not used. can be avoided
+    FROM  curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
+    --Consider stats_reset from pg_get_wal if stats_reset from pg_get_db is NULL
+    LEFT JOIN pg_get_wal ON true
+    LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
+    LEFT JOIN cts ON true --Avoidable join because c_ts(dbts.f3) is still not used.
+    ) as dbts,
   --
   --Array of schema names
   (select json_agg(pg_get_ns) from pg_get_ns where nsoid > 16384 or nsname='public') AS ns
