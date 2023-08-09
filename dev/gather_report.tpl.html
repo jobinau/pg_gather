@@ -447,11 +447,11 @@ function checkfindings(){
 //Event listeners for changing the CPU and Memory
 document.getElementById("cpus").addEventListener("change", (event) => {
   totCPU = event.target.value;
-  checkpars();
+  checkpars();   //TODO : checking every parameter is unnessary.
 });
 document.getElementById("mem").addEventListener("change", (event) => {
   totMem = event.target.value;
-  checkpars();
+  checkpars();   //TODO : checking every parameter is unnessary.
 });
 
 
@@ -470,104 +470,115 @@ function DurationtoSeconds(duration){
     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 };
 
-
-function checkpars(){
-  const startTime =new Date().getTime();
-  trs=document.getElementById("params").rows
-  for(var i=1;i<trs.length;i++){
-    tr=trs[i]; nm=tr.cells[0]; val=tr.cells[1];
-    switch(nm.innerText){
-      case "archive_command" :
-        if (obj.arclib !== null && obj.arclib.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
-        break;
-      case "autovacuum" :
-        if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
-        break;
-      case "autovacuum_max_workers" :
-        if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
-        break;
-      case "autovacuum_vacuum_cost_limit" :
-        if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Consider a value less than 800" }
-        break;
-      case "autovacuum_freeze_max_age" :
-        autovacuum_freeze_max_age = Number(val.innerText);
-        if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
-        break;
-      case "checkpoint_timeout":
-        if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
-        break;
-      case "deadlock_timeout":
-        val.classList.add("lime");
-        break;
-      case "effective_cache_size":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-        break;
-      case "huge_pages":
-        val.classList.add("lime");
-        break;
-      case "huge_page_size":
-        val.classList.add("lime");
-        break;
-      case "hot_standby_feedback":
-        val.classList.add("lime");
-        break;
-      case "jit":
-        if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
-        break;
-      case "maintenance_work_mem":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
-        break;
-      case "shared_buffers":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-        if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-          { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
-        break;
-      case "max_connections":
-        val.title="Avoid value exceeding 10x of the CPUs"
-        if( totCPU > 0 ){
-          if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
-          else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+//******************* New Parameter Despatch table implimentation v22 *******************/
+var paramDespatch = {
+  archive_command : function(rowref) {
+    val=rowref.cells[1];
+    if (obj.arclib !== null && obj.arclib.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
+  },
+  autovacuum : function(rowref) {
+    val=rowref.cells[1];
+    if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
+  },
+  autovacuum_max_workers : function(rowref) {
+    val=rowref.cells[1];
+    if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
+  },
+  autovacuum_vacuum_cost_limit: function(rowref){
+    val=rowref.cells[1];
+    if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Better to specify this with a value less than 800" }
+  },
+  autovacuum_freeze_max_age: function(rowref){
+    val=rowref.cells[1];
+    autovacuum_freeze_max_age = Number(val.innerText);  //Store the value to global variable
+    if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
+  },
+  checkpoint_timeout: function(rowref){
+    val=rowref.cells[1];
+    if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+  },
+  shared_buffers: function(rowref){
+    val=rowref.cells[1];
+    val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+    if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+      { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+  },
+  max_connections: function(rowref){
+    val=rowref.cells[1];
+    val.title="Avoid value exceeding 10x of the CPUs"
+    if( totCPU > 0 ){
+      if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
+        else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
         } else if (val.innerText > 500) val.classList.add("warn")
-        else val.classList.add("lime")
-        break;
-      case "max_wal_size":
-        val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
-        if(val.innerText < 10240) val.classList.add("warn");
-        break;
-      case "random_page_cost":
-        if(val.innerText > 1.2) val.classList.add("warn");
-        break;
-      case "server_version":
-         let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
-        if ( mgrver < Math.trunc(meta.pgvers[0])){
-          val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-        } else {
-          meta.pgvers.forEach(function(t){
-            if (Math.trunc(setval) == Math.trunc(t)){
-               if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
-            }
-          })  
+      else val.classList.add("lime")
+  },
+  //Just highlight/Warn few important parameters and their values
+  deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, 
+  effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
+  huge_pages: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+  huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+  hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+  jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
+    val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
+  maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
+
+  max_wal_size: function(rowref){
+    val=rowref.cells[1];
+    val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
+    if(val.innerText < 10240) val.classList.add("warn");
+  },
+  random_page_cost: function(rowref){
+    val=rowref.cells[1];
+    if(val.innerText > 1.2) val.classList.add("warn");
+  },
+  server_version: function(rowref){
+    val=rowref.cells[1];
+    let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+    if ( mgrver < Math.trunc(meta.pgvers[0])){
+      val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+    } else {
+      meta.pgvers.forEach(function(t){
+        if (Math.trunc(setval) == Math.trunc(t)){
+          if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
         }
-        //if no problems found, just highlight the data
-        if(val.classList.length < 1) val.classList.add("lime");
-        break;
-      case "synchronous_standby_names":
-        if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
-        break;
-      case "wal_compression":
-        val.classList.add("lime");
-        walcomprz = val.innerText;
-        break;
-      case "work_mem":
-        val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
-        if(val.innerText > 98304) val.classList.add("warn");
-        else val.classList.add("lime");
-        break;
+      })  
     }
+    if(val.classList.length < 1) val.classList.add("lime");  //if no problems found, just highlight the data
+  },
+  synchronous_standby_names: function(rowref){
+    val=rowref.cells[1];
+    if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+  },
+  wal_compression: function(rowref){
+    val=rowref.cells[1]; val.classList.add("lime"); walcomprz = val.innerText; //highlight and update the global variable
+  },
+  work_mem: function(rowref){
+    val=rowref.cells[1];
+    val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
+    if(val.innerText > 98304) val.classList.add("warn");
+    else val.classList.add("lime");
+  },
+  default : function(rowref) { 
+      //console.log("Doing some default thing");
   }
-const endTime = new Date().getTime();
-console.log("time taken :" + (endTime - startTime));
+};
+
+// Interface function for parameter evaluation, 
+// Second paramter is optional and can be called like : evalParam("autovacuum_vacuum_cost_limit"); 
+var evalParam = function(param,rowref = null) {
+  if (rowref.id == "") rowref.id=param;   //if rowref don't have an id, add it, This happens in the first invocation.
+  else rowref = document.getElementById(param);  //No need to check like : if (rowref == null), because subsequent calls to the function is not expecting rowref
+  var param = paramDespatch.hasOwnProperty(param) ? param : "default"
+  paramDespatch[param](rowref);
 }
+//************End of Parameter Despatch table ***********************
+
+//Check paramter values going though each in the HTML table
+function checkpars(){
+  trs=document.getElementById("params").rows
+  for(var i=1;i<trs.length;i++) 
+    evalParam(trs[i].cells[0].innerText,trs[i]);  //Despatcher function takes name of parameter and row of HTML table as parameters
+ }
 
 //Cells with value greater than autovacuum_freeze_max_age
 function aged(cell){
