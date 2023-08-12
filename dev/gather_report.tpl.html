@@ -47,8 +47,9 @@ SELECT * FROM
     THEN (SELECT set_config('timezone',setting,false) FROM pg_get_confs WHERE name='log_timezone')
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report"
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN','Time Line','WAL file']) AS pg_gather,
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,
+        current_wal::text,timeline::text || ' (Hex:' || to_hex(timeline)::text || ')',  lpad(to_hex(timeline)::text,8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16)]) AS "Report"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
@@ -744,7 +745,7 @@ document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEve
   navigator.clipboard.writeText(td.title).then(() => {  
     var el=document.createElement("div");
     el.setAttribute("id", "cur");
-    el.textContent = "SQL text is Copied to clipboard";
+    el.textContent = "SQL text is copied to clipboard";
     td.appendChild(el);
     setTimeout(() => { el.remove();},2000);
    });
