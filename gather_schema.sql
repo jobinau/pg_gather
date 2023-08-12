@@ -43,6 +43,7 @@ CREATE UNLOGGED TABLE pg_gather (
     client inet,
     server inet,
     reload_ts timestamp with time zone,
+    timeline int,
     current_wal pg_lsn
 );
 
