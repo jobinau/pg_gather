@@ -107,7 +107,7 @@ COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,rolconfig from pg_
 
 --pg_settings
 \echo COPY pg_get_confs (name,setting,unit,source) FROM stdin;
-COPY ( SELECT name,setting,unit,sourcefile FROM pg_settings) TO stdin;
+COPY ( SELECT name,setting,unit,coalesce(sourcefile,source) FROM pg_settings) TO stdin;
 \echo '\\.'
 
 --pg_file_settings
