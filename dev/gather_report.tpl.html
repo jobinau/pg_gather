@@ -381,7 +381,8 @@ function checkgather(){
         break;
       case "In recovery?" :
         console.log(val.innerText);
-        if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby";}
+        if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby"; obj.primary = false;}
+        else obj.primary = true;  //store that the instance is primary into obj
         break;
     }
   }
@@ -473,9 +474,14 @@ function DurationtoSeconds(duration){
 
 //******************* New Parameter Despatch table implimentation v22 *******************/
 var paramDespatch = {
+  archive_mode : function(rowref){
+    val=rowref.cells[1];
+    if(obj.primary  == true && val.innerHTML == "off"){ val.classList.add("warn"); val.title="Primary server without WAL archiving configured. No PITR possible"}
+  },
   archive_command : function(rowref) {
     val=rowref.cells[1];
     if (obj.arclib !== null && obj.arclib.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
+    else if (val.innerText.length < 5) {val.classList.add("warn"); val.title="A valid archive_command is expected for WAL archiving, unless archive library is used" ; }
   },
   autovacuum : function(rowref) {
     val=rowref.cells[1];
@@ -483,7 +489,7 @@ var paramDespatch = {
   },
   autovacuum_max_workers : function(rowref) {
     val=rowref.cells[1];
-    if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
+    if(val.innerText > 3) { val.classList.add("warn"); val.title="High number of workers causes each workers to run slower because of the cost limit" }
   },
   autovacuum_vacuum_cost_limit: function(rowref){
     val=rowref.cells[1];
