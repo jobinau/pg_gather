@@ -151,6 +151,14 @@ WHERE tabs.vac_nos/curstatus.days > 48;
 --18. Oldest transactions which are still not completed
 select pid,backend_xid::text::int from pg_get_activity order by 2;
 
+--19. Partitioned tables and Indexes
+SELECT c.relkind,p.relname, c.relname
+FROM pg_get_inherits i
+LEFT JOIN pg_get_class p ON i.inhparent = p.reloid
+LEFT JOIN pg_get_class c ON i.inhrelid = c.reloid
+ORDER BY 1,2;
+
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
