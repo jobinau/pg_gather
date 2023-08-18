@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS pg_get_activity;
 DROP TABLE IF EXISTS pg_get_class;
 DROP TABLE IF EXISTS pg_get_confs;
 DROP TABLE IF EXISTS pg_get_file_confs;
+DROP TABLE IF EXISTS pg_get_db_role_confs;
 DROP TABLE IF EXISTS pg_get_db;
 DROP TABLE IF EXISTS pg_get_index;
 DROP TABLE IF EXISTS pg_get_rel;
@@ -94,11 +95,6 @@ CREATE UNLOGGED TABLE pg_get_statements(
     total_time double precision
 );
 
---CREATE UNLOGGED TABLE pg_get_wait(
---    itr integer,
---    pid integer,
---    wait_event text
---);
 
 CREATE UNLOGGED TABLE pg_pid_wait(
     itr SERIAL,
@@ -135,7 +131,7 @@ CREATE UNLOGGED TABLE pg_get_roles (
     rolsuper boolean,
     rolreplication boolean,
     rolconnlimit integer,
-    rolconfig text[]
+    rolconfig text[]  --remove this column, because this is anyway info is from pg_db_role_setting
 );
 
 CREATE UNLOGGED TABLE pg_get_confs (
@@ -151,6 +147,12 @@ CREATE UNLOGGED TABLE pg_get_file_confs (
     setting text,
     applied boolean,
     error text
+);
+
+CREATE UNLOGGED TABLE pg_get_db_role_confs( --pg_db_role_setting
+    db oid,
+    setrole oid,
+    config text[]
 );
 
 CREATE UNLOGGED TABLE pg_get_class (
