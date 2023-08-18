@@ -34,7 +34,7 @@ SET max_parallel_workers_per_gather = 0;
 \echo    </svg>
 \echo    <b id="busy" class="warn"> Loading... </b>
 \echo </h1>
-\pset tableattr 'class="lineblk"'
+\pset tableattr 'id="tblgather" class="lineblk"'
 SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines \gset
 \if :conlines
   \echo "There is serious problem with the data. Please make sure that all tables are dropped and recreated as part of importing data (gather_schema.sql) and there was no error"
@@ -47,17 +47,20 @@ SELECT * FROM
     THEN (SELECT set_config('timezone',setting,false) FROM pg_get_confs WHERE name='log_timezone')
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,current_wal::text]) AS "Report-v21"
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN','Time Line','WAL file']) AS pg_gather,
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,
+        current_wal::text,timeline::text || ' (Hex:' || to_hex(timeline)::text || ')',  lpad(to_hex(timeline)::text,8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16)]) AS "Report"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report-v21" IS NOT NULL ORDER BY 1;
+SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
-WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(stats_reset,'YYYY-MM-DD HH24-MI-SS')))
+WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather),
+  wal_stat AS (SELECT stats_reset FROM pg_get_wal)
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(pg_get_db.stats_reset,'YYYY-MM-DD HH24-MI-SS')))
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
-FROM pg_get_db LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
+FROM pg_get_db LEFT JOIN wal_stat ON true
+LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.stats_reset,wal_stat.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
 \pset tableattr off
 
 \echo <div>
@@ -167,9 +170,6 @@ SELECT * FROM (
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';
-\echo <h2 id="blocking" style="clear: both">Blocking Sessions</h2>
-\pset tableattr 'id="tblblk"'
-SELECT * FROM pg_get_block; 
 \echo <h2 id="statements" style="clear: both">Top 10 Statements</h2>
 \pset tableattr 'id="tblstmnt"'
 \C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
@@ -251,7 +251,7 @@ WITH W AS (
  OR (name = 'wal_segment_size' AND unit ='8kB' and setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' and setting != '16777216')  
 )
 SELECT CASE WHEN LENGTH(val) > 1
-  THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation prone to bugs and it is beyond supportability</li>'
+  THEN '<li>Detected Non-Standard Compile/Initialization time parameter changes <b>'||val||' </b>. Custom Compilation is prone to bugs, and it is beyond supportability</li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -285,12 +285,14 @@ SELECT to_jsonb(r) FROM
   FROM pg_get_activity) as sess,
   (WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),
     cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
-    SELECT to_jsonb(ROW(curdb,stats_reset,c_ts,days)) FROM 
-    curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
-    LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-stats_reset))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
-    LEFT JOIN cts ON true) as dbts,
+    SELECT to_jsonb(ROW(curdb,COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset),c_ts,days))
+    FROM  curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
+    LEFT JOIN pg_get_wal ON true
+    LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
+    LEFT JOIN cts ON true ) as dbts,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns,
-  (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail,
+  (SELECT to_jsonb(ROW((collect_ts-last_archived_time) > '15 minute' :: interval, 
+  pg_wal_lsn_diff(current_wal,(coalesce(nullif(ltrim(substring(last_archived_wal,9,8),'0'),''),'0') ||'/'|| substring(last_archived_wal,23,2) || '000001')::pg_lsn))) FROM pg_gather,pg_archiver_stat) AS arcfail,
   (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib,
   (SELECT CASE WHEN max(stats_reset)-min(stats_reset) < '2 minute' :: interval THEN min(stats_reset) ELSE NULL END 
   FROM (SELECT stats_reset FROM pg_get_db UNION SELECT stats_reset FROM pg_get_bgwriter) reset) crash,
@@ -303,7 +305,8 @@ SELECT to_jsonb(r) FROM
   from pg_gather,pg_gather_end) sumry,
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
-   ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse
+   ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
+   (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid
 ) r;
 
 \echo </div>
@@ -311,7 +314,8 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo meta={pgvers:["11.20","12.15","13.11","14.8","15.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo ver="22";
+\echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
@@ -332,6 +336,7 @@ SELECT to_jsonb(r) FROM
 \echo   });
 \echo });
 \echo }
+\echo checkgather();
 \echo checkpars();
 \echo checktabs();
 \echo checkdbs();
@@ -344,6 +349,25 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("sections").style="display:table";
 \echo   document.getElementById("busy").style="display:none";
 \echo };
+\echo function checkgather(){
+\echo    const trs=document.getElementById("tblgather").rows
+\echo   for (let i = 0; i < trs.length; i++) {
+\echo     val = trs[i].cells[1];
+\echo     switch(trs[i].cells[0].innerText){
+\echo       case "pg_gather" :
+\echo         val.innerText = val.innerText + "-v" + ver;
+\echo         break;
+\echo       case "Collected By" :
+\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data collected using older version of gather.sql file" }
+\echo         break;
+\echo       case "In recovery?" :
+\echo         console.log(val.innerText);
+\echo         if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby"; obj.primary = false;}
+\echo         else obj.primary = true; 
+\echo         break;
+\echo     }
+\echo   }
+\echo }
 \echo function checkfindings(){
 \echo  let strfind = "";
 \echo  if (obj.sess.f7 < 4){ 
@@ -359,14 +383,17 @@ SELECT to_jsonb(r) FROM
 \echo     } 
 \echo     strfind += "</li>";
 \echo  }
-\echo  if (obj.ptabs > 0) strfind += "<li>"+ obj.ptabs +" Natively partitioned tables found. Tables section could contain partitions</li>";
+\echo  if (obj.indinvalid > 0 ) strfind += "<li><b>"+ obj.indinvalid +" Invalid Index(es)</b> found. Recreate or drop them</li>";
+\echo  if (obj.ptabs > 0) strfind += "<li><b>"+ obj.ptabs +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
-\echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
+\echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables </li>";
 \echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
-\echo   if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
+\echo   if (obj.arcfail.f1 == null) strfind += "<li>No WAL archiving / Backup configured. No PITR possible</li>";
+\echo   if (obj.arcfail.f1) strfind += "<li>No WAL archiving happened in last 15 minutes <b>archiving could be failing</b>; please check PG logs</li>";
+\echo   if (obj.arcfail.f2) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b></li>";
 \echo   if (obj.crash) strfind += "<li><b>Possible crash around "+ obj.crash +"</b>, please verify PG logs</li>";
 \echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
 \echo   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li>There are <b>" + obj.victims.length + " sessions blocked.</b></li>"
@@ -379,10 +406,10 @@ SELECT to_jsonb(r) FROM
 \echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-\echo    strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schema</b> in this database.</li>";
+\echo    strfind += "<li> There are <b>" + (obj.ns.length - tempNScnt).toString()  + " user schemas and " + tempNScnt + " temporary schemas</b> in this database.</li>";
 \echo   }
-\echo   document.getElementById("finditem").innerHTML += strfind;
 \echo  }
+\echo   document.getElementById("finditem").innerHTML += strfind;
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
 \echo   dbs=document.getElementById("dbs");
@@ -394,11 +421,11 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo document.getElementById("cpus").addEventListener("change", (event) => {
 \echo   totCPU = event.target.value;
-\echo   checkpars();
+\echo   checkpars();  
 \echo });
 \echo document.getElementById("mem").addEventListener("change", (event) => {
 \echo   totMem = event.target.value;
-\echo   checkpars();
+\echo   checkpars();  
 \echo });
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
@@ -411,102 +438,110 @@ SELECT to_jsonb(r) FROM
 \echo     const [hours, minutes, seconds] = duration.split(":");
 \echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
-\echo function checkpars(){
-\echo   const startTime =new Date().getTime();
-\echo   trs=document.getElementById("params").rows
-\echo   for(var i=1;i<trs.length;i++){
-\echo     tr=trs[i]; nm=tr.cells[0]; val=tr.cells[1];
-\echo     switch(nm.innerText){
-\echo       case "archive_command" :
-\echo         if (obj.arclib !== null && obj.arclib.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
-\echo         break;
-\echo       case "autovacuum" :
-\echo         if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
-\echo         break;
-\echo       case "autovacuum_max_workers" :
-\echo         if(val.innerText > 3) { val.classList.add("warn"); val.title="Worker slows down as the number of workers increases" }
-\echo         break;
-\echo       case "autovacuum_vacuum_cost_limit" :
-\echo         if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Consider a value less than 800" }
-\echo         break;
-\echo       case "autovacuum_freeze_max_age" :
-\echo         autovacuum_freeze_max_age = Number(val.innerText);
-\echo         if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
-\echo         break;
-\echo       case "checkpoint_timeout":
-\echo         if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
-\echo         break;
-\echo       case "deadlock_timeout":
-\echo         val.classList.add("lime");
-\echo         break;
-\echo       case "effective_cache_size":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-\echo         break;
-\echo       case "huge_pages":
-\echo         val.classList.add("lime");
-\echo         break;
-\echo       case "huge_page_size":
-\echo         val.classList.add("lime");
-\echo         break;
-\echo       case "hot_standby_feedback":
-\echo         val.classList.add("lime");
-\echo         break;
-\echo       case "jit":
-\echo         if (val.innerText=="on") { val.classList.add("warn"); val.title="JIT is reportedly causing high memory usage and even crashes in few cases. consider disabling it unless needed" }
-\echo         break;
-\echo       case "maintenance_work_mem":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024);
-\echo         break;
-\echo       case "shared_buffers":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-\echo         if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-\echo           { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
-\echo         break;
-\echo       case "max_connections":
-\echo         val.title="Avoid value exceeding 10x of the CPUs"
-\echo         if( totCPU > 0 ){
-\echo           if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
-\echo           else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+\echo var paramDespatch = {
+\echo   archive_mode : function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(obj.primary  == true && val.innerHTML == "off"){ val.classList.add("warn"); val.title="Primary server without WAL archiving configured. No PITR possible"}
+\echo   },
+\echo   archive_command : function(rowref) {
+\echo     val=rowref.cells[1];
+\echo     if (obj.arclib !== null && obj.arclib.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
+\echo     else if (val.innerText.length < 5) {val.classList.add("warn"); val.title="A valid archive_command is expected for WAL archiving, unless archive library is used" ; }
+\echo   },
+\echo   autovacuum : function(rowref) {
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
+\echo   },
+\echo   autovacuum_max_workers : function(rowref) {
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText > 3) { val.classList.add("warn"); val.title="High number of workers causes each workers to run slower because of the cost limit" }
+\echo   },
+\echo   autovacuum_vacuum_cost_limit: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText > 800 || val.innerText == -1 ) { val.classList.add("warn"); val.title="Better to specify this with a value less than 800" }
+\echo   },
+\echo   autovacuum_freeze_max_age: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     autovacuum_freeze_max_age = Number(val.innerText); 
+\echo     if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
+\echo   },
+\echo   checkpoint_timeout: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+\echo   },
+\echo   shared_buffers: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+\echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+\echo   },
+\echo   max_connections: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.title="Avoid value exceeding 10x of the CPUs"
+\echo     if( totCPU > 0 ){
+\echo       if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
+\echo         else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
 \echo         } else if (val.innerText > 500) val.classList.add("warn")
-\echo         else val.classList.add("lime")
-\echo         break;
-\echo       case "max_wal_size":
-\echo         val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo         if(val.innerText < 10240) val.classList.add("warn");
-\echo         break;
-\echo       case "random_page_cost":
-\echo         if(val.innerText > 1.2) val.classList.add("warn");
-\echo         break;
-\echo       case "server_version":
-\echo          let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
-\echo         if ( mgrver < Math.trunc(meta.pgvers[0])){
-\echo           val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-\echo         } else {
-\echo           meta.pgvers.forEach(function(t){
-\echo             if (Math.trunc(setval) == Math.trunc(t)){
-\echo                if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
-\echo             }
-\echo           })  
+\echo       else val.classList.add("lime")
+\echo   },
+\echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, 
+\echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
+\echo   huge_pages: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
+\echo     val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
+\echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
+\echo   max_wal_size: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
+\echo     if(val.innerText < 10240) val.classList.add("warn");
+\echo   },
+\echo   random_page_cost: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText > 1.2) val.classList.add("warn");
+\echo   },
+\echo   server_version: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+\echo     if ( mgrver < Math.trunc(meta.pgvers[0])){
+\echo       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+\echo     } else {
+\echo       meta.pgvers.forEach(function(t){
+\echo         if (Math.trunc(setval) == Math.trunc(t)){
+\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
 \echo         }
-\echo         if(val.classList.length < 1) val.classList.add("lime");
-\echo         break;
-\echo       case "synchronous_standby_names":
-\echo         if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
-\echo         break;
-\echo       case "wal_compression":
-\echo         val.classList.add("lime");
-\echo         walcomprz = val.innerText;
-\echo         break;
-\echo       case "work_mem":
-\echo         val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
-\echo         if(val.innerText > 98304) val.classList.add("warn");
-\echo         else val.classList.add("lime");
-\echo         break;
+\echo       })  
 \echo     }
+\echo     if(val.classList.length < 1) val.classList.add("lime"); 
+\echo   },
+\echo   synchronous_standby_names: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+\echo   },
+\echo   wal_compression: function(rowref){
+\echo     val=rowref.cells[1]; val.classList.add("lime"); walcomprz = val.innerText;
+\echo   },
+\echo   work_mem: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
+\echo     if(val.innerText > 98304) val.classList.add("warn");
+\echo     else val.classList.add("lime");
+\echo   },
+\echo   default : function(rowref) { 
 \echo   }
-\echo const endTime = new Date().getTime();
-\echo console.log("time taken :" + (endTime - startTime));
+\echo };
+\echo var evalParam = function(param,rowref = null) {
+\echo   if (rowref.id == "") rowref.id=param;  
+\echo   else rowref = document.getElementById(param); 
+\echo   var param = paramDespatch.hasOwnProperty(param) ? param : "default"
+\echo   paramDespatch[param](rowref);
 \echo }
+\echo function checkpars(){
+\echo   trs=document.getElementById("params").rows
+\echo   for(var i=1;i<trs.length;i++) 
+\echo     evalParam(trs[i].cells[0].innerText,trs[i]); 
+\echo  }
 \echo function aged(cell){
 \echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
 \echo }
@@ -553,7 +588,7 @@ SELECT to_jsonb(r) FROM
 \echo     aged(tr.cells[9]);
 \echo   }
 \echo   if (aborts.length >0)
-\echo     document.getElementById("finditem").innerHTML += "<li>High number of trasaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo     document.getElementById("finditem").innerHTML += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
 \echo }
 \echo function checkextn(){
 \echo   const trs=document.getElementById("tblextn").rows
@@ -611,6 +646,7 @@ SELECT to_jsonb(r) FROM
 \echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
 \echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
 \echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
+\echo   if (typeof o.f5 != "undefined") str += ''''<div class="warn">Victim of Blocker :'''' + o.f5 + "<div>";
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
 \echo }
@@ -634,7 +670,7 @@ SELECT to_jsonb(r) FROM
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
 \echo     var el=document.createElement("div");
 \echo     el.setAttribute("id", "cur");
-\echo     el.textContent = "SQL text is Copied to clipboard";
+\echo     el.textContent = "SQL text is copied to clipboard";
 \echo     td.appendChild(el);
 \echo     setTimeout(() => { el.remove();},2000);
 \echo    });
@@ -663,16 +699,14 @@ SELECT to_jsonb(r) FROM
 \echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
 \echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
-\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); };
+\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); 
+\echo         tr.cells[1].innerText = tr.cells[1].innerText.slice(0,-1) + '''',"f5":"' + obj.victims.find(el => el.f1 == pid.innerText).f2.toString() + '"}'''';
+\echo       };
 \echo  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
 \echo  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
 \echo  sql.innerText = sql.innerText.substring(0, 100); 
 \echo }
 \echo }}
-\echo if(document.getElementById("tblblk").rows.length < 2){ 
-\echo   document.getElementById("tblblk").remove();
-\echo   document.getElementById("blocking").innerText="No Blocking Sessions Found";
-\echo }
 \echo if(document.getElementById("tblstmnt").rows.length < 2){ 
 \echo   document.getElementById("tblstmnt").remove();
 \echo   document.getElementById("statements").innerText="pg_stat_statements info is not available"
@@ -698,10 +732,10 @@ SELECT to_jsonb(r) FROM
 \echo       }
 \echo     }
 \echo   }
-\echo   if (tr.cells[16].innerText.trim() == "" ){
-\echo     tr.cells[16].classList.add("high"); tr.cells[16].title="bgwriter stats are not available";
+\echo   if (tr.cells[16].innerText.trim() == "" || tr.cells[16].innerText < 1 ){
+\echo     tr.cells[16].classList.add("high"); tr.cells[16].title="sufficient bgwriter stats are not available";
 \echo     document.getElementById("tblchkpnt").classList.add("high");
-\echo     document.getElementById("tblchkpnt").title = "The bgwriter stats are not yet available. This could happen if data is collected immediately after the stats reset";
+\echo     document.getElementById("tblchkpnt").title = "Sufficient bgwriter stats are not available. This could happen if data is collected immediately after the stats reset or a crash. At least one day of stats are required to do meaningful calculations";
 \echo   }
 \echo }
 \echo tab=document.getElementById("tblreplstat")
