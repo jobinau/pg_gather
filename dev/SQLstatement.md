@@ -54,7 +54,8 @@ SELECT to_jsonb(r) FROM
   (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
      from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
   --
-  --Total number of connections which has some wait even recorded and number of connections started in last 15 mintues
+  -- cn stands for connections. count of total connections and number of number of connections started in last 15 mintues are returned
+  -- only those connections which has some waitevent is considered
   (SELECT to_jsonb(ROW(COUNT(*),COUNT(*) FILTER (WHERE CONN < interval '15 minutes' ) )) FROM 
   (WITH g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
   SELECT pid,g.ts - backend_start CONN
@@ -86,8 +87,9 @@ SELECT to_jsonb(r) FROM
   --Array of schema names
   (select json_agg(pg_get_ns) from pg_get_ns where nsoid > 16384 or nsname='public') AS ns
 
-  --WAL archival is still failing (last 5 minutes)
-  (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail,
+  --WAL archival check. field f1 is true if the last archive is more than 15 mintues old. f2 is calculated delay in WAL archiving.
+  (SELECT to_jsonb(ROW((collect_ts-last_archived_time) > '15 minute' :: interval, 
+  pg_wal_lsn_diff(current_wal,(coalesce(nullif(ltrim(substring(last_archived_wal,9,8),'0'),''),'0') ||'/'|| substring(last_archived_wal,23,2) || '000001')::pg_lsn))) FROM pg_gather,pg_archiver_stat) AS arcfail,
 
   --Any Archive library is used or not
   (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib,
