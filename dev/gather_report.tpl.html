@@ -251,7 +251,7 @@ WITH W AS (
  OR (name = 'wal_segment_size' AND unit ='8kB' and setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' and setting != '16777216')  
 )
 SELECT CASE WHEN LENGTH(val) > 1
-  THEN '<li>Detected Non-Standard Compile-time parameter changes <b>'||val||' </b>. Custom Compilation prone to bugs and it is beyond supportability</li>'
+  THEN '<li>Detected Non-Standard Compile/Initialization time parameter changes <b>'||val||' </b>. Custom Compilation prone to bugs and it is beyond supportability</li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -291,7 +291,8 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
     LEFT JOIN cts ON true ) as dbts,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns,
-  (SELECT to_jsonb((collect_ts-last_failed_time) < '5 minute' :: interval) FROM pg_gather,pg_archiver_stat) AS arcfail,
+  (SELECT to_jsonb(ROW((collect_ts-last_archived_time) > '15 minute' :: interval, 
+  pg_wal_lsn_diff(current_wal,(coalesce(nullif(ltrim(substring(last_archived_wal,9,8),'0'),''),'0') ||'/'|| substring(last_archived_wal,23,2) || '000001')::pg_lsn))) FROM pg_gather,pg_archiver_stat) AS arcfail,
   (SELECT to_jsonb(setting) FROM pg_get_confs WHERE name = 'archive_library') AS arclib,
   (SELECT CASE WHEN max(stats_reset)-min(stats_reset) < '2 minute' :: interval THEN min(stats_reset) ELSE NULL END 
   FROM (SELECT stats_reset FROM pg_get_db UNION SELECT stats_reset FROM pg_get_bgwriter) reset) crash,
@@ -315,9 +316,9 @@ SELECT to_jsonb(r) FROM
 //Global object to hold json values passed from the SQL analysis
 obj={};
 //pg_gather version
-ver="21";
+ver="22";
 //Currently supported PostgreSQL versions, Extensions
-meta={pgvers:["11.20","12.15","13.11","14.8","15.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+meta={pgvers:["11.21","12.16","13.12","14.9","15.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
 walcomprz="";
 //Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
@@ -405,7 +406,7 @@ function checkfindings(){
     } 
     strfind += "</li>";
  }
- if (obj.indinvalid > 0 ) strfind += "<li><b>"+ obj.indinvalid +" Invalid Indexe(s)</b> found. Recreate or drop them</li>";
+ if (obj.indinvalid > 0 ) strfind += "<li><b>"+ obj.indinvalid +" Invalid Index(es)</b> found. Recreate or drop them</li>";
  if (obj.ptabs > 0) strfind += "<li><b>"+ obj.ptabs +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
  if(obj.clsr){
   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
@@ -413,7 +414,9 @@ function checkfindings(){
   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vaccum info for " + obj.tabs.f2 + "</b> tables </li>";
   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
-  if (obj.arcfail) strfind += "<li>WAL archiving is suspected to be <b>failing</b>, please check PG logs</li>";
+  if (obj.arcfail.f1 == null) strfind += "<li>No WAL archiving / Backup configured. No PITR possible</li>";
+  if (obj.arcfail.f1) strfind += "<li>No WAL archiving happend in last 15 mintues<b>archiving could be failing</b>, please check PG logs</li>";
+  if (obj.arcfail.f2) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b></li>";
   if (obj.crash) strfind += "<li><b>Possible crash around "+ obj.crash +"</b>, please verify PG logs</li>";
   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li>There are <b>" + obj.victims.length + " sessions blocked.</b></li>"
