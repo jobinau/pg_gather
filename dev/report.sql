@@ -85,7 +85,6 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <li><a href="#activiy">Connection Summary</a></li>
 \echo <li><a href="#time">Database Time</a></li>
 \echo <li><a href="#sess">Session Details</a></li>
-\echo <li><a href="#blocking">Blocking Sessions</a></li>
 \echo <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
 \echo <li><a href="#replstat">Replications</a></li>
 \echo <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
