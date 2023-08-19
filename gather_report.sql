@@ -393,7 +393,7 @@ SELECT to_jsonb(r) FROM
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
 \echo   if (obj.arcfail.f1 == null) strfind += "<li>No WAL archiving / Backup configured. No PITR possible</li>";
 \echo   if (obj.arcfail.f1) strfind += "<li>No WAL archiving happened in last 15 minutes <b>archiving could be failing</b>; please check PG logs</li>";
-\echo   if (obj.arcfail.f2) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b></li>";
+\echo   if (obj.arcfail.f2 && obj.arcfail.f2 > 0) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b></li>";
 \echo   if (obj.crash) strfind += "<li><b>Possible crash around "+ obj.crash +"</b>, please verify PG logs</li>";
 \echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
 \echo   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li>There are <b>" + obj.victims.length + " sessions blocked.</b></li>"
