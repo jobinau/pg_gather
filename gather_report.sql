@@ -49,7 +49,7 @@ SELECT * FROM
   END AS val)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN','Time Line','WAL file']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,
-        current_wal::text,timeline::text || ' (Hex:' || to_hex(timeline)::text || ')',  lpad(to_hex(timeline)::text,8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16)]) AS "Report"
+        current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16)]) AS "Report"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
@@ -390,7 +390,7 @@ SELECT to_jsonb(r) FROM
 \echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables </li>";
 \echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
-\echo   if (obj.arcfail.f1 == null) strfind += "<li>No WAL archiving / Backup configured. No PITR possible</li>";
+\echo   if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
 \echo   if (obj.arcfail.f1) strfind += "<li>No WAL archiving happened in last 15 minutes <b>archiving could be failing</b>; please check PG logs</li>";
 \echo   if (obj.arcfail.f2 && obj.arcfail.f2 > 0) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b></li>";
 \echo   if (obj.crash) strfind += "<li><b>Possible crash around "+ obj.crash +"</b>, please verify PG logs</li>";
