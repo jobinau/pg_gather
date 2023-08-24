@@ -158,6 +158,12 @@ LEFT JOIN pg_get_class p ON i.inhparent = p.reloid
 LEFT JOIN pg_get_class c ON i.inhrelid = c.reloid
 ORDER BY 1,2;
 
+--20. Invalid indexes
+SELECT ind.relname index, indexrelid indexoid,tab.relname table ,indrelid tableoid 
+FROM pg_get_index i
+LEFT JOIN pg_get_class ind ON i.indexrelid = ind.reloid
+LEFT JOIN pg_get_class tab ON i.indrelid = tab.reloid
+WHERE i.indisvalid=false;
 
 
 =======================HISTORY SCHEMA ANALYSIS=========================
