@@ -305,7 +305,7 @@ SELECT to_jsonb(r) FROM
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
-   (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid
+   (SELECT to_jsonb(ROW(count(*) FILTER (WHERE indisvalid=false),count(*) FILTER (WHERE numscans=0),count(*),sum(size) FILTER (WHERE numscans=0))) FROM pg_get_index) induse
 ) r;
 %>
 </div>
@@ -405,7 +405,8 @@ function checkfindings(){
     } 
     strfind += "</li>";
  }
- if (obj.indinvalid > 0 ) strfind += "<li><b>"+ obj.indinvalid +" Invalid Index(es)</b> found. Recreate or drop them</li>";
+ if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them</li>";
+ if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" out of " + obj.induse.f3 + " Index(es) are Unused, Which accounts for "+ bytesToSize(obj.induse.f4) +"</b>. Consider dropping of all unused Indexes</li>";
  if (obj.ptabs > 0) strfind += "<li><b>"+ obj.ptabs +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
  if(obj.clsr){
   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
