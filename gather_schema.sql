@@ -161,7 +161,9 @@ CREATE UNLOGGED TABLE pg_get_class (
     relkind char(1),
     relnamespace oid,
     relpersistence char,
-    reloptions text[]
+    reloptions text[],
+    blocks_fetched bigint,
+    blocks_hit bigint
 );
 
 CREATE UNLOGGED TABLE pg_get_inherits(

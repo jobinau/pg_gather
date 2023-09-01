@@ -120,9 +120,9 @@ COPY ( SELECT sourcefile,name,setting,applied,error FROM pg_file_settings) TO st
 COPY ( SELECT setdatabase,setrole,setconfig FROM pg_db_role_setting) TO stdin;
 \echo '\\.'
 
---Major tables and indexes in current schema
-\echo COPY pg_get_class (reloid,relname,relkind,relnamespace,relpersistence,reloptions) FROM stdin;
-COPY (SELECT oid,relname,relkind,relnamespace,relpersistence,reloptions FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
+--Major tables and indexes in current db
+\echo COPY pg_get_class (reloid,relname,relkind,relnamespace,relpersistence,reloptions,blocks_fetched,blocks_hit) FROM stdin;
+COPY (SELECT oid,relname,relkind,relnamespace,relpersistence,reloptions,pg_stat_get_blocks_fetched(oid),pg_stat_get_blocks_hit(oid) FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
 \echo '\\.'
 
 --Index usage info
