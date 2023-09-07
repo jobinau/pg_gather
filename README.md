@@ -132,3 +132,7 @@ export PG_GATHER_TIMEZONE='UTC'
 Please use the timezone name or abbreviation available from `pg_timezone_names`
 # Demonstration
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/k1pnXuJAl40/0.jpg)](https://www.youtube.com/watch?v=k1pnXuJAl40)
+Simple Report Generation (1min): 
+[![Import data and Generate report using PG](https://img.youtube.com/vi/Y8gq1dwfzQU/1.jpg)]https://youtu.be/Y8gq1dwfzQU
+Report generation using postgresql docker container made easy (3min): 
+[![Import data and Generate report using PG docker container: made simple](https://img.youtube.com/vi/amPQRzz5D8Y/1.jpg)]https://youtu.be/amPQRzz5D8Y
