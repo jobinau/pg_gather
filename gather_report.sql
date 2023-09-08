@@ -100,7 +100,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-to_jsonb(ROW(r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+to_jsonb(ROW(r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age"
@@ -110,9 +110,8 @@ LEFT JOIN pg_get_toast t ON r.relid = t.relid
 LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
-LEFT JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid
+LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan,indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000; 
-\pset tableattr
 \echo <h2 id="indexes">Indexes</h2>
 \pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size
@@ -123,10 +122,25 @@ ORDER BY size DESC LIMIT 10000;
 \pset tableattr 
 \echo <h2 id="parameters">Parameters & settings</h2>
 \pset tableattr 'id="params"'
-SELECT coalesce(s.name,f.name) "Name",s.setting,s.unit,s.source, 
-string_agg(f.sourcefile ||' - '|| f.setting || CASE WHEN f.applied = true THEN ' (applicable)' ELSE '' END ,chr(10)) FILTER (WHERE s.source != f.sourcefile OR s.source IS NULL ) AS "Other locations"
+WITH dset AS (
+SELECT string_agg(setting,chr(10)) setting,a.name FROM
+(SELECT btrim(CASE WHEN rolname IS NULL THEN '' ELSE 'User: '|| rolname ||' , ' END || CASE WHEN datname IS NULL THEN '' ELSE 'Db: '|| datname END ,' ,') || ' ==> ' ||setting AS setting
+,split_part(setting,'=',1) AS name
+FROM pg_get_db_role_confs drc
+LEFT JOIN LATERAL unnest(config) AS setting ON TRUE
+LEFT JOIN pg_get_db db ON drc.db = db.datid
+LEFT JOIN pg_get_roles rol ON rol.oid = drc.setrole
+ORDER BY 1,2 NULLS LAST
+) AS a GROUP BY 2 ),
+--Get Parameter settings in effect, source and file settings.
+fset AS (SELECT coalesce(s.name,f.name) AS name
+,s.setting,s.unit,s.source
+,string_agg(f.sourcefile ||' - '|| f.setting || CASE WHEN f.applied = true THEN ' (applicable)' ELSE '' END ,chr(10)) FILTER (WHERE s.source != f.sourcefile OR s.source IS NULL ) AS loc
 FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower(f.name)
-GROUP BY 1,2,3,4 ORDER BY 1; 
+GROUP BY 1,2,3,4 ORDER BY 1)
+SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Source",
+CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.setting IS NULL THEN '' ELSE fset.loc END AS "Other Locations"
+FROM fset LEFT JOIN dset ON fset.name = dset.name; 
 \pset tableattr
 \echo <h2 id="extensions">Extensions</h2>
 \pset tableattr 'id="tblextn"'
@@ -231,11 +245,11 @@ FROM W;
 WITH W AS (select last_failed_time,last_archived_time,last_archived_wal from pg_archiver_stat where last_archived_time < last_failed_time)
 SELECT CASE WHEN last_archived_time IS NOT NULL
   THEN '<li>WAL archiving is failing since <b>'||last_archived_time||' (duration:'|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> '  ||
-  COALESCE(
+  CASE WHEN length(last_archived_wal)=24 THEN COALESCE(
   (SELECT ' With estimated size <b>' ||
   pg_size_pretty(((('x'||lpad(split_part(current_wal::TEXT,'/', 1),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,9,8))::bit(32)::bigint) * 255 * 16^6 + 
   ('x'||lpad(split_part(current_wal::TEXT,'/', 2),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,17,8))::bit(32)::bigint*16^6 )::bigint)
-  FROM pg_gather), ' ') || '</b> behind </li>'
+  FROM pg_gather), ' ') || '</b> behind </li>' ELSE '</li>' END
 ELSE NULL END
 FROM W;
 WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
@@ -290,8 +304,9 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
     LEFT JOIN cts ON true ) as dbts,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns,
-  (SELECT to_jsonb(ROW((collect_ts-last_archived_time) > '15 minute' :: interval, 
-  pg_wal_lsn_diff(current_wal,(coalesce(nullif(ltrim(substring(last_archived_wal,9,8),'0'),''),'0') ||'/'|| substring(last_archived_wal,23,2) || '000001')::pg_lsn))) FROM pg_gather,pg_archiver_stat) AS arcfail,
+  (SELECT to_jsonb( ROW((collect_ts - last_archived_time) > '15 minute' :: interval, pg_wal_lsn_diff( current_wal,
+  (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )))
+  FROM  pg_gather,  pg_archiver_stat) AS arcfail,
   (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'))) FROM pg_get_confs) AS params,
   (SELECT CASE WHEN max(stats_reset)-min(stats_reset) < '2 minute' :: interval THEN min(stats_reset) ELSE NULL END 
   FROM (SELECT stats_reset FROM pg_get_db UNION SELECT stats_reset FROM pg_get_bgwriter) reset) crash,
@@ -629,8 +644,10 @@ SELECT to_jsonb(r) FROM
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
+\echo   if (o.f5 !== null) str += "<br/>Total Indexes: " + o.f5;
+\echo   if (o.f5 !== null) str += "<br/>Unused Indexes: " + o.f6;
 \echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
-\echo   if (vac > 0) str="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
+\echo   if (vac > 0) str +="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
 \echo   str += "<br/>Inserts / day : " + Math.round(o.f1/obj.dbts.f4);
 \echo   str += "<br/>Updates / day : " + Math.round(o.f2/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f3/obj.dbts.f4);
