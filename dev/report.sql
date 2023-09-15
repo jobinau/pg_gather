@@ -124,7 +124,7 @@ ORDER BY size DESC LIMIT 10000;
 \pset tableattr 'id="params"'
 WITH dset AS (
 SELECT string_agg(setting,chr(10)) setting,a.name FROM
-(SELECT btrim(CASE WHEN rolname IS NULL THEN '' ELSE 'User: '|| rolname ||' , ' END || CASE WHEN datname IS NULL THEN '' ELSE 'Db: '|| datname END ,' ,') || ' ==> ' ||setting AS setting
+(SELECT btrim(CASE WHEN rolname IS NULL THEN '' ELSE 'User: '|| rolname ||' , ' END || CASE WHEN datname IS NULL THEN '' ELSE 'DB: '|| datname END ,' ,') || ' ==> ' ||setting AS setting
 ,split_part(setting,'=',1) AS name
 FROM pg_get_db_role_confs drc
 LEFT JOIN LATERAL unnest(config) AS setting ON TRUE
@@ -132,14 +132,13 @@ LEFT JOIN pg_get_db db ON drc.db = db.datid
 LEFT JOIN pg_get_roles rol ON rol.oid = drc.setrole
 ORDER BY 1,2 NULLS LAST
 ) AS a GROUP BY 2 ),
---Get Parameter settings in effect, source and file settings.
 fset AS (SELECT coalesce(s.name,f.name) AS name
 ,s.setting,s.unit,s.source
 ,string_agg(f.sourcefile ||' - '|| f.setting || CASE WHEN f.applied = true THEN ' (applicable)' ELSE '' END ,chr(10)) FILTER (WHERE s.source != f.sourcefile OR s.source IS NULL ) AS loc
 FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower(f.name)
 GROUP BY 1,2,3,4 ORDER BY 1)
 SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Source",
-CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.setting IS NULL THEN '' ELSE fset.loc END AS "Other Locations"
+CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.loc IS NULL THEN '' ELSE fset.loc END AS "Other Locations"
 FROM fset LEFT JOIN dset ON fset.name = dset.name; 
 \pset tableattr
 \echo <h2 id="extensions">Extensions</h2>
@@ -329,7 +328,7 @@ SELECT to_jsonb(r) FROM
 \echo <script type="text/javascript">
 \echo obj={};
 \echo ver="22";
-\echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4","16.0"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
@@ -419,7 +418,7 @@ SELECT to_jsonb(r) FROM
 \echo      else if ( obj.sumry.f1 < 28 ) strfind += "System response is below average</li>";
 \echo      else strfind += "System response appears to be poor</li>";
 \echo      strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>"; }
-\echo   if ( mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
+\echo   if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
 \echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
