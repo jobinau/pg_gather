@@ -13,11 +13,11 @@
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:0 9px 4px 0 }
-\echo .bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
 \echo .thidden tr td:first-child {color:blue;}
+\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
+\echo #dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -90,8 +90,23 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 \echo <li><a href="#findings">Findings</a></li>
 \echo </ol>
-\echo <div class="bottomright">
-\echo   <a href="#topics">Sections (Alt+I)</a>
+\echo <div id="bottommenu">
+\echo  <a href="#topics" title="Sections">☰ Section Index (Alt+I)</a>
+\echo  <div id="menu" style="display:none; position: relative">
+\echo   <ol>
+\echo     <li><a href="#tables">Tables</a></li>
+\echo     <li><a href="#indexes">Indexes</a></li>
+\echo     <li><a href="#parameters">Parameters / Settings</a></li>
+\echo     <li><a href="#extensions">Extensions</a></li>
+\echo     <li><a href="#activiy">Connection Summary</a></li>
+\echo     <li><a href="#time">Database Time</a></li>
+\echo     <li><a href="#sess">Session Details</a></li>
+\echo     <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
+\echo     <li><a href="#replstat">Replications</a></li>
+\echo     <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
+\echo     <li><a href="#findings">Findings</a></li>
+\echo   </ol>
+\echo  </div>
 \echo </div>
 \echo <div id="sections" style="display:none">
 \echo <h2 id="tables">Tables</h2>
@@ -328,7 +343,7 @@ SELECT to_jsonb(r) FROM
 \echo <script type="text/javascript">
 \echo obj={};
 \echo ver="22";
-\echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4","16.0"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
@@ -682,6 +697,9 @@ SELECT to_jsonb(r) FROM
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 \echo })));
+\echo let elem=document.getElementById("bottommenu")
+\echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
+\echo elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
 \echo document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);

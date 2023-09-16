@@ -13,11 +13,11 @@ ol { width: fit-content;}
 .high { border: 5px solid red;font-weight:bold}
 .lime { font-weight:bold;background-color: #FFD}
 .lineblk {float: left; margin:0 9px 4px 0 }
-.bottomright { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
 .thidden tr td:first-child {color:blue;}
+#bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-#dtls,#finditem {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
+#dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -90,8 +90,23 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 <li><a href="#findings">Findings</a></li>
 </ol>
-<div class="bottomright">
-  <a href="#topics">Sections (Alt+I)</a>
+<div id="bottommenu">
+ <a href="#topics" title="Sections">☰ Section Index (Alt+I)</a>
+ <div id="menu" style="display:none; position: relative">
+  <ol>
+    <li><a href="#tables">Tables</a></li>
+    <li><a href="#indexes">Indexes</a></li>
+    <li><a href="#parameters">Parameters / Settings</a></li>
+    <li><a href="#extensions">Extensions</a></li>
+    <li><a href="#activiy">Connection Summary</a></li>
+    <li><a href="#time">Database Time</a></li>
+    <li><a href="#sess">Session Details</a></li>
+    <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
+    <li><a href="#replstat">Replications</a></li>
+    <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
+    <li><a href="#findings">Findings</a></li>
+  </ol>
+ </div>
 </div>
 <div id="sections" style="display:none">
 <h2 id="tables">Tables</h2>
@@ -764,6 +779,11 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
 })));
+
+//special pop-up for sections menu
+let elem=document.getElementById("bottommenu")
+elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
+elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
 //################End of popup box##########################
 
 //################ SQL query string handling #####################
