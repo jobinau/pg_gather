@@ -520,6 +520,14 @@ SELECT to_jsonb(r) FROM
 \echo   huge_pages: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   idle_session_timeout:function(rowref){ 
+\echo     val=rowref.cells[1]; 
+\echo     if (val.innerText > 0) { val.classList.add("warn"); val.title="It is dangerous to use idle_session_timeout. Avoid using this" }
+\echo   },
+\echo   idle_in_transaction_session_timeout: function(rowref){ 
+\echo     val=rowref.cells[1]; 
+\echo     if (val.innerText == 0){ val.classList.add("warn"); val.title="Highly suggestable to use atleast 5min to prevent application misbehaviour" }
+\echo   },
 \echo   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
 \echo     val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
