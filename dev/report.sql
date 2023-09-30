@@ -353,6 +353,7 @@ SELECT to_jsonb(r) FROM
 \echo totMem=0;
 \echo let blokers = []
 \echo let blkvictims = []
+\echo let params = []
 \echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse( document.getElementById("analdata").innerText);
 \echo if (obj.victims !== null){
@@ -568,14 +569,24 @@ SELECT to_jsonb(r) FROM
 \echo     if(val.innerText > 98304) val.classList.add("warn");
 \echo     else val.classList.add("lime");
 \echo   },
-\echo   default : function(rowref) { 
-\echo   }
+\echo   bgwriter_lru_maxpages: function(rowref){
+\echo     let param = params.find(p => p.param === "bgwriter_lru_maxpages");
+\echo     if (typeof param["suggest"] != "undefined"){
+\echo       val = val=rowref.cells[1];
+\echo       val.classList.add("warn"); 
+\echo       val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
+\echo     }
+\echo   },
+\echo   default : function(rowref) {} 
 \echo };
 \echo var evalParam = function(param,rowref = null) {
-\echo   if (rowref.id == "") rowref.id=param;  
+\echo   if (rowref != null && rowref.id == "") rowref.id=param;  
 \echo   else rowref = document.getElementById(param); 
-\echo   var param = paramDespatch.hasOwnProperty(param) ? param : "default"
-\echo   paramDespatch[param](rowref);
+\echo   if (paramDespatch.hasOwnProperty(param)){ 
+\echo     let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText;
+\echo     params.push(paramJson);
+\echo     paramDespatch[param](rowref);
+\echo    }
 \echo }
 \echo function checkpars(){
 \echo   trs=document.getElementById("params").rows
@@ -766,6 +777,9 @@ SELECT to_jsonb(r) FROM
 \echo   if(tr.cells[1].innerText < 10 ){
 \echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
 \echo   }
+\echo   if(tr.cells[11].innerText > 50){
+\echo     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
+\echo   }
 \echo   if(tr.cells[13].innerText > 30){
 \echo     tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends";
 \echo     strfind += "<li>High <b>memory pressure</b>. Consider increasing RAM and shared_buffers</li>";   
@@ -775,6 +789,9 @@ SELECT to_jsonb(r) FROM
 \echo         tr.cells[14].classList.add("high"); tr.cells[14].title="bgwriter could run more frequently. reduce bgwriter_delay";
 \echo       }
 \echo       if(tr.cells[15].innerText > 30){
+\echo         let param = params.find(p => p.param === "bgwriter_lru_maxpages");
+\echo         param["suggest"] = Math.ceil((parseInt(param["val"]) + tr.cells[15].innerText/20*100)/100)*100;
+\echo         evalParam("bgwriter_lru_maxpages");
 \echo         tr.cells[15].classList.add("high"); tr.cells[15].title="bgwriter halts too frequently. increase bgwriter_lru_maxpages";
 \echo       }
 \echo     }
