@@ -342,16 +342,18 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo ver="22";
+\echo ver="23";
 \echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4","16.0"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
+\echo let strfind = "";
 \echo totdb=0;
 \echo totCPU=0;
 \echo totMem=0;
 \echo let blokers = []
 \echo let blkvictims = []
+\echo let params = []
 \echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse( document.getElementById("analdata").innerText);
 \echo if (obj.victims !== null){
@@ -370,6 +372,7 @@ SELECT to_jsonb(r) FROM
 \echo checkdbs();
 \echo checkextn();
 \echo checksess();
+\echo checkchkpntbgwrtr();
 \echo checkfindings();
 \echo });
 \echo window.onload = function() {
@@ -397,7 +400,6 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo }
 \echo function checkfindings(){
-\echo  let strfind = "";
 \echo  if (obj.sess.f7 < 4){ 
 \echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have proper access / privilege</b> Please run the script as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege.</li>"
 \echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper access / privilege. Please refer the Findings section";
@@ -567,14 +569,24 @@ SELECT to_jsonb(r) FROM
 \echo     if(val.innerText > 98304) val.classList.add("warn");
 \echo     else val.classList.add("lime");
 \echo   },
-\echo   default : function(rowref) { 
-\echo   }
+\echo   bgwriter_lru_maxpages: function(rowref){
+\echo     let param = params.find(p => p.param === "bgwriter_lru_maxpages");
+\echo     if (typeof param["suggest"] != "undefined"){
+\echo       val = val=rowref.cells[1];
+\echo       val.classList.add("warn"); 
+\echo       val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
+\echo     }
+\echo   },
+\echo   default : function(rowref) {} 
 \echo };
 \echo var evalParam = function(param,rowref = null) {
-\echo   if (rowref.id == "") rowref.id=param;  
+\echo   if (rowref != null && rowref.id == "") rowref.id=param;  
 \echo   else rowref = document.getElementById(param); 
-\echo   var param = paramDespatch.hasOwnProperty(param) ? param : "default"
-\echo   paramDespatch[param](rowref);
+\echo   if (paramDespatch.hasOwnProperty(param)){ 
+\echo     let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText;
+\echo     params.push(paramJson);
+\echo     paramDespatch[param](rowref);
+\echo    }
 \echo }
 \echo function checkpars(){
 \echo   trs=document.getElementById("params").rows
@@ -627,7 +639,7 @@ SELECT to_jsonb(r) FROM
 \echo     aged(tr.cells[9]);
 \echo   }
 \echo   if (aborts.length >0)
-\echo     document.getElementById("finditem").innerHTML += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo   strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
 \echo }
 \echo function checkextn(){
 \echo   const trs=document.getElementById("tblextn").rows
@@ -755,6 +767,7 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("tblstmnt").remove();
 \echo   document.getElementById("statements").innerText="pg_stat_statements info is not available"
 \echo }
+\echo function checkchkpntbgwrtr(){
 \echo trs=document.getElementById("tblchkpnt").rows;
 \echo if (trs.length > 1){
 \echo   tr=trs[1]
@@ -764,14 +777,21 @@ SELECT to_jsonb(r) FROM
 \echo   if(tr.cells[1].innerText < 10 ){
 \echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
 \echo   }
-\echo   if(tr.cells[13].innerText > 25){
+\echo   if(tr.cells[11].innerText > 50){
+\echo     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
+\echo   }
+\echo   if(tr.cells[13].innerText > 30){
 \echo     tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends";
+\echo     strfind += "<li>High <b>memory pressure</b>. Consider increasing RAM and shared_buffers</li>";   
 \echo     if(tr.cells[12].innerText < 30){
 \echo       tr.cells[12].classList.add("high"); tr.cells[12].title="bgwriter is not efficient";
-\echo       if(tr.cells[14].innerText < 30){
+\echo       if(tr.cells[14].innerText > 30){
 \echo         tr.cells[14].classList.add("high"); tr.cells[14].title="bgwriter could run more frequently. reduce bgwriter_delay";
 \echo       }
 \echo       if(tr.cells[15].innerText > 30){
+\echo         let param = params.find(p => p.param === "bgwriter_lru_maxpages");
+\echo         param["suggest"] = Math.ceil((parseInt(param["val"]) + tr.cells[15].innerText/20*100)/100)*100;
+\echo         evalParam("bgwriter_lru_maxpages");
 \echo         tr.cells[15].classList.add("high"); tr.cells[15].title="bgwriter halts too frequently. increase bgwriter_lru_maxpages";
 \echo       }
 \echo     }
@@ -781,7 +801,7 @@ SELECT to_jsonb(r) FROM
 \echo     document.getElementById("tblchkpnt").classList.add("high");
 \echo     document.getElementById("tblchkpnt").title = "Sufficient bgwriter stats are not available. This could happen if data is collected immediately after the stats reset or a crash. At least one day of stats are required to do meaningful calculations";
 \echo   }
-\echo }
+\echo }}
 \echo tab=document.getElementById("tblreplstat")
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
