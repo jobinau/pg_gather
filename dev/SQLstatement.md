@@ -153,3 +153,39 @@ The above query collects the wait events per pid, like
 SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1;
 ```
+
+
+## BGWriter / checkpointer info
+```
+SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
+round(min_since_reset/tot_cp,2) "avg mins between CP",
+round(checkpoint_write_time::numeric/(tot_cp*1000),4) "Avg CP write time (s)",
+round(checkpoint_sync_time::numeric/(tot_cp*1000),4)  "Avg CP sync time (s)",
+round(total_buffers::numeric*8192/(1024*1024),2) "Tot MB Written",
+round((buffers_checkpoint::numeric/tot_cp)*8192/(1024*1024),4) "MB per CP",
+round(buffers_checkpoint::numeric*8192/(min_since_reset*60*1024*1024),4) "Checkpoint MBps",
+round(buffers_clean::numeric*8192/(min_since_reset*60*1024*1024),4) "Bgwriter MBps",
+round(buffers_backend::numeric*8192/(min_since_reset*60*1024*1024),4) "Backend MBps",
+round(total_buffers::numeric*8192/(min_since_reset*60*1024*1024),4) "Total MBps",
+round(buffers_alloc::numeric/total_buffers,3)  "New buffers ratio",
+round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
+round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
+round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
+-- Chance of bgwriter stops due to bgwriter_lru_maxpages, in overall possible bgwriter runs
+-- Bgwriter does the cleaning if there is not sufficient free pages. That means small numbers indicates most of the time there is sufficient free buffers
+round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs (**1)",
+-- Chance (%) of A bgwriter run which has to perform some cleanup will end up in halt
+coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit (**2)",
+-- Big difference between above two reading could indicate spiky load to cause buffer dirtying.
+
+round(min_since_reset/(60*24),1) "Reset days"
+FROM pg_get_bgwriter
+CROSS JOIN 
+(SELECT 
+    NULLIF(round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric,0) min_since_reset,
+    GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
+    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp 
+    FROM pg_get_bgwriter) AS bg
+LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
+LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
+```
