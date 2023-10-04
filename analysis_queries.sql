@@ -165,6 +165,14 @@ LEFT JOIN pg_get_class ind ON i.indexrelid = ind.reloid
 LEFT JOIN pg_get_class tab ON i.indrelid = tab.reloid
 WHERE i.indisvalid=false;
 
+--21. User and database level parameters. In the decreasing order of priority
+SELECT rolname,datname,setting,split_part(setting,'=',1) 
+FROM pg_get_db_role_confs drc
+LEFT JOIN LATERAL unnest(config) AS setting ON TRUE
+LEFT JOIN pg_get_db db ON drc.db = db.datid
+LEFT JOIN pg_get_roles rol ON rol.oid = drc.setrole
+ORDER BY 1,2;
+
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
