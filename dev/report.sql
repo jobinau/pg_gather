@@ -307,7 +307,7 @@ SELECT CASE WHEN cnt < 1
   THEN '<li>Couldn''t get parameter values. Partial gather or corrupt Parameter file(s)</li>'
   ELSE NULL END
 FROM W;
-SELECT 'ERROR :'||error ||': '||name||' with setting '||setting||' in '||sourcefile FROM pg_get_file_confs WHERE error IS NOT NULL;
+SELECT '<li>Parameter '||error ||': '||name||' = '||setting||' in '||sourcefile||'</li>' FROM pg_get_file_confs WHERE error IS NOT NULL;
 
 \echo </ol>
 \echo <div id="analdata" hidden>
@@ -409,7 +409,9 @@ SELECT to_jsonb(r) FROM
 \echo         val.innerText = val.innerText + "-v" + ver;
 \echo         break;
 \echo       case "Collected By" :
-\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data collected using older version of gather.sql file" }
+\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data collected using old version of gather.sql file. Please use v" + ver; 
+\echo         strfind += "<li>Data collected using old version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + "</li>";
+\echo         }
 \echo         break;
 \echo       case "In recovery?" :
 \echo         console.log(val.innerText);
@@ -422,7 +424,7 @@ SELECT to_jsonb(r) FROM
 \echo function checkfindings(){
 \echo  if (obj.sess.f7 < 4){ 
 \echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have necessary privilege OR Content of the output file (out.txt) is copy-pasted destroying the TSV format</b><br/><b>1.</b>Please run the gather.sql as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege and <b>2.</b> Please provide the output file as it is without copy-pasting</li>"
-\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper access / privilege OR content of output file is copy-pasted. Please refer the Findings section";
+\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper privilege OR content of output file is copy-pasted. Please refer the Findings section";
 \echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
 \echo   document.getElementById("tableConten").classList.add("high");
 \echo  }
