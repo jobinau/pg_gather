@@ -72,6 +72,26 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo   <label for="mem" style="padding-left: 3em;">Memory(GB):
 \echo   <input type="number" id="mem" name="mem" value="0">
 \echo  </label>
+\echo  <label for="strg" style="padding-left: 3em;"> Storage:
+\echo   <select id="strg" name="strg">
+\echo     <option value="ssd">SSD/NVMe</option>
+\echo     <option value="san">SAN</option>
+\echo     <option value="mag">Magnetic</option>
+\echo    </select>
+\echo  </label>
+\echo  <label for="wrkld" style="padding-left: 3em;"> Work load:
+\echo   <select id="wrkld" name="wrkld">
+\echo     <option value="oltp">OLTP</option>
+\echo     <option value="olap">OLAP</option>
+\echo     <option value="mixed">Mixed</option>
+\echo    </select>
+\echo  </label>
+\echo  <label for="flsys" style="padding-left: 3em;"> Filesystem:
+\echo   <select id="flsys" name="flsys">
+\echo     <option value="rglr">Regular (like: ext4/xfs)</option>
+\echo     <option value="cow">COW (like: zfs/btrfs)</option>
+\echo    </select>
+\echo  </label>
 \echo  <p style="border: 2px solid blue; border-radius: 5px; padding: 1em;">Please input the CPU and Memory available on the host machine for evaluating the current parameter settings<br />
 \echo   Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
 \echo </details>
@@ -401,8 +421,8 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo function checkfindings(){
 \echo  if (obj.sess.f7 < 4){ 
-\echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have proper access / privilege</b> Please run the script as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege.</li>"
-\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper access / privilege. Please refer the Findings section";
+\echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have necessary privilege OR Content of the output file (out.txt) is copy-pasted destroying the TSV format</b><br/><b>1.</b>Please run the gather.sql as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege and <b>2.</b> Please provide the output file as it is without copy-pasting</li>"
+\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper access / privilege OR content of output file is copy-pasted. Please refer the Findings section";
 \echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
 \echo   document.getElementById("tableConten").classList.add("high");
 \echo  }
@@ -555,6 +575,12 @@ SELECT to_jsonb(r) FROM
 \echo       })  
 \echo     }
 \echo     if(val.classList.length < 1) val.classList.add("lime"); 
+\echo   },
+\echo   statement_timeout : function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.trim() == ""){
+\echo       val.classList.add("warn"); val.title="Session level setting of pg_gather. It is important to set a value globally to avoid long running sessions and associated problems"
+\echo     }
 \echo   },
 \echo   synchronous_standby_names: function(rowref){
 \echo     val=rowref.cells[1];
