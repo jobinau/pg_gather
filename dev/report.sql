@@ -754,9 +754,8 @@ SELECT to_jsonb(r) FROM
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
 \echo elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
-\echo const sqlcols = ["#tblsess tr td:nth-child(6)","#tblstmnt tr td:nth-child(1)"];
-\echo sqlcols.forEach(function(col){
-\echo   document.querySelectorAll(col).forEach(td => td.addEventListener("dblclick", (() => {
+\echo elem.onmouseout = function() { document.getElementById("menu").style.display = "none"; }
+\echo document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(1)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
@@ -768,7 +767,6 @@ SELECT to_jsonb(r) FROM
 \echo    });
 \echo }
 \echo })));
-\echo });
 \echo trs=document.getElementById("IndInfo").rows;
 \echo for (let tr of trs) {
 \echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}

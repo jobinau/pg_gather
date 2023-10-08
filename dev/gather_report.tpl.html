@@ -841,27 +841,14 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
 let elem=document.getElementById("bottommenu")
 elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
 elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
+elem.onmouseout = function() { document.getElementById("menu").style.display = "none"; }
 //################End of popup box##########################
 
 //################ SQL query string handling #####################
-const sqlcols = ["#tblsess tr td:nth-child(6)","#tblstmnt tr td:nth-child(1)"];
-sqlcols.forEach(function(col){
-  //console.log(col);
-  document.querySelectorAll(col).forEach(td => td.addEventListener("dblclick", (() => {
-  if (td.title){
-  console.log(td.title);
-  navigator.clipboard.writeText(td.title).then(() => {  
-    var el=document.createElement("div");
-    el.setAttribute("id", "cur");
-    el.textContent = "SQL text is copied to clipboard";
-    td.appendChild(el);
-    setTimeout(() => { el.remove();},2000);
-   });
-}
-})));
-});
-
-// document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
+// const sqlcols = ["#tblsess tr td:nth-child(6)","#tblstmnt tr td:nth-child(1)"];
+// sqlcols.forEach(function(col){
+//   //console.log(col);
+//   document.querySelectorAll(col).forEach(td => td.addEventListener("dblclick", (() => {
 //   if (td.title){
 //   console.log(td.title);
 //   navigator.clipboard.writeText(td.title).then(() => {  
@@ -873,6 +860,21 @@ sqlcols.forEach(function(col){
 //    });
 // }
 // })));
+// });
+
+document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(1)").forEach(td => td.addEventListener("dblclick", (() => {
+  if (td.title){
+  console.log(td.title);
+  navigator.clipboard.writeText(td.title).then(() => {  
+    var el=document.createElement("div");
+    el.setAttribute("id", "cur");
+    el.textContent = "SQL text is copied to clipboard";
+    td.appendChild(el);
+    setTimeout(() => { el.remove();},2000);
+   });
+}
+})));
+
 //################ End of Expand box for query string ###############
 
 //Index analysis
