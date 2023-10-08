@@ -105,7 +105,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <li><a href="#activiy">Connection Summary</a></li>
 <li><a href="#time">Database Time</a></li>
 <li><a href="#sess">Session Details</a></li>
-<li><a href="#statements">Top 10 Statements</a></li>
+<li><a href="#statements">Top Statements</a></li>
 <li><a href="#replstat">Replications</a></li>
 <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 <li><a href="#findings">Findings</a></li>
@@ -121,7 +121,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
     <li><a href="#activiy">Connection Summary</a></li>
     <li><a href="#time">Database Time</a></li>
     <li><a href="#sess">Session Details</a></li>
-    <li><a href="#statements">Top 10 Statements</a></li>
+    <li><a href="#statements">Top Statements</a></li>
     <li><a href="#replstat">Replications</a></li>
     <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
     <li><a href="#findings">Findings</a></li>
@@ -217,10 +217,15 @@ SELECT * FROM (
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';%>
-<h2 id="statements" style="clear: both">Top 10 Statements</h2>
+<h2 id="statements" style="clear: both">Top Statements</h2>
 <% \pset tableattr 'id="tblstmnt"'
-\C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
-select query,total_time,calls from pg_get_statements order by 2 desc limit 10; 
+\C 'Top consumer Statements. Consider information from pg_get_statements for other criteria'
+SELECT "Statement",total_time "Tot.DB.time", calls "Execs",total_time::int/calls "Avg.ExecTime", DENSE_RANK() OVER (ORDER BY ranksum) "Wt.Rank" FROM 
+(select query "Statement", total_time::int, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
+total_time::int/calls, DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) as avgtrank, 
+DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum
+from pg_get_statements WHERE calls > 2 ) AS stmnts
+WHERE tottrank < 10 OR avgtrank < 10 ;
 \C %>
 <h2 id="replstat" style="clear: both">Replication Status</h2>
 <% \pset tableattr 'id="tblreplstat"'
@@ -410,6 +415,7 @@ checktabs();
 checkdbs();
 checkextn();
 checksess();
+checkstmnts();
 checkchkpntbgwrtr();
 checkfindings();
 });
@@ -838,7 +844,10 @@ elem.onclick = function() { document.getElementById("menu").style.display = "non
 //################End of popup box##########################
 
 //################ SQL query string handling #####################
-document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
+const sqlcols = ["#tblsess tr td:nth-child(6)","#tblstmnt tr td:nth-child(1)"];
+sqlcols.forEach(function(col){
+  //console.log(col);
+  document.querySelectorAll(col).forEach(td => td.addEventListener("dblclick", (() => {
   if (td.title){
   console.log(td.title);
   navigator.clipboard.writeText(td.title).then(() => {  
@@ -850,6 +859,20 @@ document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEve
    });
 }
 })));
+});
+
+// document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
+//   if (td.title){
+//   console.log(td.title);
+//   navigator.clipboard.writeText(td.title).then(() => {  
+//     var el=document.createElement("div");
+//     el.setAttribute("id", "cur");
+//     el.textContent = "SQL text is copied to clipboard";
+//     td.appendChild(el);
+//     setTimeout(() => { el.remove();},2000);
+//    });
+// }
+// })));
 //################ End of Expand box for query string ###############
 
 //Index analysis
@@ -894,11 +917,17 @@ for (let tr of trs){
 }
 }} //editor may show extra } :)
 
+function checkstmnts(){
 //if there is no info from pg_stat_statements
-if(document.getElementById("tblstmnt").rows.length < 2){ 
-  document.getElementById("tblstmnt").remove();
+let tab= document.getElementById("tblstmnt");
+if(tab.rows.length < 2){ tab.remove(); //if there is nothing in the table, remove the table
   document.getElementById("statements").innerText="pg_stat_statements info is not available"
-}
+}else{
+ trs=tab.rows;
+ for (let tr of trs){
+ sql=tr.cells[0];
+ if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
+}}}
 
 //Checkpointer and bgwriter info
 function checkchkpntbgwrtr(){

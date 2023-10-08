@@ -105,7 +105,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <li><a href="#activiy">Connection Summary</a></li>
 \echo <li><a href="#time">Database Time</a></li>
 \echo <li><a href="#sess">Session Details</a></li>
-\echo <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
+\echo <li><a href="#statements">Top Statements</a></li>
 \echo <li><a href="#replstat">Replications</a></li>
 \echo <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 \echo <li><a href="#findings">Findings</a></li>
@@ -121,7 +121,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <li><a href="#activiy">Connection Summary</a></li>
 \echo     <li><a href="#time">Database Time</a></li>
 \echo     <li><a href="#sess">Session Details</a></li>
-\echo     <li><a href="#statements" title="pg_get_statements">Top 10 Statements</a></li>
+\echo     <li><a href="#statements">Top Statements</a></li>
 \echo     <li><a href="#replstat">Replications</a></li>
 \echo     <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
 \echo     <li><a href="#findings">Findings</a></li>
@@ -217,10 +217,15 @@ SELECT * FROM (
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';
-\echo <h2 id="statements" style="clear: both">Top 10 Statements</h2>
+\echo <h2 id="statements" style="clear: both">Top Statements</h2>
 \pset tableattr 'id="tblstmnt"'
-\C 'Statements consuming highest database time. Consider information from pg_get_statements for other criteria'
-select query,total_time,calls from pg_get_statements order by 2 desc limit 10; 
+\C 'Top consumer Statements. Consider information from pg_get_statements for other criteria'
+SELECT "Statement",total_time "Tot.DB.time", calls "Execs",total_time::int/calls "Avg.ExecTime", DENSE_RANK() OVER (ORDER BY ranksum) "Wt.Rank" FROM 
+(select query "Statement", total_time::int, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
+total_time::int/calls, DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) as avgtrank, 
+DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum
+from pg_get_statements WHERE calls > 2 ) AS stmnts
+WHERE tottrank < 10 OR avgtrank < 10 ;
 \C 
 \echo <h2 id="replstat" style="clear: both">Replication Status</h2>
 \pset tableattr 'id="tblreplstat"'
@@ -392,6 +397,7 @@ SELECT to_jsonb(r) FROM
 \echo checkdbs();
 \echo checkextn();
 \echo checksess();
+\echo checkstmnts();
 \echo checkchkpntbgwrtr();
 \echo checkfindings();
 \echo });
@@ -748,7 +754,9 @@ SELECT to_jsonb(r) FROM
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
 \echo elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
-\echo document.querySelectorAll("#tblsess tr td:nth-child(6)").forEach(td => td.addEventListener("dblclick", (() => {
+\echo const sqlcols = ["#tblsess tr td:nth-child(6)","#tblstmnt tr td:nth-child(1)"];
+\echo sqlcols.forEach(function(col){
+\echo   document.querySelectorAll(col).forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
@@ -760,6 +768,7 @@ SELECT to_jsonb(r) FROM
 \echo    });
 \echo }
 \echo })));
+\echo });
 \echo trs=document.getElementById("IndInfo").rows;
 \echo for (let tr of trs) {
 \echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
@@ -791,10 +800,16 @@ SELECT to_jsonb(r) FROM
 \echo  sql.innerText = sql.innerText.substring(0, 100); 
 \echo }
 \echo }}
-\echo if(document.getElementById("tblstmnt").rows.length < 2){ 
-\echo   document.getElementById("tblstmnt").remove();
+\echo function checkstmnts(){
+\echo let tab= document.getElementById("tblstmnt");
+\echo if(tab.rows.length < 2){ tab.remove();
 \echo   document.getElementById("statements").innerText="pg_stat_statements info is not available"
-\echo }
+\echo }else{
+\echo  trs=tab.rows;
+\echo  for (let tr of trs){
+\echo  sql=tr.cells[0];
+\echo  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
+\echo }}}
 \echo function checkchkpntbgwrtr(){
 \echo trs=document.getElementById("tblchkpnt").rows;
 \echo if (trs.length > 1){
