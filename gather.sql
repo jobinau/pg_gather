@@ -1,6 +1,7 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
--- pg_gather version
+\echo '--**** IMPORTANT !!: PLEASE DONT COPY-PASTE THE OUTPUT. TEXT EDITORS CAN DESTROY THE TSV FORMATTING AND THE OUTPUT MAY NOT BE USEFUL THERE AFTER ****--'
+\echo '\\r'
 \set ver 23
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
