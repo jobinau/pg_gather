@@ -8,10 +8,13 @@ Please refer the "information collected" section of this document for understadi
 # Information masking
 Even though `pg_gather` collects only very minimal information from  **system catalog**, **performance**, **current session activity** and **configuration/parameter**, One might want to mask more details, especially in a highly secured environment. Since the `pg_gather` uses the TSV (Tab Separated Value) format for the collected,  any tool or editor with regular expression will be good for data masking/trimming before transmitting the data. Please, see the examples below. Please ensure that the "tab" characters, which are used as the separator, are preserved.
 
-## 1. Masking SQL query statements
+## 1. Masking SQL query statements from pg_stat_activity
 By default, PostgreSQL removes bind values from query string before it is displayed in views like `pg_stat_activity`. So there is no visibility of data by default. Still, a user may not want to give a complete query string. Following is an example of truncating a query string to 50 characters using the `sed` utility before handing over the output file for analysis.
 ```
-sed  -i 's/\(^[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g' out.txt
+sed -i '
+  /^COPY pg_get_activity (/, /^\\\./ {
+    s/\(^[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g
+  }' out.txt
 ```
 ** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statements.
 ## 2. Masking client IP addresses
@@ -20,6 +23,16 @@ Any monitoring or analysis tool which accesses the `pg_stat_activity` for unders
 sed -r -i 's/([0-9]{1,3}\.){3}([0-9]{1,3})/0.0.0.\2/g' out.txt
 ```
 ** IP addresses or the clients connecting to PostgreSQL is essential to understand those clients who are abusive. IP addresses give vital information about application servers which has poor connection pooling. Masking the IP addresses can prevent such analysis.
+
+## 3. Masking SQL statements from pg_stat_statements
+For removing all characters except first 50 characters, you may use sed expression like
+```
+sed -i '
+  /^COPY pg_get_statements (/, /^\\\./ {
+    s/\(^[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g
+  }' out.txt
+```
+
 
 ## Information collected  (incomplete, work-in-progress)
 
