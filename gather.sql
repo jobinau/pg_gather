@@ -1,11 +1,11 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
-\echo '--**** IMPORTANT !!: PLEASE DONT COPY-PASTE THE OUTPUT. TEXT EDITORS CAN DESTROY THE TSV FORMATTING AND THE OUTPUT MAY NOT BE USEFUL THERE AFTER ****--'
+\echo '--**** IMPORTANT !!: PLEASE DONT COPY-PASTE THE OUTPUT. TEXT EDITORS CAN DESTROY THE TSV FORMATTING, AND THE OUTPUT MAY NOT BE USEFUL AFTER THAT ****--'
 \echo '\\r'
 \set ver 23
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
-SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( current_database() != 'template1' ) as fullgather \gset
+SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM > 160000 ) AS pg16, ( current_database() != 'template1' ) as fullgather \gset
 
 \if :fullgather
 ---Error out and exit, unless healthy
@@ -47,7 +47,9 @@ CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal
 ) TO stdin; 
 \echo '\\.'
 
-\if :pg14
+\if :pg16
+   \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth,gss_princ ,gss_enc,gss_delegation,leader_pid,query_id) FROM stdin;
+\elif :pg14
     \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc,leader_pid,query_id) FROM stdin;
 \elif :pg13
     \echo COPY pg_get_activity (datid, pid ,usesysid ,application_name ,state ,query ,wait_event_type ,wait_event ,xact_start ,query_start ,backend_start ,state_change ,client_addr, client_hostname, client_port, backend_xid ,backend_xmin, backend_type,ssl ,sslversion ,sslcipher ,sslbits ,sslcompression ,ssl_client_dn ,ssl_client_serial,ssl_issuer_dn ,gss_auth ,gss_princ ,gss_enc,leader_pid) FROM stdin;
