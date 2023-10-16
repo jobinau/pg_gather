@@ -625,8 +625,9 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo function checkpars(){
 \echo   trs=document.getElementById("params").rows
-\echo   for(var i=1;i<trs.length;i++) 
-\echo     evalParam(trs[i].cells[0].innerText,trs[i]); 
+\echo   if (document.getElementById("params").rows.length > 1)
+\echo     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]); 
+\echo   else  strfind += "<li><b>Partial Data Collection</b></li>"
 \echo  }
 \echo function aged(cell){
 \echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }

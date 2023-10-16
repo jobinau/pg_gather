@@ -676,8 +676,9 @@ var evalParam = function(param,rowref = null) {
 //Check paramter values going though each in the HTML table
 function checkpars(){
   trs=document.getElementById("params").rows
-  for(var i=1;i<trs.length;i++) 
-    evalParam(trs[i].cells[0].innerText,trs[i]);  //Despatcher function takes name of parameter and row of HTML table as parameters
+  if (document.getElementById("params").rows.length > 1)
+    for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]);  //Despatcher function takes name of parameter and row of HTML table as parameters
+  else  strfind += "<li><b>Partial Data Collection</b></li>"
  }
 
 //Cells with value greater than autovacuum_freeze_max_age
