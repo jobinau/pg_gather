@@ -45,6 +45,7 @@ CREATE UNLOGGED TABLE pg_gather (
     server inet,
     reload_ts timestamp with time zone,
     timeline int,
+    systemid bigint,
     current_wal pg_lsn
 );
 
