@@ -330,8 +330,8 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN g ON true
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
     AND backend_type='client backend') cn) AS cn,
-  (select count(*) from pg_get_class where relkind='p') as ptabs,
-  (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
+  (SELECT to_jsonb(ROW(count(*) FILTER (WHERE relkind='p'), max(reloid))) from pg_get_class) as clas,
+  (SELECT to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
   count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
   count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) ,
   count(*),   count(distinct backend_type)))
@@ -388,7 +388,7 @@ totMem=0;
 //Prepare the list of blockers and Victims
 let blokers = []
 let blkvictims = []
-//Parameter array, current value, recomendations.
+//Parameter array with each parameter ("param") current value ("val"), recomendations.
 let params = []
 
 //When the DOM is ready
@@ -470,7 +470,7 @@ function checkfindings(){
  }
  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='https://github.com/jobinau/pg_gather/blob/main/docs/InvalidIndexes.md'>Link</a></li>";
  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" out of " + obj.induse.f3 + " Index(es) are Unused, Which accounts for "+ bytesToSize(obj.induse.f4) +"</b>. Consider dropping of all unused Indexes</li>";
- if (obj.ptabs > 0) strfind += "<li><b>"+ obj.ptabs +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
+ if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
  if(obj.clsr){
   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
@@ -495,7 +495,9 @@ function checkfindings(){
   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   if (obj.ns !== null){
    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-   strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " user schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database.</li>";
+   tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " user schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database.";
+   if (tempNScnt > 0 && obj.clas.f2 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f2).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
+   strfind += tmpfind + "</li>";
   }
  }
   //update the findings section
@@ -604,6 +606,17 @@ var paramDespatch = {
   },
   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
     val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
+  log_temp_files: function(rowref){
+    val = val=rowref.cells[1];
+    let param = params.find(p => p.param === "log_temp_files");
+    if (typeof param["suggest"] != "undefined"){
+      val.classList.add("warn"); 
+      val.title="Heavy temporary file generation is detected. Consider setting log_temp_files=" + param["suggest"] + "MB";
+    } else if ((param["val"] > -1)){
+      val.classList.add("lime");
+      val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
+    }
+  },
   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
 
   max_wal_size: function(rowref){
@@ -728,8 +741,8 @@ function checkdbs(){
   //second column in the table is hidden, be careful
   const trs=document.getElementById("dbs").rows
   const len=trs.length;
-  //array to collect dbnames where high aborts are happening
-  let aborts=[];
+  let aborts=[];  //array of dbnames where high aborts are happening
+  let strtmp="";  //string to hold temp file generation info.
   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
   for(var i=1;i<len;i++){
     tr=trs[i];
@@ -740,13 +753,27 @@ function checkdbs(){
      }
     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
     //More than 50GB temp generation per day. removing class even if it is not there is not causing any error
-    if(tr.cells[7].innerHTML > 50000000000) {  tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); tr.cells[7].title += ", High temporary file generation per day. It can cause I/O performance issues" }
+    if(tr.cells[7].innerHTML > 50000000000) {  
+      tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
+      let str = " temp file generation per day!. It can cause I/O performance issues." 
+      let param = params.find(p => p.param === "log_temp_files");
+      if ( param["val"] == -1 ) { 
+        param["suggest"] = "100"; 
+        str += "Consider setting log_temp_files=" + param["suggest"] + "MB to collect the problematic SQL statements to PostgreSQL logs";
+      }else{
+        str += "log_temp_files is already enabled, Analyze the PostgreSQL logs to check the problematic SQL statements";
+      }
+      evalParam("log_temp_files");
+      if (strtmp != "") strtmp+= ","
+      strtmp +=  tr.cells[7].title +"/day on "+tr.cells[0].innerHTML; 
+      tr.cells[7].title += str;
+    }
     totdb=totdb+Number(tr.cells[8].innerText);
     aged(tr.cells[9]);
   }
-  //Mention the aborts in findings.  future append aborts array to json  : obj.aborts=aborts;
-  if (aborts.length >0) // document.getElementById("finditem").innerHTML 
-  strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+  if (aborts.length >0)  //Mention the aborts in findings.  future append aborts array to json  : obj.aborts=aborts;
+   strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+  if (strtmp != "") strfind += "<li>High temp file generation : <b>" + strtmp + "</b></li>"; 
 }
 
 function checkextn(){

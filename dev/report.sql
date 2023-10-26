@@ -330,8 +330,8 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN g ON true
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
     AND backend_type='client backend') cn) AS cn,
-  (select count(*) from pg_get_class where relkind='p') as ptabs,
-  (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
+  (SELECT to_jsonb(ROW(count(*) FILTER (WHERE relkind='p'), max(reloid))) from pg_get_class) as clas,
+  (SELECT to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
   count(*) FILTER (WHERE state='idle in transaction'), count(*) FILTER (WHERE state='idle'),
   count(*) FILTER (WHERE state IS NULL), count(*) FILTER (WHERE leader_pid IS NOT NULL) ,
   count(*),   count(distinct backend_type)))
@@ -444,7 +444,7 @@ SELECT to_jsonb(r) FROM
 \echo  }
 \echo  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='https://github.com/jobinau/pg_gather/blob/main/docs/InvalidIndexes.md'>Link</a></li>";
 \echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" out of " + obj.induse.f3 + " Index(es) are Unused, Which accounts for "+ bytesToSize(obj.induse.f4) +"</b>. Consider dropping of all unused Indexes</li>";
-\echo  if (obj.ptabs > 0) strfind += "<li><b>"+ obj.ptabs +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
+\echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
@@ -468,7 +468,9 @@ SELECT to_jsonb(r) FROM
 \echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-\echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " user schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database.</li>";
+\echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " user schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database.";
+\echo    if (tempNScnt > 0 && obj.clas.f2 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f2).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
+\echo    strfind += tmpfind + "</li>";
 \echo   }
 \echo  }
 \echo   document.getElementById("finditem").innerHTML += strfind;
@@ -561,6 +563,17 @@ SELECT to_jsonb(r) FROM
 \echo   },
 \echo   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
 \echo     val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
+\echo   log_temp_files: function(rowref){
+\echo     val = val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "log_temp_files");
+\echo     if (typeof param["suggest"] != "undefined"){
+\echo       val.classList.add("warn"); 
+\echo       val.title="Heavy temporary file generation is detected. Consider setting log_temp_files=" + param["suggest"] + "MB";
+\echo     } else if ((param["val"] > -1)){
+\echo       val.classList.add("lime");
+\echo       val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
+\echo     }
+\echo   },
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
@@ -664,7 +677,8 @@ SELECT to_jsonb(r) FROM
 \echo function checkdbs(){
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
-\echo   let aborts=[];
+\echo   let aborts=[]; 
+\echo   let strtmp=""; 
 \echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
@@ -673,12 +687,27 @@ SELECT to_jsonb(r) FROM
 \echo      aborts.push(tr.cells[0].innerHTML)
 \echo      }
 \echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
-\echo     if(tr.cells[7].innerHTML > 50000000000) {  tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); tr.cells[7].title += ", High temporary file generation per day. It can cause I/O performance issues" }
+\echo     if(tr.cells[7].innerHTML > 50000000000) {  
+\echo       tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
+\echo       let str = " temp file generation per day!. It can cause I/O performance issues." 
+\echo       let param = params.find(p => p.param === "log_temp_files");
+\echo       if ( param["val"] == -1 ) { 
+\echo         param["suggest"] = "100"; 
+\echo         str += "Consider setting log_temp_files=" + param["suggest"] + "MB to collect the problematic SQL statements to PostgreSQL logs";
+\echo       }else{
+\echo         str += "log_temp_files is already enabled, Analyze the PostgreSQL logs to check the problematic SQL statements";
+\echo       }
+\echo       evalParam("log_temp_files");
+\echo       if (strtmp != "") strtmp+= ","
+\echo       strtmp +=  tr.cells[7].title +"/day on "+tr.cells[0].innerHTML; 
+\echo       tr.cells[7].title += str;
+\echo     }
 \echo     totdb=totdb+Number(tr.cells[8].innerText);
 \echo     aged(tr.cells[9]);
 \echo   }
-\echo   if (aborts.length >0)
-\echo   strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo   if (aborts.length >0) 
+\echo    strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
+\echo   if (strtmp != "") strfind += "<li>High temp file generation : <b>" + strtmp + "</b></li>"; 
 \echo }
 \echo function checkextn(){
 \echo   const trs=document.getElementById("tblextn").rows
