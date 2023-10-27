@@ -12,7 +12,9 @@ SELECT
 rolname,datname,count(*) FILTER (WHERE state='active') as active,
 count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
 count(*) FILTER (WHERE state='idle') as idle,
-count(*) 
+count(*) as totalcons,
+count (*) FILTER (WHERE ssl = true) as sslcons,
+count (*) FILTER (WHERE ssl = false) as nonsslcons
 FROM pg_get_activity 
   join pg_get_roles on usesysid=pg_get_roles.oid
   join pg_get_db on pg_get_activity.datid = pg_get_db.datid
