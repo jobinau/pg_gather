@@ -618,11 +618,17 @@ var paramDespatch = {
     }
   },
   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
-
   max_wal_size: function(rowref){
     val=rowref.cells[1];
-    val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
-    if(val.innerText < 10240) val.classList.add("warn");
+    val.title=bytesToSize(val.innerText*1024*1024,1024);
+    if(val.innerText < 10240) { val.classList.add("warn"); val.title += ",Too low for production use" }
+    else val.classList.add("lime");
+  },
+  min_wal_size: function(rowref){
+    val=rowref.cells[1];
+    val.title=bytesToSize(val.innerText*1024*1024,1024);
+    if(val.innerText < 1048) {val.classList.add("warn"); val.title+=",Too low for production use" }
+    else val.classList.add("lime");
   },
   random_page_cost: function(rowref){
     val=rowref.cells[1];

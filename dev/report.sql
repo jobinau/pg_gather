@@ -577,8 +577,15 @@ SELECT to_jsonb(r) FROM
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
-\echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     if(val.innerText < 10240) val.classList.add("warn");
+\echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
+\echo     if(val.innerText < 10240) { val.classList.add("warn"); val.title += ",Too low for production use" }
+\echo     else val.classList.add("lime");
+\echo   },
+\echo   min_wal_size: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
+\echo     if(val.innerText < 1048) {val.classList.add("warn"); val.title+=",Too low for production use" }
+\echo     else val.classList.add("lime");
 \echo   },
 \echo   random_page_cost: function(rowref){
 \echo     val=rowref.cells[1];
