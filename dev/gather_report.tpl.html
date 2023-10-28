@@ -220,12 +220,19 @@ SELECT * FROM (
 WHERE waits IS NOT NULL OR state != 'idle';%>
 <h2 id="statements" style="clear: both">Top Statements</h2>
 <% \pset tableattr 'id="tblstmnt"'
-\C 'Top consumer Statements. Consider information from pg_get_statements for other criteria'
-SELECT "Statement",total_time "Tot.DB.time", calls "Execs",total_time::int/calls "Avg.ExecTime", DENSE_RANK() OVER (ORDER BY ranksum) "Wt.Rank" FROM 
-(select query "Statement", total_time::int, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
+\C 'Top Statements'
+SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::int/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
+,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
+(select query "Statement",total_time::int, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
 total_time::int/calls, DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) as avgtrank, 
-DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum
-from pg_get_statements WHERE calls > 2 ) AS stmnts
+DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum,
+shared_blks_read/calls "Avg.Reads",
+shared_blks_dirtied/calls "Avg.Dirty",
+shared_blks_written/calls "Avg.Write",
+temp_blks_read/calls "Avg.Temp(r)",
+temp_blks_written/calls "Avg.Temp(w)",
+100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
+from pg_get_statements) AS stmnts
 WHERE tottrank < 10 OR avgtrank < 10 ;
 \C %>
 <h2 id="replstat" style="clear: both">Replication Status</h2>
@@ -244,8 +251,8 @@ FROM pg_replication_stat JOIN M ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
 %>
 <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
-<p>Efficiency of Background writer and Checkpointer Process</p>
 <% \pset tableattr 'id="tblchkpnt"'
+\C 'Analysis of Background writer and Checkpointer Process'
 SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
 round(min_since_reset/tot_cp,2) "avg mins between CP",
 round(checkpoint_write_time::numeric/(tot_cp*1000),4) "Avg CP write time (s)",
@@ -900,7 +907,7 @@ elem.onmouseout = function() { document.getElementById("menu").style.display = "
 // })));
 // });
 
-document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(1)").forEach(td => td.addEventListener("dblclick", (() => {
+document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(2)").forEach(td => td.addEventListener("dblclick", (() => {
   if (td.title){
   console.log(td.title);
   navigator.clipboard.writeText(td.title).then(() => {  
@@ -964,11 +971,18 @@ if(tab.rows.length < 2){ tab.remove(); //if there is nothing in the table, remov
   document.getElementById("statements").innerText="pg_stat_statements info is not available"
 }else{
  trs=tab.rows;
- trs[0].cells[1].title="Total DB time consumed by the statement"; trs[0].cells[2].title="Number of execution of the statement";
- trs[0].cells[3].title="Avg. execution time of the statement"; trs[0].cells[4].title="Weighted Ranking. 1 has the highest impact";
+ let titles = ["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
+ "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]
+ for (i=0;i<titles.length;i++) trs[0].cells[i].title= titles[i];
  for (let tr of trs){
- sql=tr.cells[0];
+ sql=tr.cells[1];
  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
+ let cel=tr.cells[6]; //Cache hit column. If cache it is poor highlight accordingly
+ if ( cel.innerText.trim() != "" && cel.innerText < 50) cel.classList.add("warn"); // else if (cel.innerText < 90) cel.classList.add("lime");
+ cel=tr.cells[9]; //Temp Read. if average temp read is more than 100MB highlight
+ if (cel.innerText > 12800) cel.classList.add("lime");
+ cel=tr.cells[10]; //Temp Write. If aveage temp write is more than 100MB highlight
+ if (cel.innerText > 12800) cel.classList.add("lime");
 }}}
 
 //Checkpointer and bgwriter info
@@ -1001,11 +1015,14 @@ if (trs.length > 1){
       }
     }
   }
-  //if "Reset days" is empty
+  //if "Reset days" is empty or too less
   if (tr.cells[16].innerText.trim() == "" || tr.cells[16].innerText < 1 ){
     tr.cells[16].classList.add("high"); tr.cells[16].title="sufficient bgwriter stats are not available";
     document.getElementById("tblchkpnt").classList.add("high");
     document.getElementById("tblchkpnt").title = "Sufficient bgwriter stats are not available. This could happen if data is collected immediately after the stats reset or a crash. At least one day of stats are required to do meaningful calculations";
+  }
+  if( tr.cells[16].innerText > 100 ){
+    tr.cells[16].classList.add("high"); tr.cells[16].title="Statistics of long-term avarage won't be helpful. Please consider resetting. 1 week is ideal";
   }
 }}
 

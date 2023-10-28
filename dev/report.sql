@@ -220,12 +220,19 @@ SELECT * FROM (
 WHERE waits IS NOT NULL OR state != 'idle';
 \echo <h2 id="statements" style="clear: both">Top Statements</h2>
 \pset tableattr 'id="tblstmnt"'
-\C 'Top consumer Statements. Consider information from pg_get_statements for other criteria'
-SELECT "Statement",total_time "Tot.DB.time", calls "Execs",total_time::int/calls "Avg.ExecTime", DENSE_RANK() OVER (ORDER BY ranksum) "Wt.Rank" FROM 
-(select query "Statement", total_time::int, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
+\C 'Top Statements'
+SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::int/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
+,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
+(select query "Statement",total_time::int, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
 total_time::int/calls, DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) as avgtrank, 
-DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum
-from pg_get_statements WHERE calls > 2 ) AS stmnts
+DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum,
+shared_blks_read/calls "Avg.Reads",
+shared_blks_dirtied/calls "Avg.Dirty",
+shared_blks_written/calls "Avg.Write",
+temp_blks_read/calls "Avg.Temp(r)",
+temp_blks_written/calls "Avg.Temp(w)",
+100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
+from pg_get_statements) AS stmnts
 WHERE tottrank < 10 OR avgtrank < 10 ;
 \C 
 \echo <h2 id="replstat" style="clear: both">Replication Status</h2>
@@ -244,8 +251,8 @@ FROM pg_replication_stat JOIN M ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
 
 \echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
-\echo <p>Efficiency of Background writer and Checkpointer Process</p>
 \pset tableattr 'id="tblchkpnt"'
+\C 'Analysis of Background writer and Checkpointer Process'
 SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
 round(min_since_reset/tot_cp,2) "avg mins between CP",
 round(checkpoint_write_time::numeric/(tot_cp*1000),4) "Avg CP write time (s)",
@@ -796,7 +803,7 @@ SELECT to_jsonb(r) FROM
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
 \echo elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
 \echo elem.onmouseout = function() { document.getElementById("menu").style.display = "none"; }
-\echo document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(1)").forEach(td => td.addEventListener("dblclick", (() => {
+\echo document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(2)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
@@ -845,11 +852,18 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("statements").innerText="pg_stat_statements info is not available"
 \echo }else{
 \echo  trs=tab.rows;
-\echo  trs[0].cells[1].title="Total DB time consumed by the statement"; trs[0].cells[2].title="Number of execution of the statement";
-\echo  trs[0].cells[3].title="Avg. execution time of the statement"; trs[0].cells[4].title="Weighted Ranking. 1 has the highest impact";
+\echo  let titles = ["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
+\echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]
+\echo  for (i=0;i<titles.length;i++) trs[0].cells[i].title= titles[i];
 \echo  for (let tr of trs){
-\echo  sql=tr.cells[0];
+\echo  sql=tr.cells[1];
 \echo  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
+\echo  let cel=tr.cells[6];
+\echo  if ( cel.innerText.trim() != "" && cel.innerText < 50) cel.classList.add("warn");
+\echo  cel=tr.cells[9];
+\echo  if (cel.innerText > 12800) cel.classList.add("lime");
+\echo  cel=tr.cells[10];
+\echo  if (cel.innerText > 12800) cel.classList.add("lime");
 \echo }}}
 \echo function checkchkpntbgwrtr(){
 \echo trs=document.getElementById("tblchkpnt").rows;
@@ -884,6 +898,9 @@ SELECT to_jsonb(r) FROM
 \echo     tr.cells[16].classList.add("high"); tr.cells[16].title="sufficient bgwriter stats are not available";
 \echo     document.getElementById("tblchkpnt").classList.add("high");
 \echo     document.getElementById("tblchkpnt").title = "Sufficient bgwriter stats are not available. This could happen if data is collected immediately after the stats reset or a crash. At least one day of stats are required to do meaningful calculations";
+\echo   }
+\echo   if( tr.cells[16].innerText > 100 ){
+\echo     tr.cells[16].classList.add("high"); tr.cells[16].title="Statistics of long-term avarage won't be helpful. Please consider resetting. 1 week is ideal";
 \echo   }
 \echo }}
 \echo tab=document.getElementById("tblreplstat")
