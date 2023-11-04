@@ -94,7 +94,13 @@ CREATE UNLOGGED TABLE pg_get_statements(
     dbid oid,
     query text,
     calls bigint,
-    total_time double precision
+    total_time double precision,
+    shared_blks_hit bigint,
+    shared_blks_read bigint,
+    shared_blks_dirtied bigint,
+    shared_blks_written bigint,
+    temp_blks_read bigint,
+    temp_blks_written bigint
 );
 
 
