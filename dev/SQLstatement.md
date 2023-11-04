@@ -189,3 +189,30 @@ CROSS JOIN
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
 ```
+
+## Top Statemnts
+
+```
+SELECT 
+  DENSE_RANK() OVER (ORDER BY ranksum) "Rank"   --Rank consiidering both Total Time and Average Time ranking
+  ,"Statement",total_time "Tot.DB.time"  --Total Database time consumed
+  ,calls ,total_time::int/calls "Avg.ExecTime" --Average Execution time
+  ,"C.Hit" --Cache Hit
+  ,"Avg.Reads","Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)"
+FROM 
+(select left(query,50) "Statement", total_time::int, 
+--Total-Time based Ranking. The statements which consumes more database time need to be ranked.
+DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
+total_time::int/calls, 
+--Average execution time based ranking. If the average execution time is high, it can affect other concurrent statements in the system
+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) as avgtrank, 
+DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum,
+100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit",
+shared_blks_read/calls "Avg.Reads",
+shared_blks_dirtied/calls "Avg.Dirty",
+shared_blks_written/calls "Avg.Write",
+temp_blks_read/calls "Avg.Temp(r)",
+temp_blks_written/calls "Avg.Temp(w)"
+from pg_get_statements) AS stmnts
+WHERE tottrank < 10 OR avgtrank < 10 ;
+```
