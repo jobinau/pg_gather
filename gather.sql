@@ -1,6 +1,6 @@
 ---- pg_gather : Gather Performance Metics and PostgreSQL Configuration
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
-\echo '--**** IMPORTANT !!: PLEASE DONT COPY-PASTE THE OUTPUT. TEXT EDITORS CAN DESTROY THE TSV FORMATTING, AND THE OUTPUT MAY NOT BE USEFUL AFTER THAT ****--'
+\echo '--**** THIS IS A TSV FORMATED FILE. PLEASE DONT COPY-PASTE OR SAVE USING TEXT EDITORS. Because formatting can be lost and file becomes corrupt  ****--'
 \echo '\\r'
 \set ver 23
 \echo '\\set ver ':ver
@@ -71,11 +71,11 @@ SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 --pg_stat_statements
 SELECT (select count(*) > 0 from pg_class where relname='pg_stat_statements') AS pg_stmnt \gset
 \if :pg_stmnt
-    \echo COPY pg_get_statements (userid,dbid,query,calls,total_time) FROM stdin;
+    \echo COPY pg_get_statements (userid,dbid,query,calls,total_time,shared_blks_hit,shared_blks_read,shared_blks_dirtied,shared_blks_written,temp_blks_read,temp_blks_written) FROM stdin;
 \if :pg13
-    \COPY (SELECT userid,dbid,query,calls,total_plan_time+total_exec_time "total_time" from pg_stat_statements) TO stdout;
+    \COPY (SELECT userid,dbid,query,calls,total_plan_time+total_exec_time "total_time",shared_blks_hit,shared_blks_read,shared_blks_dirtied,shared_blks_written,temp_blks_read,temp_blks_written FROM pg_stat_statements WHERE calls > 5 AND not upper(query) like any (array['DEALLOCATE%', 'SET %', 'RESET %', 'BEGIN%', 'BEGIN;','COMMIT%', 'END%', 'ROLLBACK%', 'SHOW%'])) TO stdout;
 \else
-    \COPY (SELECT userid,dbid,query,calls,total_time from pg_stat_statements) TO stdout;
+    \COPY (SELECT userid,dbid,query,calls,total_time,shared_blks_hit,shared_blks_read,shared_blks_dirtied,shared_blks_written,temp_blks_read,temp_blks_written FROM pg_stat_statements WHERE calls > 5 AND not upper(query) like any (array['DEALLOCATE%', 'SET %', 'RESET %', 'BEGIN%', 'BEGIN;',    'COMMIT%', 'END%', 'ROLLBACK%', 'SHOW%'])) TO stdout;
 \endif
     \echo '\\.'
 \endif
