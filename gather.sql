@@ -5,7 +5,7 @@
 \set ver 23
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
-SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM > 160000 ) AS pg16, ( current_database() != 'template1' ) as fullgather \gset
+SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16, ( current_database() != 'template1' ) as fullgather \gset
 
 \if :fullgather
 ---Error out and exit, unless healthy
@@ -128,12 +128,26 @@ COPY ( SELECT setdatabase,setrole,setconfig FROM pg_db_role_setting) TO stdin;
 COPY (SELECT oid,relname,relkind,relnamespace,relpersistence,reloptions,pg_stat_get_blocks_fetched(oid),pg_stat_get_blocks_hit(oid) FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
 \echo '\\.'
 
---Index usage info
+--Index info
+\if :pg16
+\echo COPY pg_get_index(indexrelid,indrelid,indisunique,indisprimary,indisvalid,numscans,size,lastuse) FROM stdin;
+COPY (SELECT indexrelid,indrelid,indisunique,indisprimary,indisvalid, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid),pg_stat_get_lastscan(indexrelid) from pg_index) TO stdin;
+\else
 \echo COPY pg_get_index(indexrelid,indrelid,indisunique,indisprimary,indisvalid,numscans,size) FROM stdin;
 COPY (SELECT indexrelid,indrelid,indisunique,indisprimary,indisvalid, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid) from pg_index) TO stdin;
+\endif
 \echo '\\.'
 
---Table usage Information 
+--Table Info
+\if :pg16
+\echo COPY pg_get_rel (relid,relnamespace,blks,n_live_tup,n_dead_tup,n_tup_ins,n_tup_upd,n_tup_del,n_tup_hot_upd,rel_size,tot_tab_size,tab_ind_size,rel_age,last_vac,last_anlyze,vac_nos,lastuse) FROM stdin;
+COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid) AS n_live_tup,pg_stat_get_dead_tuples(oid) AS n_dead_tup,
+   pg_stat_get_tuples_inserted(oid) n_tup_ins, pg_stat_get_tuples_updated(oid) n_tup_upd, pg_stat_get_tuples_deleted(oid) n_tup_del, pg_stat_get_tuples_hot_updated(oid) n_tup_hot_upd,
+   pg_relation_size(oid) rel_size,  pg_table_size(oid) tot_tab_size, pg_total_relation_size(oid) tab_ind_size, age(relfrozenxid) rel_age,
+   GREATEST(pg_stat_get_last_autovacuum_time(oid),pg_stat_get_last_vacuum_time(oid)), GREATEST(pg_stat_get_last_autoanalyze_time(oid),pg_stat_get_last_analyze_time(oid)),
+ pg_stat_get_vacuum_count(oid)+pg_stat_get_autovacuum_count(oid),pg_stat_get_lastscan(oid)
+ FROM pg_class WHERE relkind in ('r','t','p','m','')) TO stdin;
+\else
 \echo COPY pg_get_rel (relid,relnamespace,blks,n_live_tup,n_dead_tup,n_tup_ins,n_tup_upd,n_tup_del,n_tup_hot_upd,rel_size,tot_tab_size,tab_ind_size,rel_age,last_vac,last_anlyze,vac_nos) FROM stdin;
 COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid) AS n_live_tup,pg_stat_get_dead_tuples(oid) AS n_dead_tup,
    pg_stat_get_tuples_inserted(oid) n_tup_ins, pg_stat_get_tuples_updated(oid) n_tup_upd, pg_stat_get_tuples_deleted(oid) n_tup_del, pg_stat_get_tuples_hot_updated(oid) n_tup_hot_upd,
@@ -141,6 +155,7 @@ COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid
    GREATEST(pg_stat_get_last_autovacuum_time(oid),pg_stat_get_last_vacuum_time(oid)), GREATEST(pg_stat_get_last_autoanalyze_time(oid),pg_stat_get_last_analyze_time(oid)),
  pg_stat_get_vacuum_count(oid)+pg_stat_get_autovacuum_count(oid)
  FROM pg_class WHERE relkind in ('r','t','p','m','')) TO stdin;
+\endif
 \echo '\\.'
 
 --Bloat estimate on a 64bit machine with PG version above 9.0.

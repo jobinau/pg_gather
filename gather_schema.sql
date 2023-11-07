@@ -186,7 +186,8 @@ CREATE UNLOGGED TABLE pg_get_index (
     indisprimary boolean,
     indisvalid boolean,
     numscans bigint,
-    size bigint
+    size bigint,
+    lastuse timestamp with time zone
 );
 --indexrelid - oid of the index
 --indrelid - oid of the corresponding table
@@ -207,7 +208,8 @@ CREATE UNLOGGED TABLE pg_get_rel (
     rel_age bigint,
     last_vac timestamp with time zone,
     last_anlyze timestamp with time zone,
-    vac_nos bigint
+    vac_nos bigint,
+    lastuse timestamp with time zone
 );
 
 
