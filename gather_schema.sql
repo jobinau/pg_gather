@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS pg_get_bgwriter;
 DROP TABLE IF EXISTS pg_get_roles;
 DROP TABLE IF EXISTS pg_get_extension;
 DROP TABLE IF EXISTS pg_get_slots;
+DROP TABLE IF EXISTS pg_get_hba_rules;
 DROP TABLE IF EXISTS pg_get_ns;
 DROP TABLE IF EXISTS pg_gather_end;
 
@@ -322,6 +323,17 @@ CREATE UNLOGGED TABLE pg_get_slots(
     catalog_xmin xid,
     restart_lsn pg_lsn,
     confirmed_flush_lsn pg_lsn
+);
+
+CREATE UNLOGGED TABLE pg_get_hba_rules(
+ seq int,
+ typ text,
+ db text[],
+ usr text[],
+ addr text,
+ mask text,
+ method text,
+ err text
 );
 
 CREATE UNLOGGED TABLE pg_get_ns(

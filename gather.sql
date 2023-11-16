@@ -201,6 +201,11 @@ COPY (SELECT oid,nspname FROM pg_namespace) TO stdout;
 COPY (select oid,extname,extowner,extnamespace,extrelocatable,extversion from pg_extension) TO stdout;
 \echo '\\.'
 
+--pg_hba rules
+\echo COPY pg_get_hba_rules(seq,typ,db,usr,addr,mask,method,err) FROM stdin;
+COPY (select line_number,type,database,user_name,address,netmask,auth_method,error from pg_hba_file_rules) TO stdout;
+\echo '\\.'
+
 --End fullgather before pg_get_roles (line: 102)
 \endif
 
