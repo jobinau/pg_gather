@@ -173,8 +173,8 @@ fset AS (SELECT coalesce(s.name,f.name) AS name
 ,string_agg(f.sourcefile ||' - '|| f.setting || CASE WHEN f.applied = true THEN ' (applicable)' ELSE '' END ,chr(10)) FILTER (WHERE s.source != f.sourcefile OR s.source IS NULL ) AS loc
 FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower(f.name)
 GROUP BY 1,2,3,4 ORDER BY 1)
-SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Source",
-CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.loc IS NULL THEN '' ELSE fset.loc END AS "Other Locations"
+SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Current Source",
+CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.loc IS NULL THEN '' ELSE fset.loc END AS "Other Locations & Values"
 FROM fset LEFT JOIN dset ON fset.name = dset.name; 
 \pset tableattr
 \echo <h2 id="extensions">Extensions</h2>
@@ -402,6 +402,7 @@ SELECT to_jsonb(r) FROM
 \echo checkgather();
 \echo checkpars();
 \echo checktabs();
+\echo checkindex();
 \echo checkdbs();
 \echo checkextn();
 \echo checksess();
@@ -555,7 +556,7 @@ SELECT to_jsonb(r) FROM
 \echo         } else if (val.innerText > 500) val.classList.add("warn")
 \echo       else val.classList.add("lime")
 \echo   },
-\echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, 
+\echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
 \echo   huge_pages: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
@@ -581,17 +582,18 @@ SELECT to_jsonb(r) FROM
 \echo       val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
 \echo     }
 \echo   },
+\echo   log_lock_waits: function(rowref){},
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     if(val.innerText < 10240) { val.classList.add("warn"); val.title += ",Too low for production use" }
+\echo     if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" }
 \echo     else val.classList.add("lime");
 \echo   },
 \echo   min_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     if(val.innerText < 1048) {val.classList.add("warn"); val.title+=",Too low for production use" }
+\echo     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
 \echo     else val.classList.add("lime");
 \echo   },
 \echo   random_page_cost: function(rowref){
@@ -675,7 +677,7 @@ SELECT to_jsonb(r) FROM
 \echo     if( TabIndSize > 2*TotTabSize && TotTabSize > 2000000 ){ TabInd.classList.add("warn"); TabInd.title="Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize)
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
-\echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12) tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day";
+\echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
 \echo     if (tr.cells[15].innerText > 10000) { 
 \echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
 \echo       if (tr.cells[15].innerText > 10737418240) tr.cells[15].classList.add("warn")
@@ -684,6 +686,12 @@ SELECT to_jsonb(r) FROM
 \echo     aged(tr.cells[10]);
 \echo     aged(tr.cells[16]);
 \echo     aged(tr.cells[17]);
+\echo     if (tr.cells[18].innerText / obj.dbts.f4 > 262144 ){ 
+\echo       tr.cells[18].classList.add("lime"); 
+\echo       tr.cells[18].title="High Utilization : " + bytesToSize(Math.round(tr.cells[18].innerText * 8192 / obj.dbts.f4)) + "/day"; 
+\echo       if(tr.cells[19].innerText < 40 ){ tr.cells[19].classList.add("warn"); tr.cells[19].title="Poor cache hit ratio, Results in high DiskReads"; }
+\echo       else if (tr.cells[19].innerText < 70) tr.cells[19].classList.add("lime");
+\echo      }
 \echo   }
 \echo const endTime = new Date().getTime();
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
@@ -815,11 +823,21 @@ SELECT to_jsonb(r) FROM
 \echo    });
 \echo }
 \echo })));
+\echo function checkindex(){
 \echo trs=document.getElementById("IndInfo").rows;
 \echo for (let tr of trs) {
 \echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
 \echo   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
 \echo   if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
+\echo   if(tr.cells[6].innerText > 262144 && tr.cells[6].innerText/tr.cells[4].innerText > 50 ) {
+\echo     if (tr.cells[4].innerText > 0 ){
+\echo      tr.cells[6].title="Each Index scan had to fetch " + Math.round(tr.cells[6].innerText/tr.cells[4].innerText) + " pages on average. Expensive Index";
+\echo     }else tr.cells[6].title="Unused indexes. But causing fetches without any benefit"; 
+\echo     tr.cells[6].classList.add("warn");
+\echo     if (tr.cells[7].innerText < 50 ){tr.cells[7].classList.add("warn");tr.cells[7].title="Poor Cache Hit";}
+\echo     else if (tr.cells[7].innerText < 80 ) {tr.cells[7].classList.add("lime");tr.cells[7].title="Indexes with less cache hit can cause considerable I/O"; }
+\echo   }
+\echo }
 \echo }
 \echo trs=document.getElementById("tableConten").rows;
 \echo if (trs.length > 1){ 
@@ -878,17 +896,18 @@ SELECT to_jsonb(r) FROM
 \echo   if(tr.cells[11].innerText > 50){
 \echo     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
 \echo   }
-\echo   if(tr.cells[13].innerText > 30){
-\echo     tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends";
-\echo     strfind += "<li>High <b>memory pressure</b>. Consider increasing RAM and shared_buffers</li>";   
-\echo     if(tr.cells[12].innerText < 30){
-\echo       tr.cells[12].classList.add("high"); tr.cells[12].title="bgwriter is not efficient";
+\echo   if(tr.cells[13].innerText > tr.cells[12].innerText){  
+\echo     tr.cells[12].classList.add("high"); tr.cells[12].title="Bgwriter should be cleaning more pages than backends.";
+\echo     if (tr.cells[13].innerText > 30){ tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends"; 
+\echo     strfind += "<li>High <b>memory pressure</b>. Consider increasing RAM and shared_buffers</li>"; }  
+\echo     if(tr.cells[12].innerText < 20){ 
+\echo       tr.cells[12].classList.add("high"); tr.cells[12].title+="Bgwriter is not efficient";
 \echo       if(tr.cells[14].innerText > 30){
 \echo         tr.cells[14].classList.add("high"); tr.cells[14].title="bgwriter could run more frequently. reduce bgwriter_delay";
 \echo       }
-\echo       if(tr.cells[15].innerText > 30){
+\echo       if(tr.cells[15].innerText > 10){
 \echo         let param = params.find(p => p.param === "bgwriter_lru_maxpages");
-\echo         param["suggest"] = Math.ceil((parseInt(param["val"]) + tr.cells[15].innerText/20*100)/100)*100;
+\echo         param["suggest"] = Math.ceil((parseInt(param["val"]) + tr.cells[15].innerText/15*100)/100)*100;
 \echo         evalParam("bgwriter_lru_maxpages");
 \echo         tr.cells[15].classList.add("high"); tr.cells[15].title="bgwriter halts too frequently. increase bgwriter_lru_maxpages";
 \echo       }
@@ -899,7 +918,7 @@ SELECT to_jsonb(r) FROM
 \echo     document.getElementById("tblchkpnt").classList.add("high");
 \echo     document.getElementById("tblchkpnt").title = "Sufficient bgwriter stats are not available. This could happen if data is collected immediately after the stats reset or a crash. At least one day of stats are required to do meaningful calculations";
 \echo   }
-\echo   if( tr.cells[16].innerText > 100 ){
+\echo   if( tr.cells[16].innerText > 45 ){
 \echo     tr.cells[16].classList.add("high"); tr.cells[16].title="Statistics of long-term avarage won't be helpful. Please consider resetting. 1 week is ideal";
 \echo   }
 \echo }}
