@@ -221,17 +221,18 @@ WHERE waits IS NOT NULL OR state != 'idle';
 \echo <h2 id="statements" style="clear: both">Top Statements</h2>
 \pset tableattr 'id="tblstmnt"'
 \C 'Top Statements'
-SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::int/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
+SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::bigint/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
 ,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
-(select query "Statement",total_time::int, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls,
-total_time::int/calls, DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) as avgtrank, 
-DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::int/calls DESC) ranksum,
-shared_blks_read/calls "Avg.Reads",
+(select query "Statement",total_time::bigint
+, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
+,total_time::bigint/calls, DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) as avgtrank
+,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) ranksum
+,shared_blks_read/calls "Avg.Reads",
 shared_blks_dirtied/calls "Avg.Dirty",
 shared_blks_written/calls "Avg.Write",
 temp_blks_read/calls "Avg.Temp(r)",
-temp_blks_written/calls "Avg.Temp(w)",
-100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
+temp_blks_written/calls "Avg.Temp(w)"
+,100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
 from pg_get_statements) AS stmnts
 WHERE tottrank < 10 OR avgtrank < 10 ;
 \C 
@@ -376,7 +377,7 @@ SELECT to_jsonb(r) FROM
 \echo <script type="text/javascript">
 \echo obj={};
 \echo ver="23";
-\echo meta={pgvers:["11.21","12.16","13.12","14.9","15.4","16.0"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["11.21","12.17","13.13","14.10","15.5","16.1"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
