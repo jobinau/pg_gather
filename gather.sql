@@ -103,9 +103,9 @@ FROM pg_database d) TO stdin;
 \echo '\\.'
 
 \if :fullgather
---Users / Roles
-\echo COPY pg_get_roles(oid,rolname,rolsuper,rolreplication,rolconnlimit) FROM stdin;
-COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit from pg_roles WHERE rolcanlogin) TO stdout;
+--Users / Roles, 
+\echo COPY pg_get_roles(oid,rolname,rolsuper,rolreplication,rolconnlimit,enc_method) FROM stdin;
+COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,left(rolpassword,1) enc_method from pg_authid WHERE rolcanlogin) TO stdout;
 \echo '\\.'
 
 --pg_settings

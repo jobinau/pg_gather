@@ -140,7 +140,8 @@ CREATE UNLOGGED TABLE pg_get_roles (
     rolsuper boolean,
     rolreplication boolean,
     rolconnlimit integer,
-    rolconfig text[]  --remove this column, because this is anyway info is from pg_db_role_setting
+    rolconfig text[],  --remove this column, because we can derive info from pg_get_db_role_confs
+    enc_method char
 );
 
 CREATE UNLOGGED TABLE pg_get_confs (
