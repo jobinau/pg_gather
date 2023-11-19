@@ -1,0 +1,13 @@
+# Contributors Guide
+
+Two core philosophies:
+1. The data collection should remain lightweight on the environment from where data is collected.
+2. Collect only very specific information, which is essential for analysis. 
+
+## Key guidelines for Pull Requests:
+1. Data collection (gather.sql) needs to remain minimalistic. We should avoid collecting additional info from the user environments unless it is unavoidable.
+   I would appreciate a discussion before adding more data collection points.
+2. SQL statements with joins and sort operations must be avoided during the data collection.
+3. "SELECT * " is not allowed. Columns/attributes need to be listed explicitly.
+4. All joins and sort operations can be done during the analysis phase (gather_report.sql). There is no restriction there.
+5. Data collection should run smoothly from PG 10 onwards, and Report generation using PG 13+
