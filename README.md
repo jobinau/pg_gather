@@ -54,7 +54,7 @@ This script may take over 20 seconds to run because it contains sleeps/delays. W
    Client tools like [pgAdmin](https://www.pgadmin.org/) include `psql`, which can be used to run `pg_gather` against local or remote databases.
    For example:  
    ```
-     "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.txt
+     "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.tsv
    ```
    3. **AWS Aurora** offers a "PostgreSQL-compatible" database. However, it is not a true PostgreSQL database, even though it looks like one. Therefore, you should do the following to the `gather.sql` script to replace any unapplicable lines with "NULL".
    ```
@@ -83,9 +83,9 @@ When connected to the `template1` database, the gather script collects only live
 The collected data can be imported to a PostgreSQL Instance. This creates required schema objects in the `public` schema of the database. 
 **CAUTION :** Avoid importing the data into critical environments/databases. A temporary PostgreSQL instance is preferable.
 ```
- psql -f gather_schema.sql -f out.txt
+ psql -f gather_schema.sql -f out.tsv
 ```
-Deprecated usage of `sed` : sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.txt | psql -f gather_schema.sql -
+Deprecated usage of `sed` : sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.tsv | psql -f gather_schema.sql -
 ## 2.2 Generating Report
 An analysis report in HTML format can be generated from the imported data as follows.
 ```

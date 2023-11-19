@@ -4,13 +4,16 @@ set -eo pipefail
 DOCKER_IMAGE=postgres:14   #Take one of the commonly used PG version above 13
 
 if [ -z "${1}" ]; then
-    echo "Usage is generate_report.sh path_to_output.txt [path_to_report.html] [keep the docker container y/n]"
+    echo "USEAGE : generate_report.sh path/to/output.tsv [/path/to/report.html] [leave the docker container running? (y/n)]"
+    echo "Example : generate_report.sh out.tsv report.html y"
+    echo "(Output html file name and flag are optional)"
     exit 1
 fi
 
-GATHER_OUT="${1}"   #First arg is the file to be imported, The "out.txt" file collected from the environment
-REPORT_OUT="${2:-$(echo "${GATHER_OUT}" | cut -f 1 -d '.')}.html"  #Second arg : Optional name of the output html file
-KEEP_DOCKER="${3:-n}"  #Third arg : Whether the container to be preserved after report generation (y/n)
+GATHER_OUT="${1}"   #First arg, the input file to be imported. (The "out.tsv" file)
+REPORT_OUT="${2:-${GATHER_OUT%.*}}"  #Second arg (Optional) : if not specified, use the name from the input file   (basename "$filename" | cut -d. -f1)
+[[ ! $REPORT_OUT == *.html ]] &&  REPORT_OUT="${REPORT_OUT}.html"   #Append file extension ".html" if not specified already.
+KEEP_DOCKER="${3:-n}"  #Third arg (Optional): Whether the container to be preserved after report generation (y/n)
 GATHERDIR="$(dirname "$(realpath "$0")")"
 
 if [ ! -f $GATHERDIR/gather_schema.sql ] || [ ! -f $GATHERDIR/gather_report.sql ]; then
@@ -50,8 +53,8 @@ if [ "n" = "${KEEP_DOCKER}" ]; then
   docker rm "${CONTAINER_ID}"
   echo "Container ${CONTAINER_ID} deleted"
 else
-  echo "Container ${CONTAINER_ID} / \"pg_gather\" left around"
-  echo "You may connect like: docker exec -it --user postgres pg_gather bash"
+  echo "Leaving the PG container : ${CONTAINER_ID} / \"pg_gather\" in running state"
+  echo "You may connect the PG container: docker exec -it --user postgres pg_gather bash"
 fi
 #------------------------------------------------------------------------------------------------------------
 
