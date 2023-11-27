@@ -376,7 +376,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo ver="23";
+\echo ver="24";
 \echo meta={pgvers:["11.21","12.17","13.13","14.10","15.5","16.1"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";

@@ -2,7 +2,7 @@
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 \echo '--**** THIS IS A TSV FORMATED FILE. PLEASE DONT COPY-PASTE OR SAVE USING TEXT EDITORS. Because formatting can be lost and file becomes corrupt  ****--'
 \echo '\\r'
-\set ver 23
+\set ver 24
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16, ( current_database() != 'template1' ) as fullgather \gset
@@ -244,6 +244,17 @@ COPY (SELECT wal_records,wal_fpi,wal_bytes,wal_buffers_full,wal_write,wal_sync,w
 \echo COPY pg_get_bgwriter FROM stdin;
 COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
 \echo '\\.'
+
+--IO stats
+\if :pg16
+\echo COPY pg_get_io(btype,obj,context,reads,read_time,writes,write_time,writebacks,writeback_time,extends,extend_time,op_bytes,hits,evictions,reuses,fsyncs,fsync_time,stats_reset) FROM stdin;
+COPY ( SELECT CASE backend_type WHEN 'background writer' THEN 'G' ELSE left(backend_type,1) END btype, left(object,1) obj,
+CASE context WHEN 'bulkread' THEN 'R' WHEN 'bulkwrite' THEN 'W' ELSE left(context,1) END context,
+reads,read_time,writes,write_time,writebacks,writeback_time,extends,extend_time,op_bytes,hits,evictions,reuses,fsyncs,fsync_time,stats_reset
+FROM pg_stat_io WHERE backend_type NOT LIKE 's%'
+) TO stdout;
+\echo '\\.'
+\endif
 
 --Active session (again)
 \o /dev/null

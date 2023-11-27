@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS pg_get_pidblock;
 DROP TABLE IF EXISTS pg_pid_wait;
 DROP TABLE IF EXISTS pg_replication_stat;
 DROP TABLE IF EXISTS pg_get_wal;
+DROP TABLE IF EXISTS pg_get_io;
 DROP TABLE IF EXISTS pg_archiver_stat;
 DROP TABLE IF EXISTS pg_tab_bloat;
 DROP TABLE IF EXISTS pg_get_toast;
@@ -310,6 +311,27 @@ CREATE UNLOGGED TABLE pg_get_wal(
  wal_write_time double precision,
  wal_sync_time double precision,
  stats_reset timestamp with time zone
+);
+
+CREATE UNLOGGED TABLE pg_get_io(
+ btype char(1), -- 'background writer=G'
+ obj char(1), -- 'bulkread=R, bulkwrite=W'
+ context char(1),
+ reads bigint,
+ read_time float8,
+ writes bigint,
+ write_time float8,
+ writebacks bigint,
+ writeback_time float8,
+ extends bigint,
+ extend_time float8,
+ op_bytes bigint,
+ hits bigint,
+ evictions bigint,
+ reuses bigint,
+ fsyncs bigint,
+ fsync_time float8,
+ stats_reset timestamptz
 );
 
 CREATE UNLOGGED TABLE pg_get_slots(
