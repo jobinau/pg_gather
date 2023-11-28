@@ -132,6 +132,7 @@ CREATE UNLOGGED TABLE pg_get_db (
     blk_write_time double precision,
     db_size bigint,
     age integer,
+    mxidage integer,
     stats_reset timestamp with time zone
 );
 
