@@ -368,7 +368,8 @@ SELECT to_jsonb(r) FROM
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
-   (SELECT to_jsonb(ROW(count(*) FILTER (WHERE indisvalid=false),count(*) FILTER (WHERE numscans=0),count(*),sum(size) FILTER (WHERE numscans=0))) FROM pg_get_index) induse
+   (SELECT to_jsonb(ROW(count(*) FILTER (WHERE indisvalid=false),count(*) FILTER (WHERE numscans=0),count(*),sum(size) FILTER (WHERE numscans=0))) FROM pg_get_index) induse,
+   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
 \echo </div>
@@ -480,6 +481,9 @@ SELECT to_jsonb(r) FROM
 \echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " user schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database.";
 \echo    if (tempNScnt > 0 && obj.clas.f2 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f2).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
 \echo    strfind += tmpfind + "</li>";
+\echo   }
+\echo   if (obj.meta.f1 > 15728640){
+\echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='https://github.com/jobinau/pg_gather/blob/main/docs/catalogbloat.md'> Link<a></li>"
 \echo   }
 \echo  }
 \echo   document.getElementById("finditem").innerHTML += strfind;

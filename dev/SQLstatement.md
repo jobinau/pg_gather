@@ -116,7 +116,9 @@ SELECT to_jsonb(r) FROM
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
 
-  (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid
+  (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid,
+  -- Catalog metadata size and number of objects
+  (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 ```
 
