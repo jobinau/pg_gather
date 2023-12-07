@@ -2,10 +2,10 @@
 \echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <style>
-\echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;}
+\echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;} 
 \echo th {background-color: #d2f2ff;cursor: pointer; }
-\echo tr:nth-child(even) {background-color: #eef8ff}
-\echo tr:hover { background-color: #FFFFCA}
+\echo tr:nth-child(even) {background-color: #eef8ff} 
+\echo a:hover,tr:hover { background-color: #EBFFDA}
 \echo h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
 \echo caption { font-size: larger }
 \echo ol { width: fit-content;}
@@ -13,8 +13,7 @@
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:0 9px 4px 0 }
-\echo .thidden tr td:nth-child(2), .thidden th:nth-child(2) {display: none;}
-\echo .thidden tr td:first-child {color:blue;}
+\echo .thidden tr { *:nth-child(2) {display: none} td:first-child {color:blue}}
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
 \echo #dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
@@ -102,7 +101,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <li><a href="#indexes">Indexes</a></li>
 \echo <li><a href="#parameters">Parameters / Settings</a></li>
 \echo <li><a href="#extensions">Extensions</a></li>
-\echo <li><a href="#activiy">Connection Summary</a></li>
+\echo <li><a href="#activiy">Connection & Users</a></li>
 \echo <li><a href="#time">Database Time</a></li>
 \echo <li><a href="#sess">Session Details</a></li>
 \echo <li><a href="#statements">Top Statements</a></li>
@@ -118,7 +117,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <li><a href="#indexes">Indexes</a></li>
 \echo     <li><a href="#parameters">Parameters / Settings</a></li>
 \echo     <li><a href="#extensions">Extensions</a></li>
-\echo     <li><a href="#activiy">Connection Summary</a></li>
+\echo     <li><a href="#activiy">Connection & Users</a></li>
 \echo     <li><a href="#time">Database Time</a></li>
 \echo     <li><a href="#sess">Session Details</a></li>
 \echo     <li><a href="#statements">Top Statements</a></li>
@@ -179,14 +178,38 @@ FROM fset LEFT JOIN dset ON fset.name = dset.name;
 \pset tableattr
 \echo <h2 id="extensions">Extensions</h2>
 \pset tableattr 'id="tblextn"'
-SELECT ext.oid,extname,rolname as owner,extnamespace,extrelocatable,extversion FROM pg_get_extension ext
-JOIN pg_get_roles on extowner=pg_get_roles.oid; 
-\echo <h2 id="activiy">Connection Summary</h2>
+SELECT ext.oid,extname "Extension",rolname "Owner",nsname "Schema", extrelocatable "Relocatable?",extversion "Version" 
+FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
+LEFT JOIN pg_get_ns ON extnamespace = nsoid;
+
+\echo <h2 id="activiy" >Connection & Users</h2>
 \pset footer off
-\pset tableattr 'id="tblcs"'
- SELECT d.datname,state,COUNT(pid) 
+\pset tableattr 'id="tblcs" class="lineblk"'
+ SELECT d.datname "Database",state ,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
-    WHERE state is not null GROUP BY 1,2 ORDER BY 1; 
+    WHERE state is not null GROUP BY 1,2 ORDER BY 1;
+\pset tableattr 'id="tblusr" class="thidden"'
+WITH rol_db AS (SELECT 
+rolname,datname,count(*) FILTER (WHERE state='active') as active,
+count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
+count(*) FILTER (WHERE state='idle') as idle,
+count(*) as totalcons,
+count (*) FILTER (WHERE ssl = true) as sslcons,
+count (*) FILTER (WHERE ssl = false) as nonsslcons
+FROM pg_get_activity 
+  join pg_get_roles on usesysid=pg_get_roles.oid
+  join pg_get_db on pg_get_activity.datid = pg_get_db.datid
+GROUP BY 1,2
+ORDER BY 1,2),
+rol AS (SELECT rolname,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "TotalCons",sum(sslcons) "SSLCons",sum(nonsslcons) "NonSSLCons"
+FROM rol_db GROUP BY 1)
+SELECT pg_get_roles.rolname "User",
+(SELECT json_agg(ROW(datname,active,idle_in_transaction,idle,totalcons,totalcons,nonsslcons)) FROM rol_db WHERE rol_db.rolname = pg_get_roles.rolname),
+rolsuper "Super?",rolreplication "Repl?", CASE WHEN rolconnlimit > -1 THEN rolconnlimit ELSE NULL END  "Limit", 
+CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
+"Active","IdleInTrans","Idle","TotalCons","SSLCons","NonSSLCons"
+FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
+
 \echo <h2 id="time">Database time</h2>
 \pset tableattr 'id="tableConten" name="waits"'
 \C 'Wait Events and CPU info.'
@@ -413,7 +436,6 @@ SELECT to_jsonb(r) FROM
 \echo checkfindings();
 \echo });
 \echo window.onload = function() {
-\echo   ["tabInfo","IndInfo","params","sections"].forEach(function(t) {document.getElementById(t).style="display:table";})
 \echo   document.getElementById("sections").style="display:table";
 \echo   document.getElementById("busy").style="display:none";
 \echo };
