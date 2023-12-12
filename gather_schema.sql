@@ -53,7 +53,8 @@ CREATE UNLOGGED TABLE pg_gather (
 
 CREATE UNLOGGED TABLE pg_gather_end (
     end_ts timestamp with time zone,
-    end_lsn pg_lsn
+    end_lsn pg_lsn,
+    stmnt char
 );
 
 CREATE UNLOGGED TABLE pg_get_activity (
