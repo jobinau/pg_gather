@@ -2,21 +2,22 @@
 \echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <style>
+\echo #finditem,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;} 
 \echo th {background-color: #d2f2ff;cursor: pointer; }
 \echo tr:nth-child(even) {background-color: #eef8ff} 
 \echo a:hover,tr:hover { background-color: #EBFFDA}
-\echo h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
-\echo caption { font-size: larger }
+\echo /* h2 { scroll-margin-left: 2em;} keep the scroll left
+\echo caption { font-size: larger } */
 \echo ol { width: fit-content;}
 \echo .warn { font-weight:bold; background-color: #FBA }
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold;background-color: #FFD}
-\echo .lineblk {float: left; margin:0 9px 4px 0 }
-\echo .thidden tr { *:nth-child(2) {display: none} td:first-child {color:blue}}
+\echo .lineblk {float: left; margin:2em }
+\echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
+\echo #dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -53,6 +54,7 @@ FROM pg_gather LEFT JOIN TZ ON TRUE
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
+\C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather),
   wal_stat AS (SELECT stats_reset FROM pg_get_wal)
 SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(pg_get_db.stats_reset,'YYYY-MM-DD HH24-MI-SS')))
@@ -97,40 +99,37 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo </div>
 \echo <h2 id="topics">Sections</h2>
 \echo <ol>
-\echo <li><a href="#tables">Tables</a></li>
-\echo <li><a href="#indexes">Indexes</a></li>
-\echo <li><a href="#parameters">Parameters / Settings</a></li>
-\echo <li><a href="#extensions">Extensions</a></li>
-\echo <li><a href="#activiy">Connection & Users</a></li>
-\echo <li><a href="#time">Database Time</a></li>
-\echo <li><a href="#sess">Session Details</a></li>
-\echo <li><a href="#statements">Top Statements</a></li>
-\echo <li><a href="#replstat">Replications</a></li>
-\echo <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
-\echo <li><a href="#findings">Findings</a></li>
+\echo <li><a href="#tabInfo">Tables</a></li>
+\echo <li><a href="#IndInfo">Indexes</a></li>
+\echo <li><a href="#params">Parameters / Settings</a></li>
+\echo <li><a href="#tblextn">Extensions</a></li>
+\echo <li><a href="#tblcs">Connection & Users</a></li>
+\echo <li><a href="#tableConten">Database Time</a></li>
+\echo <li><a href="#tblsess">Session Details</a></li>
+\echo <li><a href="#tblstmnt">Top Statements</a></li>
+\echo <li><a href="#tblreplstat">Replications</a></li>
+\echo <li><a href="#tblchkpnt" >BGWriter & Checkpointer</a></li>
+\echo <li><a href="#finditem">Findings</a></li>
 \echo </ol>
 \echo <div id="bottommenu">
 \echo  <a href="#topics" title="Sections">☰ Section Index (Alt+I)</a>
 \echo  <div id="menu" style="display:none; position: relative">
 \echo   <ol>
-\echo     <li><a href="#tables">Tables</a></li>
-\echo     <li><a href="#indexes">Indexes</a></li>
-\echo     <li><a href="#parameters">Parameters / Settings</a></li>
-\echo     <li><a href="#extensions">Extensions</a></li>
-\echo     <li><a href="#activiy">Connection & Users</a></li>
-\echo     <li><a href="#time">Database Time</a></li>
-\echo     <li><a href="#sess">Session Details</a></li>
-\echo     <li><a href="#statements">Top Statements</a></li>
-\echo     <li><a href="#replstat">Replications</a></li>
-\echo     <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
-\echo     <li><a href="#findings">Findings</a></li>
+\echo     <li><a href="#tabInfo">Tables</a></li>
+\echo     <li><a href="#IndInfo">Indexes</a></li>
+\echo     <li><a href="#params">Parameters / Settings</a></li>
+\echo     <li><a href="#tblextn">Extensions</a></li>
+\echo     <li><a href="#tblcs">Connection & Users</a></li>
+\echo     <li><a href="#tableConten">Database Time</a></li>
+\echo     <li><a href="#tblsess">Session Details</a></li>
+\echo     <li><a href="#tblstmnt">Top Statements</a></li>
+\echo     <li><a href="#tblreplstat">Replications</a></li>
+\echo     <li><a href="#tblchkpnt" >BGWriter & Checkpointer</a></li>
+\echo     <li><a href="#finditem">Findings</a></li>
 \echo   </ol>
 \echo  </div>
 \echo </div>
 \echo <div id="sections" style="display:none">
-\echo <h2 id="tables">Tables</h2>
-\echo <p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
-\echo Objects other than tables will be marked with their relkind in brackets</p>
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
@@ -147,15 +146,14 @@ LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan,indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000; 
-\echo <h2 id="indexes">Indexes</h2>
+
 \pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%"
   FROM pg_get_index i 
   JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 ORDER BY size DESC LIMIT 10000;
-\pset tableattr 
-\echo <h2 id="parameters">Parameters & settings</h2>
+
 \pset tableattr 'id="params"'
 WITH dset AS (
 SELECT string_agg(setting,chr(10)) setting,a.name FROM
@@ -174,20 +172,20 @@ FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower
 GROUP BY 1,2,3,4 ORDER BY 1)
 SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Current Source",
 CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.loc IS NULL THEN '' ELSE fset.loc END AS "Other Locations & Values"
-FROM fset LEFT JOIN dset ON fset.name = dset.name; 
-\pset tableattr
-\echo <h2 id="extensions">Extensions</h2>
+FROM fset LEFT JOIN dset ON fset.name = dset.name;
+
 \pset tableattr 'id="tblextn"'
 SELECT ext.oid,extname "Extension",rolname "Owner",nsname "Schema", extrelocatable "Relocatable?",extversion "Version" 
 FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
-\echo <h2 id="activiy" >Connection & Users</h2>
 \pset footer off
 \pset tableattr 'id="tblcs" class="lineblk"'
+\C 'DBConnections'
  SELECT d.datname "Database",state ,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1;
+
 \pset tableattr 'id="tblusr" class="thidden"'
 WITH rol_db AS (SELECT 
 rolname,datname,count(*) FILTER (WHERE state='active') as active,
@@ -204,23 +202,20 @@ ORDER BY 1,2),
 rol AS (SELECT rolname,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "TotalCons",sum(sslcons) "SSLCons",sum(nonsslcons) "NonSSLCons"
 FROM rol_db GROUP BY 1)
 SELECT pg_get_roles.rolname "User",
-(SELECT json_agg(ROW(datname,active,idle_in_transaction,idle,totalcons,totalcons,nonsslcons)) FROM rol_db WHERE rol_db.rolname = pg_get_roles.rolname),
+(SELECT json_agg(ROW(datname,active,idle_in_transaction,idle,totalcons,sslcons,nonsslcons)) FROM rol_db WHERE rol_db.rolname = pg_get_roles.rolname),
 rolsuper "Super?",rolreplication "Repl?", CASE WHEN rolconnlimit > -1 THEN rolconnlimit ELSE NULL END  "Limit", 
 CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
 "Active","IdleInTrans","Idle","TotalCons","SSLCons","NonSSLCons"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
-\echo <h2 id="time">Database time</h2>
-\pset tableattr 'id="tableConten" name="waits"'
-\C 'Wait Events and CPU info.'
+\pset tableattr 'id="tableConten" name="waits" style="clear: left"'
+\C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
 GROUP BY 1 ORDER BY count(*) DESC;
-\C
 
-\echo <a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
-\echo <h2 id="sess" style="clear: both">Session Details</h2>
 \pset tableattr 'id="tblsess" class="thidden"' 
+\C 'Sessions'
 SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
@@ -241,7 +236,7 @@ SELECT * FROM (
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
 WHERE waits IS NOT NULL OR state != 'idle';
-\echo <h2 id="statements" style="clear: both">Top Statements</h2>
+
 \pset tableattr 'id="tblstmnt"'
 \C 'Top Statements'
 SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::bigint/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
@@ -258,8 +253,7 @@ temp_blks_written/calls "Avg.Temp(w)"
 ,100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
 from pg_get_statements) AS stmnts
 WHERE tottrank < 10 OR avgtrank < 10 ;
-\C 
-\echo <h2 id="replstat" style="clear: both">Replication Status</h2>
+
 \pset tableattr 'id="tblreplstat"'
 WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
   g AS (SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
@@ -274,7 +268,6 @@ FROM pg_replication_stat JOIN M ON TRUE
   LEFT JOIN g ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
 
-\echo <h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
 \pset tableattr 'id="tblchkpnt"'
 \C 'Analysis of Background writer and Checkpointer Process'
 SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
@@ -291,8 +284,8 @@ round(buffers_alloc::numeric/total_buffers,3)  "New buffers ratio",
 round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
 round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
 round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
-round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs (**1)",
-coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit (**2)",
+round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs",
+coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit",
 round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
@@ -303,9 +296,8 @@ CROSS JOIN
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
-\echo <p>**1 Percentage of bgwriter runs results in a halt, **2 Percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
-\echo <h2 id="findings" >Findings</h2>
 \echo <ol id="finditem" style="padding:2em;position:relative">
+\echo <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
 \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
@@ -430,6 +422,7 @@ SELECT to_jsonb(r) FROM
 \echo checkindex();
 \echo checkdbs();
 \echo checkextn();
+\echo checkusers();
 \echo checksess();
 \echo checkstmnts();
 \echo checkchkpntbgwrtr();
@@ -517,6 +510,7 @@ SELECT to_jsonb(r) FROM
 \echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
 \echo   tblcs=document.getElementById("tblcs");
 \echo   tblcs.appendChild(el);
+\echo   tblcs.caption.innerHTML=''''<span>DB Connections</span>'''';
 \echo }
 \echo document.getElementById("cpus").addEventListener("change", (event) => {
 \echo   totCPU = event.target.value;
@@ -680,7 +674,9 @@ SELECT to_jsonb(r) FROM
 \echo    }
 \echo }
 \echo function checkpars(){
-\echo   trs=document.getElementById("params").rows
+\echo   tab=document.getElementById("params")
+\echo   tab.caption.innerHTML="<span>Parameters</span>"
+\echo   trs=tab.rows
 \echo   if (document.getElementById("params").rows.length > 1)
 \echo     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]); 
 \echo   else  strfind += "<li><b>Partial Data Collection</b></li>"
@@ -690,6 +686,8 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo function checktabs(){
 \echo   const startTime =new Date().getTime();
+\echo   tab=document.getElementById("tabInfo")
+\echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
 \echo   trs[0].cells[2].title="Namespace / Schema oid";trs[0].cells[3].title="Bloat in Percentage";trs[0].cells[4].title="Live Rows/Tuples";trs[0].cells[5].title="Dead Rows/Tuples";
@@ -759,7 +757,9 @@ SELECT to_jsonb(r) FROM
 \echo   if (strtmp != "") strfind += "<li>High temp file generation : <b>" + strtmp + "</b></li>"; 
 \echo }
 \echo function checkextn(){
-\echo   const trs=document.getElementById("tblextn").rows
+\echo   const tab=document.getElementById("tblextn");
+\echo   tab.caption.innerHTML="<span>Extensions</span> in '" + obj.dbts.f1 + "' DB" 
+\echo   const trs=tab.rows
 \echo   const len=trs.length;
 \echo   let riskyExtn=[];
 \echo   for(var i=1;i<len;i++){
@@ -767,6 +767,10 @@ SELECT to_jsonb(r) FROM
 \echo     if (meta.riskyExtn.includes(tr.cells[1].innerHTML)){ tr.cells[1].classList.add("warn"); tr.cells[1].title = "Risky to use in mission critical systems without support aggrement. Crashes are reported" ; }
 \echo     else if (!meta.commonExtn.includes(tr.cells[1].innerHTML)) tr.cells[1].classList.add("lime");
 \echo   }
+\echo }
+\echo function checkusers(){
+\echo   tab=document.getElementById("tblusr");
+\echo   tab.caption.innerHTML="<span>Users/Roles</span>  and connections"
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
@@ -820,6 +824,15 @@ SELECT to_jsonb(r) FROM
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
 \echo }
+\echo function userdtls(tr){
+\echo if(tr.cells[1].innerText.length > 2){
+\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b>Per DB connections</b><br>";
+\echo   for(i=0;i<o.length;i++){
+\echo     str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
+\echo   }
+\echo   return str
+\echo } else return "No connections"
+\echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
 \echo   th=td.parentNode;
 \echo   tab=th.closest("table");
@@ -829,6 +842,7 @@ SELECT to_jsonb(r) FROM
 \echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
 \echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
 \echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(th);
+\echo   if(tab.id=="tblusr") el.innerHTML=userdtls(th);
 \echo   th.cells[2].appendChild(el);
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
@@ -851,7 +865,9 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo })));
 \echo function checkindex(){
-\echo trs=document.getElementById("IndInfo").rows;
+\echo tab=document.getElementById("IndInfo")
+\echo tab.caption.innerHTML="<span>Indexes</span> in '" + obj.dbts.f1 + "' DB" 
+\echo trs=tab.rows;
 \echo for (let tr of trs) {
 \echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
 \echo   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
@@ -866,7 +882,9 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo }
 \echo }
-\echo trs=document.getElementById("tableConten").rows;
+\echo tab=document.getElementById("tableConten")
+\echo tab.caption.innerHTML=''''<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Reference</a>)''''
+\echo trs=tab.rows;
 \echo if (trs.length > 1){ 
 \echo   maxevnt=Number(trs[1].cells[1].innerText);
 \echo   for (let tr of trs) {
@@ -874,11 +892,12 @@ SELECT to_jsonb(r) FROM
 \echo   if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">''''
 \echo   }
 \echo }else {
-\echo   document.getElementById("tableConten").remove();
-\echo   document.getElementById("time").innerText="Database wait events are not found"  
+\echo   tab.tBodies[0].innerHTML="No Wait Event information or CPU usage information is available, Probably the PostgreSQL is completely idle or data collection failed"
 \echo }
 \echo function checksess(){
-\echo trs=document.getElementById("tblsess").rows;
+\echo tab=document.getElementById("tblsess")
+\echo tab.caption.innerHTML=''''<span>Sessions</span>''''
+\echo trs=tab.rows;
 \echo for (let tr of trs){
 \echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
@@ -893,14 +912,14 @@ SELECT to_jsonb(r) FROM
 \echo }}
 \echo function checkstmnts(){
 \echo let tab= document.getElementById("tblstmnt");
-\echo if(tab.rows.length < 2){ tab.remove();
-\echo   document.getElementById("statements").innerText="pg_stat_statements info is not available"
-\echo }else{
+\echo tab.caption.innerHTML = "<span>Top Statements</span>"
+\echo if(tab.rows.length < 2) 
+\echo  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found"
+\echo else{
 \echo  trs=tab.rows;
-\echo  let titles = ["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
-\echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]
-\echo  for (i=0;i<titles.length;i++) trs[0].cells[i].title= titles[i];
-\echo  for (let tr of trs){
+\echo  setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
+\echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]);
+\echo   for (let tr of trs){
 \echo  sql=tr.cells[1];
 \echo  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
 \echo  let cel=tr.cells[6];
@@ -910,8 +929,16 @@ SELECT to_jsonb(r) FROM
 \echo  cel=tr.cells[10];
 \echo  if (cel.innerText > 12800) cel.classList.add("lime");
 \echo }}}
+\echo function setTitles(tr,tiltes){
+\echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
+\echo }
 \echo function checkchkpntbgwrtr(){
-\echo trs=document.getElementById("tblchkpnt").rows;
+\echo tab=document.getElementById("tblchkpnt")
+\echo tab.caption.innerHTML=''''<span>BGWriter & Checkpointer</span>''''
+\echo trs=tab.rows;
+\echo setTitles(trs[0],["Forced Checkpoint; Checkpoint triggered by xlog/wal; Need to adjust the max_wal_size","Average Minutes between Checkpoints","Average Write time of a checkpoint",
+\echo "Average Disk sync time of a checkpoint","","","","","","","","Dirty buffers cleaned by Checkpointer","Dirty buffers cleaned by BGWriter","Dirty buffers cleaned by Session backends",
+\echo "Percentage of bgwriter runs results in a halt","Percentage of bgwriter halts are due to hitting on bgwriter_lru_maxpages limit","Number of days before stats have been reset"]);
 \echo if (trs.length > 1){
 \echo   tr=trs[1]
 \echo   if (tr.cells[0].innerText > 10){
@@ -950,6 +977,7 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo }}
 \echo tab=document.getElementById("tblreplstat")
+\echo tab.caption.innerHTML="<span>Replication</span>"
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i];
@@ -968,9 +996,7 @@ SELECT to_jsonb(r) FROM
 \echo     }
 \echo   }
 \echo }else{
-\echo   tab.remove()
-\echo   h2=document.getElementById("replstat")
-\echo   h2.innerText="No Replication found"
+\echo   tab.tBodies[0].innerHTML="No Replication data found"
 \echo }
 \echo document.onkeyup = function(e) {
 \echo   if (e.altKey && e.which === 73) document.getElementById("topics").scrollIntoView({behavior: "smooth"});

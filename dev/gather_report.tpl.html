@@ -2,21 +2,22 @@
 <!DOCTYPE html>
 <html><meta charset="utf-8" />
 <style>
+#finditem,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
 table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;} 
 th {background-color: #d2f2ff;cursor: pointer; }
 tr:nth-child(even) {background-color: #eef8ff} 
 a:hover,tr:hover { background-color: #EBFFDA}
-h2 { scroll-margin-left: 2em;} /*keep the scroll left*/
-caption { font-size: larger }
+/* h2 { scroll-margin-left: 2em;} keep the scroll left
+caption { font-size: larger } */
 ol { width: fit-content;}
 .warn { font-weight:bold; background-color: #FBA }
 .high { border: 5px solid red;font-weight:bold}
 .lime { font-weight:bold;background-color: #FFD}
-.lineblk {float: left; margin:0 9px 4px 0 }
-.thidden tr { *:nth-child(2) {display: none} td:first-child {color:blue}}
+.lineblk {float: left; margin:2em }
+.thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-#dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em; box-shadow: 2px 2px grey;}
+#dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -53,6 +54,7 @@ FROM pg_gather LEFT JOIN TZ ON TRUE
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
+\C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather),
   wal_stat AS (SELECT stats_reset FROM pg_get_wal)
 SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(pg_get_db.stats_reset,'YYYY-MM-DD HH24-MI-SS')))
@@ -97,40 +99,37 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 </div>
 <h2 id="topics">Sections</h2>
 <ol>
-<li><a href="#tables">Tables</a></li>
-<li><a href="#indexes">Indexes</a></li>
-<li><a href="#parameters">Parameters / Settings</a></li>
-<li><a href="#extensions">Extensions</a></li>
-<li><a href="#activiy">Connection & Users</a></li>
-<li><a href="#time">Database Time</a></li>
-<li><a href="#sess">Session Details</a></li>
-<li><a href="#statements">Top Statements</a></li>
-<li><a href="#replstat">Replications</a></li>
-<li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
-<li><a href="#findings">Findings</a></li>
+<li><a href="#tabInfo">Tables</a></li>
+<li><a href="#IndInfo">Indexes</a></li>
+<li><a href="#params">Parameters / Settings</a></li>
+<li><a href="#tblextn">Extensions</a></li>
+<li><a href="#tblcs">Connection & Users</a></li>
+<li><a href="#tableConten">Database Time</a></li>
+<li><a href="#tblsess">Session Details</a></li>
+<li><a href="#tblstmnt">Top Statements</a></li>
+<li><a href="#tblreplstat">Replications</a></li>
+<li><a href="#tblchkpnt" >BGWriter & Checkpointer</a></li>
+<li><a href="#finditem">Findings</a></li>
 </ol>
 <div id="bottommenu">
  <a href="#topics" title="Sections">☰ Section Index (Alt+I)</a>
  <div id="menu" style="display:none; position: relative">
   <ol>
-    <li><a href="#tables">Tables</a></li>
-    <li><a href="#indexes">Indexes</a></li>
-    <li><a href="#parameters">Parameters / Settings</a></li>
-    <li><a href="#extensions">Extensions</a></li>
-    <li><a href="#activiy">Connection & Users</a></li>
-    <li><a href="#time">Database Time</a></li>
-    <li><a href="#sess">Session Details</a></li>
-    <li><a href="#statements">Top Statements</a></li>
-    <li><a href="#replstat">Replications</a></li>
-    <li><a href="#bgcp" >BGWriter & Checkpointer</a></li>
-    <li><a href="#findings">Findings</a></li>
+    <li><a href="#tabInfo">Tables</a></li>
+    <li><a href="#IndInfo">Indexes</a></li>
+    <li><a href="#params">Parameters / Settings</a></li>
+    <li><a href="#tblextn">Extensions</a></li>
+    <li><a href="#tblcs">Connection & Users</a></li>
+    <li><a href="#tableConten">Database Time</a></li>
+    <li><a href="#tblsess">Session Details</a></li>
+    <li><a href="#tblstmnt">Top Statements</a></li>
+    <li><a href="#tblreplstat">Replications</a></li>
+    <li><a href="#tblchkpnt" >BGWriter & Checkpointer</a></li>
+    <li><a href="#finditem">Findings</a></li>
   </ol>
  </div>
 </div>
 <div id="sections" style="display:none">
-<h2 id="tables">Tables</h2>
-<p><b>NOTE : Rel size</b> is the  main fork size, <b>Tot.Tab size</b> includes all forks and toast, <b>Tab+Ind size</b> is tot_tab_size + all indexes, *Bloat estimates are indicative numbers and they can be inaccurate<br />
-Objects other than tables will be marked with their relkind in brackets</p>
 <% \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
@@ -146,17 +145,16 @@ LEFT JOIN pg_get_class ct ON t.toastid = ct.reloid
 LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan,indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
-ORDER BY r.tab_ind_size DESC LIMIT 10000; %>
-<h2 id="indexes">Indexes</h2>
-<% \pset tableattr 'id="IndInfo"'
+ORDER BY r.tab_ind_size DESC LIMIT 10000; 
+
+\pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%"
   FROM pg_get_index i 
   JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 ORDER BY size DESC LIMIT 10000;
-\pset tableattr %>
-<h2 id="parameters">Parameters & settings</h2>
-<% \pset tableattr 'id="params"'
+
+\pset tableattr 'id="params"'
 WITH dset AS (
 SELECT string_agg(setting,chr(10)) setting,a.name FROM
 (SELECT btrim(CASE WHEN rolname IS NULL THEN '' ELSE 'User: '|| rolname ||' , ' END || CASE WHEN datname IS NULL THEN '' ELSE 'DB: '|| datname END ,' ,') || ' ==> ' ||setting AS setting
@@ -174,20 +172,20 @@ FROM pg_get_confs s FULL OUTER JOIN pg_get_file_confs f ON lower(s.name) = lower
 GROUP BY 1,2,3,4 ORDER BY 1)
 SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Current Source",
 CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.loc IS NULL THEN '' ELSE fset.loc END AS "Other Locations & Values"
-FROM fset LEFT JOIN dset ON fset.name = dset.name; %>
-<% \pset tableattr%>
-<h2 id="extensions">Extensions</h2>
-<% \pset tableattr 'id="tblextn"'
+FROM fset LEFT JOIN dset ON fset.name = dset.name;
+
+\pset tableattr 'id="tblextn"'
 SELECT ext.oid,extname "Extension",rolname "Owner",nsname "Schema", extrelocatable "Relocatable?",extversion "Version" 
 FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
-%>
-<h2 id="activiy" >Connection & Users</h2>
-<% \pset footer off
+
+\pset footer off
 \pset tableattr 'id="tblcs" class="lineblk"'
+\C 'DBConnections'
  SELECT d.datname "Database",state ,COUNT(pid) 
   FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
     WHERE state is not null GROUP BY 1,2 ORDER BY 1;
+
 \pset tableattr 'id="tblusr" class="thidden"'
 WITH rol_db AS (SELECT 
 rolname,datname,count(*) FILTER (WHERE state='active') as active,
@@ -204,23 +202,20 @@ ORDER BY 1,2),
 rol AS (SELECT rolname,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "TotalCons",sum(sslcons) "SSLCons",sum(nonsslcons) "NonSSLCons"
 FROM rol_db GROUP BY 1)
 SELECT pg_get_roles.rolname "User",
-(SELECT json_agg(ROW(datname,active,idle_in_transaction,idle,totalcons,totalcons,nonsslcons)) FROM rol_db WHERE rol_db.rolname = pg_get_roles.rolname),
+(SELECT json_agg(ROW(datname,active,idle_in_transaction,idle,totalcons,sslcons,nonsslcons)) FROM rol_db WHERE rol_db.rolname = pg_get_roles.rolname),
 rolsuper "Super?",rolreplication "Repl?", CASE WHEN rolconnlimit > -1 THEN rolconnlimit ELSE NULL END  "Limit", 
 CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
 "Active","IdleInTrans","Idle","TotalCons","SSLCons","NonSSLCons"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
-%>
-<h2 id="time">Database time</h2>
-<% \pset tableattr 'id="tableConten" name="waits"'
-\C 'Wait Events and CPU info.'
+
+\pset tableattr 'id="tableConten" name="waits" style="clear: left"'
+\C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
 GROUP BY 1 ORDER BY count(*) DESC;
-\C
-%>
-<a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Wait Event Reference</a>
-<h2 id="sess" style="clear: both">Session Details</h2>
-<% \pset tableattr 'id="tblsess" class="thidden"' 
+
+\pset tableattr 'id="tblsess" class="thidden"' 
+\C 'Sessions'
 SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||':'|| cnt,',') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
@@ -240,9 +235,9 @@ SELECT * FROM (
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
-WHERE waits IS NOT NULL OR state != 'idle';%>
-<h2 id="statements" style="clear: both">Top Statements</h2>
-<% \pset tableattr 'id="tblstmnt"'
+WHERE waits IS NOT NULL OR state != 'idle';
+
+\pset tableattr 'id="tblstmnt"'
 \C 'Top Statements'
 SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::bigint/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
 ,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
@@ -258,9 +253,8 @@ temp_blks_written/calls "Avg.Temp(w)"
 ,100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
 from pg_get_statements) AS stmnts
 WHERE tottrank < 10 OR avgtrank < 10 ;
-\C %>
-<h2 id="replstat" style="clear: both">Replication Status</h2>
-<% \pset tableattr 'id="tblreplstat"'
+
+\pset tableattr 'id="tblreplstat"'
 WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
   g AS (SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
 SELECT usename AS "Replication User",client_addr AS "Replica Address",pid,state,
@@ -273,9 +267,8 @@ FROM pg_replication_stat JOIN M ON TRUE
   FULL OUTER JOIN pg_get_slots s ON pid = active_pid
   LEFT JOIN g ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
-%>
-<h2 id="bgcp" style="clear: both">Background Writer and Checkpointer Information</h2>
-<% \pset tableattr 'id="tblchkpnt"'
+
+\pset tableattr 'id="tblchkpnt"'
 \C 'Analysis of Background writer and Checkpointer Process'
 SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
 round(min_since_reset/tot_cp,2) "avg mins between CP",
@@ -291,8 +284,8 @@ round(buffers_alloc::numeric/total_buffers,3)  "New buffers ratio",
 round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
 round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
 round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
-round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs (**1)",
-coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit (**2)",
+round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs",
+coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit",
 round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
@@ -303,9 +296,9 @@ CROSS JOIN
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; %>
-<p>**1 Percentage of bgwriter runs results in a halt, **2 Percentage of bgwriter halts are due to hitting on <code>bgwriter_lru_maxpages</code> limit</p>
-<h2 id="findings" >Findings</h2>
+
 <ol id="finditem" style="padding:2em;position:relative">
+<h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
 <% \pset format aligned
 \pset tuples_only on
 WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
@@ -448,6 +441,7 @@ checktabs();
 checkindex();
 checkdbs();
 checkextn();
+checkusers();
 checksess();
 checkstmnts();
 checkchkpntbgwrtr();
@@ -545,11 +539,12 @@ function checkfindings(){
   dbs=document.getElementById("dbs");
   dbs.appendChild(el);
   
-  //Add footer to Sessions Summary table
+  //Add footer to Conn Summary table
   el=document.createElement("tfoot");
   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
   tblcs=document.getElementById("tblcs");
   tblcs.appendChild(el);
+  tblcs.caption.innerHTML=''<span>DB Connections</span>'';
 
 }
 
@@ -731,7 +726,9 @@ var evalParam = function(param,rowref = null) {
 
 //Check paramter values going though each in the HTML table
 function checkpars(){
-  trs=document.getElementById("params").rows
+  tab=document.getElementById("params")
+  tab.caption.innerHTML="<span>Parameters</span>"
+  trs=tab.rows
   if (document.getElementById("params").rows.length > 1)
     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]);  //Despatcher function takes name of parameter and row of HTML table as parameters
   else  strfind += "<li><b>Partial Data Collection</b></li>"
@@ -745,6 +742,8 @@ function aged(cell){
 //Check Table Level info
 function checktabs(){
   const startTime =new Date().getTime();
+  tab=document.getElementById("tabInfo")
+  tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
   const trs=document.getElementById("tabInfo").rows
   const len=trs.length;
   trs[0].cells[2].title="Namespace / Schema oid";trs[0].cells[3].title="Bloat in Percentage";trs[0].cells[4].title="Live Rows/Tuples";trs[0].cells[5].title="Dead Rows/Tuples";
@@ -828,7 +827,9 @@ function checkdbs(){
 }
 
 function checkextn(){
-  const trs=document.getElementById("tblextn").rows
+  const tab=document.getElementById("tblextn");
+  tab.caption.innerHTML="<span>Extensions</span> in '" + obj.dbts.f1 + "' DB" 
+  const trs=tab.rows
   const len=trs.length;
   let riskyExtn=[];
   for(var i=1;i<len;i++){
@@ -838,6 +839,11 @@ function checkextn(){
     //else if the extension name is not found in meta.commonExtn, highlight it.
     else if (!meta.commonExtn.includes(tr.cells[1].innerHTML)) tr.cells[1].classList.add("lime");
   }
+}
+
+function checkusers(){
+  tab=document.getElementById("tblusr");
+  tab.caption.innerHTML="<span>Users/Roles</span>  and connections"
 }
 
 //Sort logic
@@ -902,6 +908,16 @@ function sessdtls(th){
   return str;
 }
 
+function userdtls(tr){
+if(tr.cells[1].innerText.length > 2){
+  let o=JSON.parse(tr.cells[1].innerText); let str="<b>Per DB connections</b><br>";
+  for(i=0;i<o.length;i++){
+    str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
+  }
+  return str
+} else return "No connections"
+}
+
 //Every HTML Table with hidden columns
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
   th=td.parentNode;
@@ -912,6 +928,7 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
   if(tab.id=="tblsess") el.innerHTML=sessdtls(th);
+  if(tab.id=="tblusr") el.innerHTML=userdtls(th);
   th.cells[2].appendChild(el);
 })));
 
@@ -962,7 +979,9 @@ document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-chi
 
 //Index analysis
 function checkindex(){
-trs=document.getElementById("IndInfo").rows;
+tab=document.getElementById("IndInfo")
+tab.caption.innerHTML="<span>Indexes</span> in '" + obj.dbts.f1 + "' DB" 
+trs=tab.rows;
 for (let tr of trs) {
   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
@@ -980,7 +999,9 @@ for (let tr of trs) {
 }
 
 //database time draw graph
-trs=document.getElementById("tableConten").rows;
+tab=document.getElementById("tableConten")
+tab.caption.innerHTML=''<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Reference</a>)''
+trs=tab.rows;
 if (trs.length > 1){ 
   maxevnt=Number(trs[1].cells[1].innerText);
   for (let tr of trs) {
@@ -988,14 +1009,15 @@ if (trs.length > 1){
   if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">''
   }
 }else {
-  document.getElementById("tableConten").remove();
-  document.getElementById("time").innerText="Database wait events are not found"  
+  tab.tBodies[0].innerHTML="No Wait Event information or CPU usage information is available, Probably the PostgreSQL is completely idle or data collection failed"
 }
 
 
 //Session information.
 function checksess(){
-trs=document.getElementById("tblsess").rows;
+tab=document.getElementById("tblsess")
+tab.caption.innerHTML=''<span>Sessions</span>''
+trs=tab.rows;
 for (let tr of trs){
  //column references
  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
@@ -1016,14 +1038,14 @@ for (let tr of trs){
 function checkstmnts(){
 //if there is no info from pg_stat_statements
 let tab= document.getElementById("tblstmnt");
-if(tab.rows.length < 2){ tab.remove(); //if there is nothing in the table, remove the table
-  document.getElementById("statements").innerText="pg_stat_statements info is not available"
-}else{
+tab.caption.innerHTML = "<span>Top Statements</span>"
+if(tab.rows.length < 2) 
+ tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found" //if there is nothing in the table, remove the table
+else{
  trs=tab.rows;
- let titles = ["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
- "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]
- for (i=0;i<titles.length;i++) trs[0].cells[i].title= titles[i];
- for (let tr of trs){
+ setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
+ "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]);
+  for (let tr of trs){
  sql=tr.cells[1];
  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
  let cel=tr.cells[6]; //Cache hit column. If cache it is poor highlight accordingly
@@ -1034,9 +1056,18 @@ if(tab.rows.length < 2){ tab.remove(); //if there is nothing in the table, remov
  if (cel.innerText > 12800) cel.classList.add("lime");
 }}}
 
+function setTitles(tr,tiltes){
+  for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
+}
+
 //Checkpointer and bgwriter info
 function checkchkpntbgwrtr(){
-trs=document.getElementById("tblchkpnt").rows;
+tab=document.getElementById("tblchkpnt")
+tab.caption.innerHTML=''<span>BGWriter & Checkpointer</span>''
+trs=tab.rows;
+setTitles(trs[0],["Forced Checkpoint; Checkpoint triggered by xlog/wal; Need to adjust the max_wal_size","Average Minutes between Checkpoints","Average Write time of a checkpoint",
+"Average Disk sync time of a checkpoint","","","","","","","","Dirty buffers cleaned by Checkpointer","Dirty buffers cleaned by BGWriter","Dirty buffers cleaned by Session backends",
+"Percentage of bgwriter runs results in a halt","Percentage of bgwriter halts are due to hitting on bgwriter_lru_maxpages limit","Number of days before stats have been reset"]);
 if (trs.length > 1){
   tr=trs[1]
   if (tr.cells[0].innerText > 10){
@@ -1077,6 +1108,7 @@ if (trs.length > 1){
 
 //Check Replication status
 tab=document.getElementById("tblreplstat")
+tab.caption.innerHTML="<span>Replication</span>"
 if (tab.rows.length > 1){
   for(var i=1;i<tab.rows.length;i++){
     row=tab.rows[i];
@@ -1097,9 +1129,7 @@ if (tab.rows.length > 1){
     }
   }
 }else{
-  tab.remove()
-  h2=document.getElementById("replstat")
-  h2.innerText="No Replication found"
+  tab.tBodies[0].innerHTML="No Replication data found"
 }
 
 
