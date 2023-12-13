@@ -180,11 +180,25 @@ FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
 \pset footer off
-\pset tableattr 'id="tblcs" class="lineblk"'
-\C 'DBConnections'
- SELECT d.datname "Database",state ,COUNT(pid) 
-  FROM pg_get_activity a LEFT JOIN pg_get_db d on a.datid = d.datid
-    WHERE state is not null GROUP BY 1,2 ORDER BY 1;
+\pset tableattr 'id="tblcs" class="lineblk thidden"'
+WITH db_role AS (SELECT 
+pg_get_activity.datid,rolname,count(*) FILTER (WHERE state='active') as active,
+count(*) FILTER (WHERE state='idle in transaction') as idle_in_transaction,
+count(*) FILTER (WHERE state='idle') as idle,
+count(*) as totalcons,
+count (*) FILTER (WHERE ssl = true) as sslcons,
+count (*) FILTER (WHERE ssl = false) as nonsslcons
+FROM pg_get_activity 
+  join pg_get_roles on usesysid=pg_get_roles.oid
+  join pg_get_db on pg_get_activity.datid = pg_get_db.datid
+GROUP BY 1,2
+ORDER BY 1,2),
+db AS (SELECT datid,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "Total",sum(sslcons) "SSL",sum(nonsslcons) "NonSSL"
+FROM db_role GROUP BY 1)
+SELECT pg_get_db.datname "Database",
+(SELECT json_agg(ROW(rolname,active,idle_in_transaction,idle,totalcons,sslcons,nonsslcons)) FROM db_role WHERE db_role.datid = pg_get_db.datid),
+"Active","IdleInTrans","Idle","Total","SSL","NonSSL"
+FROM pg_get_db LEFT JOIN db ON pg_get_db.datid = db.datid;
 
 \pset tableattr 'id="tblusr" class="thidden"'
 WITH rol_db AS (SELECT 
@@ -199,13 +213,13 @@ FROM pg_get_activity
   join pg_get_db on pg_get_activity.datid = pg_get_db.datid
 GROUP BY 1,2
 ORDER BY 1,2),
-rol AS (SELECT rolname,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "TotalCons",sum(sslcons) "SSLCons",sum(nonsslcons) "NonSSLCons"
+rol AS (SELECT rolname,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "Total",sum(sslcons) "SSL",sum(nonsslcons) "NonSSL"
 FROM rol_db GROUP BY 1)
 SELECT pg_get_roles.rolname "User",
 (SELECT json_agg(ROW(datname,active,idle_in_transaction,idle,totalcons,sslcons,nonsslcons)) FROM rol_db WHERE rol_db.rolname = pg_get_roles.rolname),
 rolsuper "Super?",rolreplication "Repl?", CASE WHEN rolconnlimit > -1 THEN rolconnlimit ELSE NULL END  "Limit", 
 CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
-"Active","IdleInTrans","Idle","TotalCons","SSLCons","NonSSLCons"
+"Active","IdleInTrans","Idle","Total","SSL","NonSSL"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
 \pset tableattr 'id="tableConten" name="waits" style="clear: left"'
@@ -507,7 +521,7 @@ SELECT to_jsonb(r) FROM
 \echo   dbs=document.getElementById("dbs");
 \echo   dbs.appendChild(el);
 \echo   el=document.createElement("tfoot");
-\echo   el.innerHTML = "<th colspan='3'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
+\echo   el.innerHTML = "<th colspan='7'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
 \echo   tblcs=document.getElementById("tblcs");
 \echo   tblcs.appendChild(el);
 \echo   tblcs.caption.innerHTML=''''<span>DB Connections</span>'''';
@@ -833,17 +847,27 @@ SELECT to_jsonb(r) FROM
 \echo   return str
 \echo } else return "No connections"
 \echo }
+\echo function dbcons(tr){
+\echo if(tr.cells[1].innerText.length > 2){
+\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b>Per User connections</b><br>";
+\echo   for(i=0;i<o.length;i++){
+\echo     str += (i+1).toString() + ". User:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
+\echo   }
+\echo   return str
+\echo } else return "No connections"
+\echo }
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
-\echo   th=td.parentNode;
-\echo   tab=th.closest("table");
+\echo   tr=td.parentNode;
+\echo   tab=tr.closest("table");
 \echo   var el=document.createElement("div");
 \echo   el.setAttribute("id", "dtls");
 \echo   el.setAttribute("align","left");
-\echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(th);
-\echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(th);
-\echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(th);
-\echo   if(tab.id=="tblusr") el.innerHTML=userdtls(th);
-\echo   th.cells[2].appendChild(el);
+\echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
+\echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
+\echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
+\echo   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
+\echo   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
+\echo   tr.cells[2].appendChild(el);
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
