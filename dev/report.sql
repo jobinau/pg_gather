@@ -47,9 +47,10 @@ SELECT * FROM
     THEN (SELECT set_config('timezone',setting,false) FROM pg_get_confs WHERE name='log_timezone')
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'PG Start','In recovery?','Client','Server','Last Reload','Current LSN','Time Line','WAL file']) AS pg_gather,
-        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text,
-        current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16)]) AS "Report"
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Current LSN','Time Line','WAL file','System']) AS pg_gather,
+        UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
+        current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
+        'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')']) AS "Report"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
