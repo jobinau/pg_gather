@@ -175,12 +175,23 @@ SELECT fset.name "Name",fset.setting "Setting",fset.unit "Unit",fset.source "Cur
 CASE WHEN dset.setting IS NULL THEN '' ELSE dset.setting ||chr(10) END || CASE WHEN fset.loc IS NULL THEN '' ELSE fset.loc END AS "Other Locations & Values"
 FROM fset LEFT JOIN dset ON fset.name = dset.name;
 
+\pset footer off
 \pset tableattr 'id="tblextn"'
 SELECT ext.oid,extname "Extension",rolname "Owner",nsname "Schema", extrelocatable "Relocatable?",extversion "Version" 
 FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
-\pset footer off
+\pset tableattr 'id="tblhba"'
+WITH cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
+ sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) "CIDR Mask"
+FROM pg_get_hba_rules
+LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
+  ON family(addr::inet) = 4
+LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
+GROUP BY 1)
+SELECT hba.seq "Line",typ "Type",db "DB",usr "USER",addr "Address", "CIDR Mask", mask "DDN/Binary Mask", 'IPv'||family(addr::inet) "IP",method "Method", err
+FROM cidr JOIN pg_get_hba_rules hba ON cidr.seq = hba.seq;
+
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
 pg_get_activity.datid,rolname,count(*) FILTER (WHERE state='active') as active,
@@ -190,8 +201,8 @@ count(*) as totalcons,
 count (*) FILTER (WHERE ssl = true) as sslcons,
 count (*) FILTER (WHERE ssl = false) as nonsslcons
 FROM pg_get_activity 
-  join pg_get_roles on usesysid=pg_get_roles.oid
-  join pg_get_db on pg_get_activity.datid = pg_get_db.datid
+  LEFT JOIN pg_get_roles on usesysid=pg_get_roles.oid
+  LEFT JOIN pg_get_db on pg_get_activity.datid = pg_get_db.datid
 GROUP BY 1,2
 ORDER BY 1,2),
 db AS (SELECT datid,sum(active) "Active",sum(idle_in_transaction) "IdleInTrans",sum(idle) "Idle",sum(totalcons) "Total",sum(sslcons) "SSL",sum(nonsslcons) "NonSSL"
