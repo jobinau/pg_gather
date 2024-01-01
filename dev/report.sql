@@ -104,6 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <li><a href="#IndInfo">Indexes</a></li>
 \echo <li><a href="#params">Parameters / Settings</a></li>
 \echo <li><a href="#tblextn">Extensions</a></li>
+\echo <li><a href="#tblhba">Security-HBA rules</a>
 \echo <li><a href="#tblcs">Connection & Users</a></li>
 \echo <li><a href="#tableConten">Database Time</a></li>
 \echo <li><a href="#tblsess">Session Details</a></li>
@@ -120,6 +121,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <li><a href="#IndInfo">Indexes</a></li>
 \echo     <li><a href="#params">Parameters / Settings</a></li>
 \echo     <li><a href="#tblextn">Extensions</a></li>
+\echo     <li><a href="#tblhba">Security-HBA rules</a>
 \echo     <li><a href="#tblcs">Connection & Users</a></li>
 \echo     <li><a href="#tableConten">Database Time</a></li>
 \echo     <li><a href="#tblsess">Session Details</a></li>
@@ -448,6 +450,8 @@ SELECT to_jsonb(r) FROM
 \echo checkindex();
 \echo checkdbs();
 \echo checkextn();
+\echo checkhba();
+\echo checkconns();
 \echo checkusers();
 \echo checksess();
 \echo checkstmnts();
@@ -532,11 +536,26 @@ SELECT to_jsonb(r) FROM
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
 \echo   dbs=document.getElementById("dbs");
 \echo   dbs.appendChild(el);
-\echo   el=document.createElement("tfoot");
+\echo }
+\echo function checkconns(){
+\echo   tab=document.getElementById("tblcs");
+\echo   tab.caption.innerHTML=''''<span>DB Connections</span>'''';
+\echo   const trs=tab.rows
+\echo   let nonssl=0;
+\echo   for (var i=1;i<trs.length;i++){
+\echo     tr=trs[i];
+\echo     if (tr.cells[7].innerText > 0) nonssl += parseInt(tr.cells[7].innerText);
+\echo     console.log(tr.cells[5].innerText);
+\echo     if (tr.cells[5].innerText > 20 && tr.cells[7].innerText/tr.cells[5].innerText > 0.5 ){
+\echo       tr.cells[7].classList.add("warn");
+\echo       tr.cells[7].title="Large precentage of unencrypted connections"
+\echo     }
+\echo   }
+\echo   console.log("Non SSL Connections" + nonssl);
+\echo   if (nonssl > 10) strfind += "<li>Number of unencrypted connections : <b>"+ nonssl +"</b></li>"
+\echo   el=document.createElement("tfoot"); 
 \echo   el.innerHTML = "<th colspan='7'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
-\echo   tblcs=document.getElementById("tblcs");
-\echo   tblcs.appendChild(el);
-\echo   tblcs.caption.innerHTML=''''<span>DB Connections</span>'''';
+\echo   tab.appendChild(el);
 \echo }
 \echo document.getElementById("cpus").addEventListener("change", (event) => {
 \echo   totCPU = event.target.value;
@@ -797,6 +816,43 @@ SELECT to_jsonb(r) FROM
 \echo function checkusers(){
 \echo   tab=document.getElementById("tblusr");
 \echo   tab.caption.innerHTML="<span>Users/Roles</span>  and connections"
+\echo   const trs=tab.rows
+\echo   let supr=0;
+\echo   for (var i=1;i<trs.length;i++){
+\echo     tr=trs[i];
+\echo     if(tr.cells[2].innerText == "t"){
+\echo       tr.cells[2].classList.add("lime");
+\echo       tr.cells[2].title =  "Super User"
+\echo       supr++;
+\echo     }
+\echo     if(tr.cells[5].innerText == "MD5"){
+\echo       tr.cells[5].classList.add("warn");
+\echo       tr.cells[5].title="Consider switching to SCRAM for better security whever possible"
+\echo     }
+\echo   }
+\echo   if (supr > 2 ) strfind += "<li>There are <b>" + supr + " Super user accounts</b>, consider this from the security standpoint</li>"
+\echo }
+\echo function checkhba(){
+\echo   tab=document.getElementById("tblhba");
+\echo   tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
+\echo   const trs=tab.rows
+\echo   for (var i=1;i<trs.length;i++){
+\echo     tr=trs[i];
+\echo     if (!["::1","127.0.0.1",""].includes(tr.cells[4].innerText.trim())){
+\echo       if(tr.cells[7].innerText == "IPv4"){
+\echo         if(tr.cells[5].innerText < 24){ 
+\echo           tr.cells[5].classList.add("warn");
+\echo           tr.cells[5].title="Avoid keeping the subnet mask wide open"
+\echo         }
+\echo         else if(tr.cells[5].innerText < 32) tr.cells[5].classList.add("lime")
+\echo         if(tr.cells[8].innerText == "md5"){
+\echo           tr.cells[8].classList.add("warn");
+\echo           tr.cells[8].title="Consider switching to SCRAM (scram-sha-256) for better security whever possible"
+\echo         }
+\echo       }
+\echo       tr.cells[4].classList.add("lime")
+\echo     }
+\echo   }
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));

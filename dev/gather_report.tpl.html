@@ -104,6 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <li><a href="#IndInfo">Indexes</a></li>
 <li><a href="#params">Parameters / Settings</a></li>
 <li><a href="#tblextn">Extensions</a></li>
+<li><a href="#tblhba">Security-HBA rules</a>
 <li><a href="#tblcs">Connection & Users</a></li>
 <li><a href="#tableConten">Database Time</a></li>
 <li><a href="#tblsess">Session Details</a></li>
@@ -120,6 +121,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
     <li><a href="#IndInfo">Indexes</a></li>
     <li><a href="#params">Parameters / Settings</a></li>
     <li><a href="#tblextn">Extensions</a></li>
+    <li><a href="#tblhba">Security-HBA rules</a>
     <li><a href="#tblcs">Connection & Users</a></li>
     <li><a href="#tableConten">Database Time</a></li>
     <li><a href="#tblsess">Session Details</a></li>
@@ -467,6 +469,8 @@ checktabs();
 checkindex();
 checkdbs();
 checkextn();
+checkhba();
+checkconns();
 checkusers();
 checksess();
 checkstmnts();
@@ -564,14 +568,27 @@ function checkfindings(){
   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
   dbs=document.getElementById("dbs");
   dbs.appendChild(el);
-  
-  //Add footer to DBConnections table
-  el=document.createElement("tfoot");
-  el.innerHTML = "<th colspan='7'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
-  tblcs=document.getElementById("tblcs");
-  tblcs.appendChild(el);
-  tblcs.caption.innerHTML=''<span>DB Connections</span>'';
+}
 
+function checkconns(){
+  tab=document.getElementById("tblcs");
+  tab.caption.innerHTML=''<span>DB Connections</span>'';
+  const trs=tab.rows
+  let nonssl=0;
+  for (var i=1;i<trs.length;i++){
+    tr=trs[i];
+    if (tr.cells[7].innerText > 0) nonssl += parseInt(tr.cells[7].innerText);
+    console.log(tr.cells[5].innerText);
+    if (tr.cells[5].innerText > 20 && tr.cells[7].innerText/tr.cells[5].innerText > 0.5 ){
+      tr.cells[7].classList.add("warn");
+      tr.cells[7].title="Large precentage of unencrypted connections"
+    }
+  }
+  console.log("Non SSL Connections" + nonssl);
+  if (nonssl > 10) strfind += "<li>Number of unencrypted connections : <b>"+ nonssl +"</b></li>"
+  el=document.createElement("tfoot");  //footer element to connection details
+  el.innerHTML = "<th colspan='7'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
+  tab.appendChild(el);
 }
 
 //Event listeners for changing the CPU and Memory
@@ -870,6 +887,44 @@ function checkextn(){
 function checkusers(){
   tab=document.getElementById("tblusr");
   tab.caption.innerHTML="<span>Users/Roles</span>  and connections"
+  const trs=tab.rows
+  let supr=0;
+  for (var i=1;i<trs.length;i++){
+    tr=trs[i];
+    if(tr.cells[2].innerText == "t"){
+      tr.cells[2].classList.add("lime");
+      tr.cells[2].title =  "Super User"
+      supr++;
+    }
+    if(tr.cells[5].innerText == "MD5"){
+      tr.cells[5].classList.add("warn");
+      tr.cells[5].title="Consider switching to SCRAM for better security whever possible"
+    }
+  }
+  if (supr > 2 ) strfind += "<li>There are <b>" + supr + " Super user accounts</b>, consider this from the security standpoint</li>"
+}
+
+function checkhba(){
+  tab=document.getElementById("tblhba");
+  tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
+  const trs=tab.rows
+  for (var i=1;i<trs.length;i++){
+    tr=trs[i];
+    if (!["::1","127.0.0.1",""].includes(tr.cells[4].innerText.trim())){
+      if(tr.cells[7].innerText == "IPv4"){
+        if(tr.cells[5].innerText < 24){ 
+          tr.cells[5].classList.add("warn");
+          tr.cells[5].title="Avoid keeping the subnet mask wide open"
+        }
+        else if(tr.cells[5].innerText < 32) tr.cells[5].classList.add("lime")
+        if(tr.cells[8].innerText == "md5"){
+          tr.cells[8].classList.add("warn");
+          tr.cells[8].title="Consider switching to SCRAM (scram-sha-256) for better security whever possible"
+        }
+      }
+      tr.cells[4].classList.add("lime")
+    }
+  }
 }
 
 //Sort logic
