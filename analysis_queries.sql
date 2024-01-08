@@ -175,6 +175,11 @@ LEFT JOIN pg_get_db db ON drc.db = db.datid
 LEFT JOIN pg_get_roles rol ON rol.oid = drc.setrole
 ORDER BY 1,2;
 
+--22.Aproximate connection time and connection count
+WITH gather AS (SELECT max(state_change) latest_ts FROM pg_get_activity)
+SELECT date_trunc('hour',gather.latest_ts-backend_start) conn_start,count(*) 
+FROM pg_get_activity JOIN gather ON TRUE
+WHERE state IS NOT NULL group by 1 order by 1;
 
 =======================HISTORY SCHEMA ANALYSIS=========================
 set timezone=UTC;
