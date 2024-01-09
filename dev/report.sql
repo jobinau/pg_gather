@@ -190,9 +190,11 @@ FROM pg_get_hba_rules
 LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
   ON family(addr::inet) = 4
 LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
+WHERE addr NOT IN ('all','samehost','samenet')
 GROUP BY 1)
 SELECT hba.seq "Line",typ "Type",db "DB",usr "USER",addr "Address", "CIDR Mask", mask "DDN/Binary Mask", 'IPv'||family(addr::inet) "IP",method "Method", err
-FROM cidr JOIN pg_get_hba_rules hba ON cidr.seq = hba.seq;
+FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq
+WHERE addr is null OR addr NOT IN ('all','samehost','samenet');
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -476,7 +478,6 @@ SELECT to_jsonb(r) FROM
 \echo         }
 \echo         break;
 \echo       case "In recovery?" :
-\echo         console.log(val.innerText);
 \echo         if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby"; obj.primary = false;}
 \echo         else obj.primary = true; 
 \echo         break;
@@ -545,13 +546,11 @@ SELECT to_jsonb(r) FROM
 \echo   for (var i=1;i<trs.length;i++){
 \echo     tr=trs[i];
 \echo     if (tr.cells[7].innerText > 0) nonssl += parseInt(tr.cells[7].innerText);
-\echo     console.log(tr.cells[5].innerText);
 \echo     if (tr.cells[5].innerText > 20 && tr.cells[7].innerText/tr.cells[5].innerText > 0.5 ){
 \echo       tr.cells[7].classList.add("warn");
 \echo       tr.cells[7].title="Large precentage of unencrypted connections"
 \echo     }
 \echo   }
-\echo   console.log("Non SSL Connections" + nonssl);
 \echo   if (nonssl > 10) strfind += "<li>Number of unencrypted connections : <b>"+ nonssl +"</b></li>"
 \echo   el=document.createElement("tfoot"); 
 \echo   el.innerHTML = "<th colspan='7'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
@@ -946,7 +945,6 @@ SELECT to_jsonb(r) FROM
 \echo elem.onmouseout = function() { document.getElementById("menu").style.display = "none"; }
 \echo document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(2)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
-\echo   console.log(td.title);
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
 \echo     var el=document.createElement("div");
 \echo     el.setAttribute("id", "cur");
