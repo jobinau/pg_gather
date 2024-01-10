@@ -425,7 +425,7 @@ SELECT to_jsonb(r) FROM
 //Global object to hold json values passed from the SQL analysis
 obj={};
 //pg_gather version
-ver="24";
+ver="25";
 //Currently supported PostgreSQL versions, Extensions
 meta={pgvers:["11.21","12.17","13.13","14.10","15.5","16.1"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
@@ -918,6 +918,9 @@ function checkhba(){
         if(tr.cells[8].innerText == "md5"){
           tr.cells[8].classList.add("warn");
           tr.cells[8].title="Consider switching to SCRAM (scram-sha-256) for better security whever possible"
+        }else if(tr.cells[8].innerText == "trust"){
+          tr.cells[8].classList.add("warn");
+          tr.cells[8].title="Avoid blindly trusting connection from outside"
         }
       }
       tr.cells[4].classList.add("lime")

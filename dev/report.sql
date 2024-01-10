@@ -422,7 +422,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo ver="24";
+\echo ver="25";
 \echo meta={pgvers:["11.21","12.17","13.13","14.10","15.5","16.1"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
@@ -847,6 +847,9 @@ SELECT to_jsonb(r) FROM
 \echo         if(tr.cells[8].innerText == "md5"){
 \echo           tr.cells[8].classList.add("warn");
 \echo           tr.cells[8].title="Consider switching to SCRAM (scram-sha-256) for better security whever possible"
+\echo         }else if(tr.cells[8].innerText == "trust"){
+\echo           tr.cells[8].classList.add("warn");
+\echo           tr.cells[8].title="Avoid blindly trusting connection from outside"
 \echo         }
 \echo       }
 \echo       tr.cells[4].classList.add("lime")
