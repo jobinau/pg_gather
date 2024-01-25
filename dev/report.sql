@@ -192,9 +192,11 @@ LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('
 LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
 WHERE addr NOT IN ('all','samehost','samenet')
 GROUP BY 1)
-SELECT hba.seq "Line",typ "Type",db "DB",usr "USER",addr "Address", "CIDR Mask", mask "DDN/Binary Mask", 'IPv'||family(addr::inet) "IP",method "Method", err
-FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq
-WHERE addr is null OR addr NOT IN ('all','samehost','samenet');
+SELECT hba.seq "Line",typ "Type",db "DB",usr "USER",addr "Address", "CIDR Mask", mask "DDN/Binary Mask",
+CASE WHEN addr IN ('all','samehost','samenet') THEN addr
+ ELSE 'IPv'||family(addr::inet)
+END  "IP" ,method "Method", err
+FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq;
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -840,13 +842,12 @@ SELECT to_jsonb(r) FROM
 \echo   const trs=tab.rows
 \echo   for (var i=1;i<trs.length;i++){
 \echo     tr=trs[i];
-\echo     if (!["::1","127.0.0.1",""].includes(tr.cells[4].innerText.trim())){
+\echo     if (!["::1","127.0.0.1","","samehost"].includes(tr.cells[4].innerText.trim()) && tr.cells[8].innerText.trim() != "reject" ){
 \echo       if(tr.cells[7].innerText == "IPv4"){
 \echo         if(tr.cells[5].innerText < 24){ 
 \echo           tr.cells[5].classList.add("warn");
 \echo           tr.cells[5].title="Avoid keeping the subnet mask wide open"
-\echo         }
-\echo         else if(tr.cells[5].innerText < 32) tr.cells[5].classList.add("lime")
+\echo         } else if(tr.cells[5].innerText < 32) tr.cells[5].classList.add("lime")
 \echo         if(tr.cells[8].innerText == "md5"){
 \echo           tr.cells[8].classList.add("warn");
 \echo           tr.cells[8].title="Consider switching to SCRAM (scram-sha-256) for better security whever possible"
@@ -855,7 +856,10 @@ SELECT to_jsonb(r) FROM
 \echo           tr.cells[8].title="Avoid blindly trusting connection from outside"
 \echo         }
 \echo       }
-\echo       tr.cells[4].classList.add("lime")
+\echo       if(tr.cells[4].innerText == "all"){
+\echo           tr.cells[4].classList.add("warn");
+\echo           tr.cells[4].title="Avoid allowing connetions from all addresses"
+\echo       } else tr.cells[4].classList.add("lime")
 \echo     }
 \echo   }
 \echo }
