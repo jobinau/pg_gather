@@ -493,7 +493,8 @@ window.onload = function() {
 
 //Check the data collection of pg_gather
 function checkgather(){
-   const trs=document.getElementById("tblgather").rows
+  const trs=document.getElementById("tblgather").rows
+  let days=0;
   for (let i = 0; i < trs.length; i++) {
     val = trs[i].cells[1];
     switch(trs[i].cells[0].innerText){
@@ -509,6 +510,21 @@ function checkgather(){
         if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby"; obj.primary = false;}
         else obj.primary = true;  //store that the instance is primary into obj
         break;
+      case "System" :   //under assumption that columns will be sorted alphabetically. So this comes before "Time line"
+        let startIndex = val.innerText.indexOf("(") + 1;
+        days = parseInt(val.innerText.substring(startIndex,val.innerText.indexOf(" days", startIndex)));
+        console.log(days) 
+        break;
+      case "Time Line" :
+        let Failover = parseInt(val.innerText.substring(0,val.innerText.indexOf(" (")))-1;
+        console.log(Failover);
+        if (days > 30 && Failover > 5){
+          let MTBF = days/Failover;
+          if (MTBF < 180){
+            val.classList.add("warn"); val.title = "Poor MTBF / Availabilty number. There were " + Failover + " failovers in " + days + " days." ;
+            strfind += "<li><b>Poor MTBF / Availabilty number: "+ Math.round(MTBF) +" days!</b>. There were " + Failover + " failovers in " + days + " days</li>";
+          }
+        }
     }
   }
 }

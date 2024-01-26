@@ -469,7 +469,8 @@ SELECT to_jsonb(r) FROM
 \echo   document.getElementById("busy").style="display:none";
 \echo };
 \echo function checkgather(){
-\echo    const trs=document.getElementById("tblgather").rows
+\echo   const trs=document.getElementById("tblgather").rows
+\echo   let days=0;
 \echo   for (let i = 0; i < trs.length; i++) {
 \echo     val = trs[i].cells[1];
 \echo     switch(trs[i].cells[0].innerText){
@@ -485,6 +486,21 @@ SELECT to_jsonb(r) FROM
 \echo         if(val.innerText == "true") {val.classList.add("lime"); val.title="Data collected at standby"; obj.primary = false;}
 \echo         else obj.primary = true; 
 \echo         break;
+\echo       case "System" :  
+\echo         let startIndex = val.innerText.indexOf("(") + 1;
+\echo         days = parseInt(val.innerText.substring(startIndex,val.innerText.indexOf(" days", startIndex)));
+\echo         console.log(days) 
+\echo         break;
+\echo       case "Time Line" :
+\echo         let Failover = parseInt(val.innerText.substring(0,val.innerText.indexOf(" (")))-1;
+\echo         console.log(Failover);
+\echo         if (days > 30 && Failover > 5){
+\echo           let MTBF = days/Failover;
+\echo           if (MTBF < 180){
+\echo             val.classList.add("warn"); val.title = "Poor MTBF / Availabilty number. There were " + Failover + " failovers in " + days + " days." ;
+\echo             strfind += "<li><b>Poor MTBF / Availabilty number: "+ Math.round(MTBF) +" days!</b>. There were " + Failover + " failovers in " + days + " days</li>";
+\echo           }
+\echo         }
 \echo     }
 \echo   }
 \echo }
