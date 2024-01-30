@@ -33,6 +33,8 @@ AND backend_type = 'client backend'
 AND application_name NOT LIKE ALL (ARRAY['PostgreSQL JDBC Driver%','DBeaver%','pgAdmin%'])
 AND rolname = 'pmmmaint'
 
+
+/*  -- pg_get_block is no longer used after version 22
 --3.Which session is at the top of the blocking
 SELECT blocking_pid,statement_in_blocking_process,count(*)
  FROM pg_get_block WHERE blocking_pid not in (SELECT blocked_pid FROM pg_get_block)
@@ -51,7 +53,9 @@ SELECT pid,state FROM pg_get_activity WHERE pid IN
 SELECT blocking_pid,blocking_wait_event,count(*)
  from pg_get_block WHERE blocking_pid not in (SELECT blocked_pid FROM pg_get_block)
  GROUP BY 1,2;
-
+*/
+-- 3. Victims and blockers
+SELECT victim_pid,blocking_pids FROM pg_get_pidblock;
 
 --7.TOP 5 Tables which require maximum maintenace memory
 WITH top_tabs AS (SELECT relid,n_live_tup*0.2*6/1024/1024/1024 maint_work_mem_gb 
