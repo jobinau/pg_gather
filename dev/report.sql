@@ -17,7 +17,7 @@
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem,#menu {position: absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
+\echo #dtls,#finditem,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -184,16 +184,16 @@ FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
 \pset tableattr 'id="tblhba"'
-WITH cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
+WITH rules AS (SELECT * FROM pg_get_hba_rules WHERE mask IS NOT NULL AND addr NOT IN ('all','samehost','samenet')),
+cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
  sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) "CIDR Mask"
-FROM pg_get_hba_rules
+FROM rules
 LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
   ON family(addr::inet) = 4
 LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
-WHERE addr NOT IN ('all','samehost','samenet')
 GROUP BY 1)
 SELECT hba.seq "Line",typ "Type",db "DB",usr "USER",addr "Address", "CIDR Mask", mask "DDN/Binary Mask",
-CASE WHEN addr IN ('all','samehost','samenet') THEN addr
+CASE WHEN addr IN ('all','samehost','samenet') OR ( mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6'
  ELSE 'IPv'||family(addr::inet)
 END  "IP" ,method "Method", err
 FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq;
@@ -933,7 +933,7 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo function userdtls(tr){
 \echo if(tr.cells[1].innerText.length > 2){
-\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b>Per DB connections</b><br>";
+\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>Connections per DB by user '"+tr.cells[0].innerText+"'</u></b><br>";
 \echo   for(i=0;i<o.length;i++){
 \echo     str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
 \echo   }
@@ -942,7 +942,7 @@ SELECT to_jsonb(r) FROM
 \echo }
 \echo function dbcons(tr){
 \echo if(tr.cells[1].innerText.length > 2){
-\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b>Per User connections</b><br>";
+\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>User connections to DB \'"+ tr.cells[0].innerText +"'</u></b><br>";
 \echo   for(i=0;i<o.length;i++){
 \echo     str += (i+1).toString() + ". User:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
 \echo   }
