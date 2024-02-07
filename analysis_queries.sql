@@ -319,5 +319,11 @@ LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 ORDER BY 5 DESC LIMIT 100;
 
---And generate report like
---psql -X -f report.sql > GatherReport_ts.html
+--Compare Primary and Standby for Index usage
+ALTER TABLE pg_get_index RENAME TO pg_get_index_old;
+SELECT ct.relname AS "Table", ci.relname as "Index",i.indisunique as "UK?",i.indisprimary as "PK?",i.numscans as "Scans",i.size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
+  FROM pg_get_index i
+  JOIN pg_get_index_old oi ON i.indexrelid = oi.indexrelid
+  JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
+  JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+WHERE i.numscans = 0 and oi.numscans = 0;
