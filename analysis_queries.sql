@@ -57,6 +57,14 @@ SELECT blocking_pid,blocking_wait_event,count(*)
 -- 3. Victims and blockers
 SELECT victim_pid,blocking_pids FROM pg_get_pidblock;
 
+-- 6. IO statistics PG 16+. Needs improvement
+SELECT 
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Client' 
+  WHEN 'C' THEN 'checkpointer'
+ELSE btype END, 
+* FROM pg_get_io 
+WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0;
+
 --7.TOP 5 Tables which require maximum maintenace memory
 WITH top_tabs AS (SELECT relid,n_live_tup*0.2*6/1024/1024/1024 maint_work_mem_gb 
    from pg_get_rel ORDER BY 2 DESC LIMIT 5)
