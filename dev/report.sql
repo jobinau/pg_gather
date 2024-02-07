@@ -25,6 +25,7 @@
 \H
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
+SELECT setting AS pgver FROM pg_get_confs WHERE name = 'server_version_num' \gset
 
 \echo <h1>
 \echo   <svg width="10em" viewBox="0 0 140 80">
@@ -140,7 +141,7 @@ to_jsonb(ROW(r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isu
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
 ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
-c.blocks_fetched "Fetch",c.blocks_hit*100/nullif(c.blocks_fetched,0) "C.Hit%"
+c.blocks_fetched "Fetch",c.blocks_hit*100/nullif(c.blocks_fetched,0) "C.Hit%",to_char(r.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
 FROM pg_get_rel r
 JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
 LEFT JOIN pg_get_toast t ON r.relid = t.relid
@@ -151,7 +152,7 @@ LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numsca
 ORDER BY r.tab_ind_size DESC LIMIT 10000; 
 
 \pset tableattr 'id="IndInfo"'
-SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%"
+SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
   FROM pg_get_index i 
   JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
@@ -301,7 +302,6 @@ FROM pg_replication_stat JOIN M ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
 
 \pset tableattr 'id="tblchkpnt"'
-\C 'Analysis of Background writer and Checkpointer Process'
 SELECT round(checkpoints_req*100/tot_cp,1) "Forced Checkpoint %" ,
 round(min_since_reset/tot_cp,2) "avg mins between CP",
 round(checkpoint_write_time::numeric/(tot_cp*1000),4) "Avg CP write time (s)",
@@ -328,6 +328,17 @@ CROSS JOIN
     FROM pg_get_bgwriter) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
+
+\pset tableattr 'id="tbliostat"'
+SELECT
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
+  WHEN 'C' THEN 'checkpointer'
+ELSE btype END As "Backend", 
+sum(reads) "Reads",sum(writes) "Writes",sum(writebacks) "Writebacks", sum(extends) "Extends",sum(hits) "Hits",sum(evictions) "Evictions", sum(reuses) "Reuse", sum(fsyncs) "FSyncs"
+FROM pg_get_io 
+WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
+GROUP BY 1;
+
 \echo <ol id="finditem" style="padding:2em;position:relative">
 \echo <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
 \pset format aligned
@@ -462,6 +473,7 @@ SELECT to_jsonb(r) FROM
 \echo checksess();
 \echo checkstmnts();
 \echo checkchkpntbgwrtr();
+\echo checkiostat()
 \echo checkfindings();
 \echo });
 \echo window.onload = function() {
@@ -1092,6 +1104,12 @@ SELECT to_jsonb(r) FROM
 \echo     tr.cells[16].classList.add("high"); tr.cells[16].title="Statistics of long-term avarage won't be helpful. Please consider resetting. 1 week is ideal";
 \echo   }
 \echo }}
+\echo function checkiostat(){
+\echo tab=document.getElementById("tbliostat")
+\echo tab.caption.innerHTML=''''<span>IO Statistics</span> (beta)''''
+\echo if (tab.rows.length > 1){
+\echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
+\echo }
 \echo tab=document.getElementById("tblreplstat")
 \echo tab.caption.innerHTML="<span>Replication</span>"
 \echo if (tab.rows.length > 1){
