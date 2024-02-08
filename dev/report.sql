@@ -605,8 +605,14 @@ SELECT to_jsonb(r) FROM
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 \echo }
 \echo function DurationtoSeconds(duration){
+\echo     let days=0,dayIdx
+\echo     dayIdx=duration.indexOf("days")
+\echo     if(dayIdx>0){
+\echo       days=parseInt(duration.substring(0,dayIdx))
+\echo       duration=duration.substring(dayIdx+5)
+\echo     }
 \echo     const [hours, minutes, seconds] = duration.split(":");
-\echo     return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
+\echo     return days * 24 * 60 * 60 +(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 \echo };
 \echo var paramDespatch = {
 \echo   archive_mode : function(rowref){

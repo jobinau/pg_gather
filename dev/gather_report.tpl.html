@@ -441,7 +441,7 @@ obj={};
 //pg_gather version
 ver="25";
 //Currently supported PostgreSQL versions, Extensions
-meta={pgvers:["11.21","12.17","13.13","14.10","15.5","16.1"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+meta={pgvers:["12.18","13.14","14.11","15.6","16.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
 walcomprz="";
 //Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
@@ -643,8 +643,14 @@ function bytesToSize(bytes,divisor = 1000) {
 
 //Convert time format seperated by colon (:) to seconds for comparision
 function DurationtoSeconds(duration){
+    let days=0,dayIdx
+    dayIdx=duration.indexOf("days")
+    if(dayIdx>0){
+      days=parseInt(duration.substring(0,dayIdx))
+      duration=duration.substring(dayIdx+5)
+    }
     const [hours, minutes, seconds] = duration.split(":");
-    return Number(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
+    return days * 24 * 60 * 60 +(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 };
 
 //******************* New Parameter Despatch table implimentation v22 *******************/
