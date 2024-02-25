@@ -138,6 +138,8 @@ SELECT * FROM (
   , CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement"
   , g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits ||
+   -- Expected number of waitevents per pid = (Duration the pid has some waitevents / Total duration) * 2000 = ((itr_max - itr_min)/gitr_max) * 2000
+   -- Missing waitevents due to Net/Delay = Expected number of waitevents - Actual number of waitevents =  ((itr_max - itr_min)/gitr_max) * 2000 - pidwcnt
    CASE WHEN (itr_max - itr_min)::float/itr.gitr_max*2000 - pidwcnt > 0 THEN
     ', Net/Delay*:' || ((itr_max - itr_min)::float/itr.gitr_max*2000 - pidwcnt)::int
    ELSE '' END waits

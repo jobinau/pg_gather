@@ -57,6 +57,12 @@ SELECT blocking_pid,blocking_wait_event,count(*)
 -- 3. Victims and blockers
 SELECT victim_pid,blocking_pids FROM pg_get_pidblock;
 
+-- 4. PIDs and Net/Delays
+WITH w AS (SELECT pid,count(*) cnt, max(itr) itr_max,min(itr) itr_min FROM pg_pid_wait group by 1),
+ g AS (SELECT max(itr_max) gmax_itr FROM w)
+SELECT pid,(((itr_max - itr_min)::float/gmax_itr)*2000 - cnt)*100/2000 AS "Net/Delay %" FROM w,g
+ WHERE ((itr_max - itr_min)::float/gmax_itr)*2000 - cnt > 0;
+
 -- 6. IO statistics PG 16+. Needs improvement
 SELECT 
 CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Client' 
