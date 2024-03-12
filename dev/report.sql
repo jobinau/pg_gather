@@ -153,6 +153,15 @@ LEFT JOIN pg_get_class inhp ON inh.inhparent = inhp.reloid
 LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan,indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
+\pset tableattr 'id="tabPart"'
+SELECT p.relname "Partitioned Table", CASE p.relkind WHEN 'p' THEN 'Native' WHEN 'r' THEN 'Inheritance' ELSE p.relkind END "Partitioning Type",
+count(c.reloid) "Partitions", sum(r.tot_tab_size) "Tot.Tab size", sum(r.tab_ind_size) "Tab+Ind size"
+FROM pg_get_class c JOIN pg_get_inherits i ON c.reloid = i.inhrelid
+JOIN pg_get_class p ON i.inhparent = p.reloid
+JOIN pg_get_rel r ON c.reloid = r.relid 
+WHERE p.relkind != 'I'
+GROUP BY 1,2;
+
 \pset tableattr 'id="IndInfo"'
 SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
   FROM pg_get_index i 
@@ -430,6 +439,10 @@ SELECT to_jsonb(r) FROM
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
+   (WITH w AS (SELECT pid,count(*) cnt, max(itr) itr_max,min(itr) itr_min FROM pg_pid_wait group by 1),
+   g AS (SELECT max(itr_max) gmax_itr FROM w)
+  SELECT to_jsonb(ROW(SUM(((itr_max - itr_min)::float/gmax_itr)*2000 - cnt),max(gmax_itr),count(pid))) FROM w,g
+   WHERE ((itr_max - itr_min)::float/gmax_itr)*2000 - cnt > 0) netdlay,
    (SELECT to_jsonb(ROW(count(*) FILTER (WHERE indisvalid=false),count(*) FILTER (WHERE numscans=0),count(*),sum(size) FILTER (WHERE numscans=0))) FROM pg_get_index) induse,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
@@ -468,6 +481,7 @@ SELECT to_jsonb(r) FROM
 \echo checktabs();
 \echo checkindex();
 \echo checkdbs();
+\echo checkdbtime();
 \echo checkextn();
 \echo checkhba();
 \echo checkconns();
@@ -519,6 +533,7 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo }
 \echo function checkfindings(){
+\echo  let tmpstr = "";
 \echo  if (obj.sess.f7 < 4){ 
 \echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have necessary privilege OR Content of the output file (out.txt) is copy-pasted destroying the TSV format</b><br/><b>1.</b>Please run the gather.sql as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege and <b>2.</b> Please provide the output file as it is without copy-pasting</li>"
 \echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper privilege OR content of output file is copy-pasted. Please refer the Findings section";
@@ -537,6 +552,19 @@ SELECT to_jsonb(r) FROM
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
+\echo  if (obj.netdlay.f1 > 10) {
+\echo    if (obj.netdlay.f1 / obj.netdlay.f2 * 100 > 20 ){ strfind += "<li> There are <b>"+ obj.netdlay.f3 +" Sessions with considerable Net/Delays</b>"
+\echo    if (obj.netdlay.f1 / obj.netdlay.f2 > 1){
+\echo       tmpstr = "Total Net/Delay* is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
+\echo    }else if(obj.netdlay.f1 / obj.netdlay.f2 > 0.1){
+\echo     tmpstr = "Total Net/Delay* is equivalent to <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(2)*100 + "% </b> of server activity"
+\echo    }
+\echo    if (tmpstr != "" ){
+\echo     strfind += "<li>" + tmpstr + "</li>"
+\echo     document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
+\echo    }
+\echo   }
+\echo  }
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
@@ -1020,17 +1048,24 @@ SELECT to_jsonb(r) FROM
 \echo   }
 \echo }
 \echo }
+\echo function checkdbtime(){
 \echo tab=document.getElementById("tableConten")
 \echo tab.caption.innerHTML=''''<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Reference</a>)''''
 \echo trs=tab.rows;
+\echo let tempstr=""
 \echo if (trs.length > 1){ 
 \echo   maxevnt=Number(trs[1].cells[1].innerText);
 \echo   for (let tr of trs) {
-\echo   evnts=tr.cells[1];
-\echo   if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">''''
+\echo    evnts=tr.cells[1];
+\echo    if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">'''';
+\echo    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + "cores (approx). "
 \echo   }
+\echo   el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='2'>"+ tempstr +" </th>";
+\echo   tab.appendChild(el);
 \echo }else {
 \echo   tab.tBodies[0].innerHTML="No Wait Event information or CPU usage information is available, Probably the PostgreSQL is completely idle or data collection failed"
+\echo }
 \echo }
 \echo function checksess(){
 \echo tab=document.getElementById("tblsess")
