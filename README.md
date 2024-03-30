@@ -58,7 +58,7 @@ This script may take over 20 seconds to run because it contains sleeps/delays. W
    ```
    3. **AWS Aurora** offers a "PostgreSQL-compatible" database. However, it is not a true PostgreSQL database, even though it looks like one. Therefore, you should do the following to the `gather.sql` script to replace any unapplicable lines with "NULL".
    ```
-     sed -i 's/^CASE WHEN pg_is_in_recovery().*/NULL/' gather.sql
+     sed -i -e 's/^CASE WHEN pg_is_in_recovery().*/NULL/' gather.sql
    ```
    4. **Docker** containers of PostgreSQL may not include the `curl` or `wget`` utilities necessary to download `gather.sql`. Therefore, it is recommended to pipe the contents of the SQL file to `psql` instead.
    ```

@@ -264,8 +264,10 @@ SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||': '|| cnt*100::float/2000 ||'%',', ') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity),
+  wrk AS (select leader_pid, count(*) from pg_get_activity where leader_pid is not null group by 1),
   itr AS (SELECT max(itr_max) gitr_max FROM w)
-  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client"
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion,wrk.count)), a.state,r.rolname "User"
+  , CASE WHEN a.leader_pid IS NULL THEN host(client_addr) ELSE 'Worker of ' || a.leader_pid END "client"
   , CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement"
   , g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits ||
@@ -276,6 +278,7 @@ SELECT * FROM (
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN itr ON true
    LEFT JOIN g ON true
+   LEFT JOIN wrk ON wrk.leader_pid = a.pid
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
@@ -557,7 +560,7 @@ SELECT to_jsonb(r) FROM
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 > 1){
 \echo       tmpstr = "Total Net/Delay* is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
 \echo    }else if(obj.netdlay.f1 / obj.netdlay.f2 > 0.1){
-\echo     tmpstr = "Total Net/Delay* is equivalent to <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(2)*100 + "% </b> of server activity"
+\echo     tmpstr = "Total Net/Delay* is equivalent to <b>" + (obj.netdlay.f1 * 100 / obj.netdlay.f2).toFixed(2) + "% </b> of server activity"
 \echo    }
 \echo    if (tmpstr != "" ){
 \echo     strfind += "<li>" + tmpstr + "</li>"
@@ -633,6 +636,11 @@ SELECT to_jsonb(r) FROM
 \echo   const i = parseInt(Math.floor(Math.log(bytes) / Math.log(divisor)), 10);
 \echo   if (i === 0) return bytes + sizes[i];
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
+\echo }
+\echo function updateJson(jsonString, key, value) {
+\echo   const jsonObject = JSON.parse(jsonString);
+\echo   jsonObject[key] = value;
+\echo   return JSON.stringify(jsonObject);
 \echo }
 \echo function DurationtoSeconds(duration){
 \echo     let days=0,dayIdx
@@ -977,7 +985,9 @@ SELECT to_jsonb(r) FROM
 \echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
 \echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
 \echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
-\echo   if (typeof o.f5 != "undefined") str += ''''<div class="warn">Victim of Blocker :'''' + o.f5 + "<div>";
+\echo   if (o.f4 != null) str += "Communication :" + o.f4 + "<br/>";
+\echo   if (o.f5 != null) str += "Workers :" + o.f5 + "<br/>";
+\echo   if (typeof o.f6 != "undefined") str += ''''<div class="warn">'''' + o.f6 + "<div>";
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
 \echo }
@@ -1058,7 +1068,7 @@ SELECT to_jsonb(r) FROM
 \echo   for (let tr of trs) {
 \echo    evnts=tr.cells[1];
 \echo    if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">'''';
-\echo    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + "cores (approx). "
+\echo    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
 \echo   }
 \echo   el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='2'>"+ tempstr +" </th>";
@@ -1074,10 +1084,13 @@ SELECT to_jsonb(r) FROM
 \echo for (let tr of trs){
 \echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
 \echo  if(xidage.innerText > 20) xidage.classList.add("warn");
-\echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
-\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); 
-\echo         tr.cells[1].innerText = tr.cells[1].innerText.slice(0,-1) + '''',"f5":"' + obj.victims.find(el => el.f1 == pid.innerText).f2.toString() + '"}'''';
-\echo       };
+\echo  if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; 
+\echo    tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Blocker")
+\echo  };
+\echo  if (blkvictims.indexOf(Number(pid.innerText)) > -1) { 
+\echo    pid.classList.add("warn"); 
+\echo    tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Victim of Blocker: " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString())
+\echo   };
 \echo  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
 \echo  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
 \echo  sql.innerText = sql.innerText.substring(0, 100); 

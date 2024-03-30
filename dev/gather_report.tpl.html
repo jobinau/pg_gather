@@ -264,8 +264,10 @@ SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||': '|| cnt*100::float/2000 ||'%',', ') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
   g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity),
+  wrk AS (select leader_pid, count(*) from pg_get_activity where leader_pid is not null group by 1),
   itr AS (SELECT max(itr_max) gitr_max FROM w)
-  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion)), a.state,r.rolname "User",client_addr "client"
+  SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion,wrk.count)), a.state,r.rolname "User"
+  , CASE WHEN a.leader_pid IS NULL THEN host(client_addr) ELSE 'Worker of ' || a.leader_pid END "client"
   , CASE query WHEN '' THEN '**'||backend_type||' process**' ELSE query END "Last statement"
   , g.ts - backend_start "Connection Since", g.ts - xact_start "Transaction Since", g.mx_xid - backend_xmin::text::bigint "xmin age",
    g.ts - query_start "Statement since",g.ts - state_change "State since", w.waits ||
@@ -276,6 +278,7 @@ SELECT * FROM (
    LEFT JOIN w ON a.pid = w.pid
    LEFT JOIN itr ON true
    LEFT JOIN g ON true
+   LEFT JOIN wrk ON wrk.leader_pid = a.pid
    LEFT JOIN pg_get_roles r ON a.usesysid = r.oid
    LEFT JOIN pg_get_db d on a.datid = d.datid
   ORDER BY "xmin age" DESC NULLS LAST) AS sess
@@ -583,7 +586,7 @@ function checkfindings(){
    if (obj.netdlay.f1 / obj.netdlay.f2 > 1){
       tmpstr = "Total Net/Delay* is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
    }else if(obj.netdlay.f1 / obj.netdlay.f2 > 0.1){
-    tmpstr = "Total Net/Delay* is equivalent to <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(2)*100 + "% </b> of server activity"
+    tmpstr = "Total Net/Delay* is equivalent to <b>" + (obj.netdlay.f1 * 100 / obj.netdlay.f2).toFixed(2) + "% </b> of server activity"
    }
    if (tmpstr != "" ){
     strfind += "<li>" + tmpstr + "</li>"
@@ -670,6 +673,14 @@ function bytesToSize(bytes,divisor = 1000) {
   if (i === 0) return bytes + sizes[i];
   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 }
+
+//add key and value to json string
+function updateJson(jsonString, key, value) {
+  const jsonObject = JSON.parse(jsonString); // Parse the JSON string into a JavaScript object
+  jsonObject[key] = value; // Add the new key-value pair
+  return JSON.stringify(jsonObject); // Convert the updated object back to a JSON string
+}
+
 
 //Convert time format seperated by colon (:) to seconds for comparision
 function DurationtoSeconds(duration){
@@ -1058,7 +1069,10 @@ function sessdtls(th){
   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
-  if (typeof o.f5 != "undefined") str += ''<div class="warn">Victim of Blocker :'' + o.f5 + "<div>";
+  if (o.f4 != null) str += "Communication :" + o.f4 + "<br/>";
+  if (o.f5 != null) str += "Workers :" + o.f5 + "<br/>";
+  //o.f6 is injected from checksess() into JSON. "f6" is hard coded.
+  if (typeof o.f6 != "undefined") str += ''<div class="warn">'' + o.f6 + "<div>";
   if (str.length < 1) str+="Independent/Background process";
   return str;
 }
@@ -1157,7 +1171,7 @@ if (trs.length > 1){
   for (let tr of trs) {
    evnts=tr.cells[1];
    if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">'';
-   if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + "cores (approx). "
+   if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
   }
   //Add footer to table with available info.
   el=document.createElement("tfoot");
@@ -1178,11 +1192,15 @@ for (let tr of trs){
  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
  if(xidage.innerText > 20) xidage.classList.add("warn");
  //if pid exists in blockers list and victims list
- if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; };
- if (blkvictims.indexOf(Number(pid.innerText)) > -1) { pid.classList.add("warn"); 
-        //pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); 
-        tr.cells[1].innerText = tr.cells[1].innerText.slice(0,-1) + '',"f5":"' + obj.victims.find(el => el.f1 == pid.innerText).f2.toString() + '"}'';
-      };
+ if (blokers.indexOf(Number(pid.innerText)) > -1){ pid.classList.add("high"); pid.title="Blocker"; 
+   tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Blocker")
+ };
+ if (blkvictims.indexOf(Number(pid.innerText)) > -1) { 
+   pid.classList.add("warn"); 
+    //pid.title="Victim of blocker : " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString(); <-- Inject the blocker information into JSON
+    // tr.cells[1].innerText = tr.cells[1].innerText.slice(0,-1) + '',"f6":"' + obj.victims.find(el => el.f1 == pid.innerText).f2.toString() + '"}'';
+   tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Victim of Blocker: " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString())
+  };
  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
  //if query text is more than 100 chars, copy that to title and trim the query string to 100
  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
