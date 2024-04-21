@@ -2,34 +2,9 @@
 \set QUIET 1
 \echo **Dropping pg_gather tables**
 set client_min_messages=ERROR;
-DROP TABLE IF EXISTS pg_gather;
-DROP TABLE IF EXISTS pg_get_activity;
-DROP TABLE IF EXISTS pg_get_class;
-DROP TABLE IF EXISTS pg_get_confs;
-DROP TABLE IF EXISTS pg_get_file_confs;
-DROP TABLE IF EXISTS pg_get_db_role_confs;
-DROP TABLE IF EXISTS pg_get_db;
-DROP TABLE IF EXISTS pg_get_index;
-DROP TABLE IF EXISTS pg_get_rel;
-DROP TABLE IF EXISTS pg_get_inherits;
-DROP TABLE IF EXISTS pg_srvr;
-DROP TABLE IF EXISTS pg_get_block;  --Deprecated in v20, logic completely removed for v22
-DROP TABLE IF EXISTS pg_get_pidblock;
-DROP TABLE IF EXISTS pg_pid_wait;
-DROP TABLE IF EXISTS pg_replication_stat;
-DROP TABLE IF EXISTS pg_get_wal;
-DROP TABLE IF EXISTS pg_get_io;
-DROP TABLE IF EXISTS pg_archiver_stat;
-DROP TABLE IF EXISTS pg_tab_bloat;
-DROP TABLE IF EXISTS pg_get_toast;
-DROP TABLE IF EXISTS pg_get_statements;
-DROP TABLE IF EXISTS pg_get_bgwriter;
-DROP TABLE IF EXISTS pg_get_roles;
-DROP TABLE IF EXISTS pg_get_extension;
-DROP TABLE IF EXISTS pg_get_slots;
-DROP TABLE IF EXISTS pg_get_hba_rules;
-DROP TABLE IF EXISTS pg_get_ns;
-DROP TABLE IF EXISTS pg_gather_end;
+DROP TABLE IF EXISTS pg_gather, pg_get_activity, pg_get_class, pg_get_confs, pg_get_file_confs, pg_get_db_role_confs, pg_get_db, pg_get_index, 
+  pg_get_rel, pg_get_inherits, pg_srvr, pg_get_pidblock, pg_pid_wait, pg_replication_stat, pg_get_wal, pg_get_io, pg_archiver_stat, pg_tab_bloat, 
+  pg_get_toast, pg_get_statements, pg_get_bgwriter, pg_get_roles, pg_get_extension, pg_get_slots, pg_get_hba_rules, pg_get_ns, pg_gather_end, pg_get_prep_xacts;
 
 \echo **Creating pg_gather tables**
 CREATE UNLOGGED TABLE pg_srvr (
@@ -218,29 +193,6 @@ CREATE UNLOGGED TABLE pg_get_rel (
 );
 
 
---TODO : Remove. This table is no longer used from v22 onwards
-CREATE UNLOGGED TABLE pg_get_block (
-    blocked_pid integer,
-    blocked_user text,
-    blocked_client_addr text,
-    blocked_client_hostname text,
-    blocked_application_name text,
-    blocked_wait_event_type text,
-    blocked_wait_event text,
-    blocked_statement text,
-    blocked_xact_start timestamp with time zone,
-    blocking_pid integer,
-    blocking_user text,
-    blocking_user_addr text,
-    blocking_client_hostname text,
-    blocking_application_name text,
-    blocking_wait_event_type text,
-    blocking_wait_event text,
-    statement_in_blocking_process text,
-    blocking_xact_start timestamp with time zone
-);
-
-
 CREATE UNLOGGED TABLE pg_get_pidblock(
   victim_pid int,
   blocking_pids int[]
@@ -365,4 +317,11 @@ CREATE UNLOGGED TABLE pg_get_ns(
    nsoid oid,
    nsname text
 );
+
+CREATE UNLOGGED TABLE pg_get_prep_xacts(
+ txn xid,
+ gid text,
+ prepared timestamptz
+);
+
 \set QUIET 0

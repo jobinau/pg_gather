@@ -2,7 +2,7 @@
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 \echo '--**** THIS IS A TSV FORMATED FILE. PLEASE DONT COPY-PASTE OR SAVE USING TEXT EDITORS. Because formatting can be lost and file becomes corrupt  ****--'
 \echo '\\r'
-\set ver 25
+\set ver 26
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16, ( current_database() != 'template1' ) as fullgather \gset
@@ -224,6 +224,11 @@ SELECT count(*) FILTER (WHERE extname='pg_stat_statements') > 0 AS pgss,count(*)
 --pg_hba rules
 \echo COPY pg_get_hba_rules(seq,typ,db,usr,addr,mask,method,err) FROM stdin;
 COPY (select line_number,type,database,user_name,address,netmask,auth_method,error from pg_hba_file_rules) TO stdout;
+\echo '\\.'
+
+--pg_prepared_xacts
+\echo COPY pg_get_prep_xacts(txn,gid,prepared) FROM stdin;
+COPY (select transaction,gid,prepared FROM pg_prepared_xact()) TO stdout;
 \echo '\\.'
 
 --End fullgather, started before pg_get_roles (line: 102)
