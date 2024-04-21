@@ -102,6 +102,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <h2 id="topics">Sections</h2>
 \echo <ol>
 \echo <li><a href="#tabInfo">Tables</a></li>
+\echo <li><a href="#tabPart">Partition info</a></li>
 \echo <li><a href="#IndInfo">Indexes</a></li>
 \echo <li><a href="#params">Parameters / Settings</a></li>
 \echo <li><a href="#tblextn">Extensions</a></li>
@@ -119,6 +120,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo  <div id="menu" style="display:none; position: relative">
 \echo   <ol>
 \echo     <li><a href="#tabInfo">Tables</a></li>
+\echo     <li><a href="#tabPart">Partition info</a></li>
 \echo     <li><a href="#IndInfo">Indexes</a></li>
 \echo     <li><a href="#params">Parameters / Settings</a></li>
 \echo     <li><a href="#tblextn">Extensions</a></li>
@@ -455,7 +457,7 @@ SELECT to_jsonb(r) FROM
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
 \echo obj={};
-\echo ver="25";
+\echo ver="26";
 \echo meta={pgvers:["12.18","13.14","14.11","15.6","16.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
