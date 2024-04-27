@@ -23,6 +23,7 @@ CREATE UNLOGGED TABLE pg_gather (
     reload_ts timestamp with time zone,
     timeline int,
     systemid bigint,
+    snapshot pg_snapshot,
     current_wal pg_lsn
 );
 
@@ -148,10 +149,18 @@ CREATE UNLOGGED TABLE pg_get_class (
     relname text,
     relkind char(1),
     relnamespace oid,
+    relfilenode oid,
+    reltablespace oid,
     relpersistence char,
     reloptions text[],
     blocks_fetched bigint,
     blocks_hit bigint
+);
+
+CREATE UNLOGGED TABLE pg_get_tablespace(
+    tsoid oid,
+    tsname text,
+    location text
 );
 
 CREATE UNLOGGED TABLE pg_get_inherits(

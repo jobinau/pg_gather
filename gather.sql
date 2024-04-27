@@ -28,7 +28,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 --\endif
 
 \set QUIET on
-SET statement_timeout=60000;
+SET statement_timeout=180000;
 \t on
 \x off
 PREPARE pidevents AS
@@ -38,11 +38,12 @@ SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLI
 \echo '\\t'
 \echo '\\r'
 
-\echo COPY pg_gather (collect_ts,usr,db,ver,pg_start_ts,recovery,client,server,reload_ts,timeline,systemid,current_wal) FROM stdin;
-COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver ,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),(SELECT timeline_id FROM pg_control_checkpoint()) as timeline, (SELECT system_identifier FROM pg_control_system()) as systemid, CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdin; 
 \if :{?ERROR}
+\set ERROR true
+\echo COPY pg_gather (collect_ts,usr,db,ver,pg_start_ts,recovery,client,server,reload_ts,timeline,systemid,snapshot,current_wal) FROM stdin;
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver ,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),(SELECT timeline_id FROM pg_control_checkpoint()) as timeline, (SELECT system_identifier FROM pg_control_system()) as systemid, txid_current_snapshot(), CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END) TO stdout; 
 \if :ERROR
-COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver ,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),(SELECT timeline_id FROM pg_control_checkpoint()) as timeline, (SELECT system_identifier FROM pg_control_system()) as systemid, NULL ) TO stdin; 
+COPY (SELECT current_timestamp,current_user||' - pg_gather.V'||:ver ,current_database(),version(),pg_postmaster_start_time(),pg_is_in_recovery(),inet_client_addr(),inet_server_addr(),pg_conf_load_time(),(SELECT timeline_id FROM pg_control_checkpoint()) as timeline, (SELECT system_identifier FROM pg_control_system()) as systemid, txid_current_snapshot(), NULL ) TO stdout; 
 \endif
 \else
 do $$ BEGIN  RAISE '***** FATAL : MINIMUM PSQL VERSION 11 IS EXPECTED : PLEASE VERIFY : psql --version ********'; END; $$;
@@ -119,8 +120,8 @@ COPY ( SELECT setdatabase,setrole,setconfig FROM pg_db_role_setting) TO stdin;
 \echo '\\.'
 
 --Major tables and indexes in current db
-\echo COPY pg_get_class (reloid,relname,relkind,relnamespace,relpersistence,reloptions,blocks_fetched,blocks_hit) FROM stdin;
-COPY (SELECT oid,relname,relkind,relnamespace,relpersistence,reloptions,pg_stat_get_blocks_fetched(oid),pg_stat_get_blocks_hit(oid) FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
+\echo COPY pg_get_class (reloid,relname,relkind,relnamespace,relfilenode,reltablespace,relpersistence,reloptions,blocks_fetched,blocks_hit) FROM stdin;
+COPY (SELECT oid,relname,relkind,relnamespace,relfilenode,reltablespace,relpersistence,reloptions,pg_stat_get_blocks_fetched(oid),pg_stat_get_blocks_hit(oid) FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
 \echo '\\.'
 
 --Index info
@@ -153,6 +154,11 @@ COPY (select oid,relnamespace, relpages::bigint blks,pg_stat_get_live_tuples(oid
 \endif
 \echo '\\.'
 
+--Tablespace info
+\echo COPY pg_get_tablespace(tsoid,tsname,location) FROM stdin;
+COPY (SELECT oid,spcname,pg_tablespace_location(oid) FROM pg_tablespace) TO stdout;
+\echo '\\.'
+
 --Bloat estimate on a 64bit machine with PG version above 9.0.
 \echo COPY pg_tab_bloat(table_oid,est_pages) FROM stdin;
 COPY ( SELECT
@@ -173,17 +179,17 @@ FROM (
 ) AS rs
 JOIN pg_class cc ON cc.oid = rs.table_oid
 JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_schema' 
-) TO stdin;
+) TO stdout;
 \echo '\\.'
 
 --TOAST info
 \echo COPY pg_get_toast FROM stdin;
-COPY (SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdin;
+COPY (SELECT oid, reltoastrelid FROM pg_class WHERE reltoastrelid != 0 ) TO stdout;
 \echo '\\.'
 
 --Partitioning
 \echo COPY pg_get_inherits (inhrelid,inhparent) FROM stdin;
-COPY (SELECT inhrelid,inhparent FROM pg_inherits) TO stdin;
+COPY (SELECT inhrelid,inhparent FROM pg_inherits) TO stdout;
 \echo '\\.'
 
 --namespaces/schemas
