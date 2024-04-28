@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html><meta charset="utf-8" />
 <style>
-#finditem,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
+#finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
 table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;} 
 th {background-color: #d2f2ff;cursor: pointer; }
 tr:nth-child(even) {background-color: #eef8ff} 
@@ -17,7 +17,7 @@ ol { width: fit-content;}
 .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-#dtls,#finditem,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
+#dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -68,7 +68,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 %>
 <div>
 <details style="clear: left; width: fit-content;">
-  <summary>Tune PostgreSQL Parameters (beta)</summary>
+  <summary style="font: italic bold 1.5em Georgia">Tune This PostgreSQL</summary>
+  <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
   <label for="cpus">CPUs:
   <input type="number" id="cpus" name="cpus" value="0">
   </label>
@@ -95,8 +96,15 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
     <option value="cow">COW (like: zfs/btrfs)</option>
    </select>
  </label>
- <p style="border: 2px solid blue; border-radius: 5px; padding: 1em;">Please input the CPU and Memory available on the host machine for evaluating the current parameter settings<br />
-  Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
+ <p>NOTE : Please input the CPU and Memory available on the host machine and select the most appropriate options from the list to get recommendations<br />
+  Please seek expert advice if you are in doubt</p>
+</div>
+  <div id="paramtune" style="padding:2em;position:relative">
+   <h3 style="font: italic 1.2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Recommendations:</h3>
+  <ol>
+  </ol>
+  <p>* Collecting pg_gather data during right utilization levels is important to tune the system for the specific workload</p>
+  </div>
 </details>
 </div>
 <h2 id="topics">Sections</h2>
@@ -138,7 +146,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <div id="sections" style="display:none">
 <% \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
-SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
+SELECT c.relname ||' - '|| r.relid || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name - OID" ,
 to_jsonb(ROW(r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
@@ -660,12 +668,25 @@ function checkconns(){
 document.getElementById("cpus").addEventListener("change", (event) => {
   totCPU = event.target.value;
   checkpars();   //TODO : checking every parameter is unnessary.
+  getreccomendation();
 });
 document.getElementById("mem").addEventListener("change", (event) => {
   totMem = event.target.value;
   checkpars();   //TODO : checking every parameter is unnessary.
+  getreccomendation();
 });
 
+function getreccomendation(){
+  let reccomandations = document.getElementById("paramtune").children[1];
+  let reccos = "";
+  for (let item of params) {
+    if (typeof item.suggest != "undefined"){
+     console.log(item.param + " = " + item.suggest);
+     reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='https://github.com/jobinau/pg_gather/blob/main/docs/params/" + item.param +".md'>#Explanation</a></li>"
+    }
+  }
+  reccomandations.innerHTML = reccos;
+}
 
 //Convert bytes into human readable formats
 function bytesToSize(bytes,divisor = 1000) {
@@ -731,6 +752,11 @@ var paramDespatch = {
   shared_buffers: function(rowref){
     val=rowref.cells[1];
     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+    //if RAM is is not given, and shared_bffer is above 128MB. Assume that shared_buffer is 1/4th of the RAM and do revese calculation to get RAM
+    if(parseFloat(document.getElementById("mem").value) < "0.2" ){
+      document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
+      totMem = val.innerText*8*4/(1024*1024);
+    }
     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
   },
@@ -738,9 +764,12 @@ var paramDespatch = {
     val=rowref.cells[1];
     val.title="Avoid value exceeding 10x of the CPUs"
     if( totCPU > 0 ){
-      if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
-        else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
-        } else if (val.innerText > 500) val.classList.add("warn")
+      if(val.innerText > 10 * totCPU) { 
+        val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
+        let conns = params.find(p => p.param === "max_connections");
+        conns["suggest"] = 10 * totCPU;
+      }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+    } else if (val.innerText > 500) val.classList.add("warn")
       else val.classList.add("lime")
   },
   //Just highlight/Warn few important parameters and their values
@@ -764,7 +793,7 @@ var paramDespatch = {
     let param = params.find(p => p.param === "log_temp_files");
     if (typeof param["suggest"] != "undefined"){
       val.classList.add("warn"); 
-      val.title="Heavy temporary file generation is detected. Consider setting log_temp_files=" + param["suggest"] + "MB";
+      val.title="Heavy temporary file generation is detected. Consider setting log_temp_files=" + param["suggest"] ;
     } else if ((param["val"] > -1)){
       val.classList.add("lime");
       val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
@@ -821,6 +850,12 @@ var paramDespatch = {
     val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
     if(val.innerText > 98304) val.classList.add("warn");
     else val.classList.add("lime");
+    let conns = params.find(p => p.param === "max_connections");
+    let wmem = params.find(p => p.param === "work_mem");
+    // 1/5th of the RAM can be given for total work_mem. So 1/5th of RAM / max_connections
+    if ( totMem > 0.2 && conns.val > 1){
+      wmem["suggest"] = "'" + parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ) + "MB'";
+    }
   },
   bgwriter_lru_maxpages: function(rowref){
     let param = params.find(p => p.param === "bgwriter_lru_maxpages");
@@ -838,10 +873,11 @@ var evalParam = function(param,rowref = null) {
   if (rowref != null && rowref.id == "") rowref.id=param;   //if rowref don't have an id, add it, This happens in the first invocation.
   else rowref = document.getElementById(param);  //No need to check like : if (rowref == null), because subsequent calls to the function is not expecting rowref
   //OLD code to call default function : var param = paramDespatch.hasOwnProperty(param) ? param : "default"
+  //if despatcher has the specific paramteter section (only few parameters have)
   if (paramDespatch.hasOwnProperty(param)){ 
-    let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText;
-    params.push(paramJson);
-    paramDespatch[param](rowref);
+    let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText; //Create a json object with parameter and value
+    params.push(paramJson);    //Push the json object o params array
+    paramDespatch[param](rowref);   //Finally calle the dispatcher function for the specific parameter with rowref as parameter
    }
 }
 //************End of Parameter Despatch table ***********************
@@ -930,8 +966,8 @@ function checkdbs(){
       let str = " temp file generation per day!. It can cause I/O performance issues." 
       let param = params.find(p => p.param === "log_temp_files");
       if ( param["val"] == -1 ) { 
-        param["suggest"] = "100"; 
-        str += "Consider setting log_temp_files=" + param["suggest"] + "MB to collect the problematic SQL statements to PostgreSQL logs";
+        param["suggest"] = "'100MB'"; 
+        str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
       }else{
         str += "log_temp_files is already enabled, Analyze the PostgreSQL logs to check the problematic SQL statements";
       }

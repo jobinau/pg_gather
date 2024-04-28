@@ -2,7 +2,7 @@
 \echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <style>
-\echo #finditem,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
+\echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
 \echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;} 
 \echo th {background-color: #d2f2ff;cursor: pointer; }
 \echo tr:nth-child(even) {background-color: #eef8ff} 
@@ -17,7 +17,7 @@
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
+\echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -68,7 +68,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 
 \echo <div>
 \echo <details style="clear: left; width: fit-content;">
-\echo   <summary>Tune PostgreSQL Parameters (beta)</summary>
+\echo   <summary style="font: italic bold 1.5em Georgia">Tune This PostgreSQL</summary>
+\echo   <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
 \echo   <label for="cpus">CPUs:
 \echo   <input type="number" id="cpus" name="cpus" value="0">
 \echo   </label>
@@ -95,8 +96,15 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <option value="cow">COW (like: zfs/btrfs)</option>
 \echo    </select>
 \echo  </label>
-\echo  <p style="border: 2px solid blue; border-radius: 5px; padding: 1em;">Please input the CPU and Memory available on the host machine for evaluating the current parameter settings<br />
-\echo   Please see the tooltip against Parameters for recommendations based on calculations. Please seek expert advice</p>
+\echo  <p>NOTE : Please input the CPU and Memory available on the host machine and select the most appropriate options from the list to get recommendations<br />
+\echo   Please seek expert advice if you are in doubt</p>
+\echo </div>
+\echo   <div id="paramtune" style="padding:2em;position:relative">
+\echo    <h3 style="font: italic 1.2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Recommendations:</h3>
+\echo   <ol>
+\echo   </ol>
+\echo   <p>* Collecting pg_gather data during right utilization levels is important to tune the system for the specific workload</p>
+\echo   </div>
 \echo </details>
 \echo </div>
 \echo <h2 id="topics">Sections</h2>
@@ -138,7 +146,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <div id="sections" style="display:none">
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
-SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
+SELECT c.relname ||' - '|| r.relid || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name - OID" ,
 to_jsonb(ROW(r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
@@ -627,11 +635,24 @@ SELECT to_jsonb(r) FROM
 \echo document.getElementById("cpus").addEventListener("change", (event) => {
 \echo   totCPU = event.target.value;
 \echo   checkpars();  
+\echo   getreccomendation();
 \echo });
 \echo document.getElementById("mem").addEventListener("change", (event) => {
 \echo   totMem = event.target.value;
 \echo   checkpars();  
+\echo   getreccomendation();
 \echo });
+\echo function getreccomendation(){
+\echo   let reccomandations = document.getElementById("paramtune").children[1];
+\echo   let reccos = "";
+\echo   for (let item of params) {
+\echo     if (typeof item.suggest != "undefined"){
+\echo      console.log(item.param + " = " + item.suggest);
+\echo      reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='https://github.com/jobinau/pg_gather/blob/main/docs/params/" + item.param +".md'>#Explanation</a></li>"
+\echo     }
+\echo   }
+\echo   reccomandations.innerHTML = reccos;
+\echo }
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
 \echo   if (bytes == 0) return "0B";
@@ -688,6 +709,10 @@ SELECT to_jsonb(r) FROM
 \echo   shared_buffers: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo     if(parseFloat(document.getElementById("mem").value) < "0.2" ){
+\echo       document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
+\echo       totMem = val.innerText*8*4/(1024*1024);
+\echo     }
 \echo     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
 \echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
 \echo   },
@@ -695,9 +720,12 @@ SELECT to_jsonb(r) FROM
 \echo     val=rowref.cells[1];
 \echo     val.title="Avoid value exceeding 10x of the CPUs"
 \echo     if( totCPU > 0 ){
-\echo       if(val.innerText > 10 * totCPU) { val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability" }
-\echo         else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
-\echo         } else if (val.innerText > 500) val.classList.add("warn")
+\echo       if(val.innerText > 10 * totCPU) { 
+\echo         val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
+\echo         let conns = params.find(p => p.param === "max_connections");
+\echo         conns["suggest"] = 10 * totCPU;
+\echo       }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+\echo     } else if (val.innerText > 500) val.classList.add("warn")
 \echo       else val.classList.add("lime")
 \echo   },
 \echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
@@ -720,7 +748,7 @@ SELECT to_jsonb(r) FROM
 \echo     let param = params.find(p => p.param === "log_temp_files");
 \echo     if (typeof param["suggest"] != "undefined"){
 \echo       val.classList.add("warn"); 
-\echo       val.title="Heavy temporary file generation is detected. Consider setting log_temp_files=" + param["suggest"] + "MB";
+\echo       val.title="Heavy temporary file generation is detected. Consider setting log_temp_files=" + param["suggest"] ;
 \echo     } else if ((param["val"] > -1)){
 \echo       val.classList.add("lime");
 \echo       val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
@@ -776,6 +804,11 @@ SELECT to_jsonb(r) FROM
 \echo     val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
 \echo     if(val.innerText > 98304) val.classList.add("warn");
 \echo     else val.classList.add("lime");
+\echo     let conns = params.find(p => p.param === "max_connections");
+\echo     let wmem = params.find(p => p.param === "work_mem");
+\echo     if ( totMem > 0.2 && conns.val > 1){
+\echo       wmem["suggest"] = "'" + parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ) + "MB'";
+\echo     }
 \echo   },
 \echo   bgwriter_lru_maxpages: function(rowref){
 \echo     let param = params.find(p => p.param === "bgwriter_lru_maxpages");
@@ -792,8 +825,8 @@ SELECT to_jsonb(r) FROM
 \echo   else rowref = document.getElementById(param); 
 \echo   if (paramDespatch.hasOwnProperty(param)){ 
 \echo     let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText;
-\echo     params.push(paramJson);
-\echo     paramDespatch[param](rowref);
+\echo     params.push(paramJson);   
+\echo     paramDespatch[param](rowref);  
 \echo    }
 \echo }
 \echo function checkpars(){
@@ -862,8 +895,8 @@ SELECT to_jsonb(r) FROM
 \echo       let str = " temp file generation per day!. It can cause I/O performance issues." 
 \echo       let param = params.find(p => p.param === "log_temp_files");
 \echo       if ( param["val"] == -1 ) { 
-\echo         param["suggest"] = "100"; 
-\echo         str += "Consider setting log_temp_files=" + param["suggest"] + "MB to collect the problematic SQL statements to PostgreSQL logs";
+\echo         param["suggest"] = "'100MB'"; 
+\echo         str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
 \echo       }else{
 \echo         str += "log_temp_files is already enabled, Analyze the PostgreSQL logs to check the problematic SQL statements";
 \echo       }
