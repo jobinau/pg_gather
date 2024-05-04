@@ -168,7 +168,7 @@ SELECT p.relname "Partitioned Table", CASE p.relkind WHEN 'p' THEN 'Native' WHEN
 count(c.reloid) "Partitions", sum(r.tot_tab_size) "Tot.Tab size", sum(r.tab_ind_size) "Tab+Ind size"
 FROM pg_get_class c JOIN pg_get_inherits i ON c.reloid = i.inhrelid
 JOIN pg_get_class p ON i.inhparent = p.reloid
-JOIN pg_get_rel r ON c.reloid = r.relid 
+LEFT JOIN pg_get_rel r ON c.reloid = r.relid 
 WHERE p.relkind != 'I'
 GROUP BY 1,2;
 
@@ -1125,7 +1125,7 @@ SELECT to_jsonb(r) FROM
 \echo    pid.classList.add("warn"); 
 \echo    tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Victim of Blocker: " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString())
 \echo   };
-\echo  if(DurationtoSeconds(stime.innerText) > 300 && tr.cells[7].innerText.length > 3) stime.classList.add("warn");
+\echo   if(DurationtoSeconds(stime.innerText) > 300 && tr.cells[7].innerText.length > 3) stime.classList.add("warn");
 \echo  if (sql.innerText.length > 100 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
 \echo  sql.innerText = sql.innerText.substring(0, 100); 
 \echo }
