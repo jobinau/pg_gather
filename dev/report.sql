@@ -147,10 +147,10 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname ||' - '|| r.relid || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name - OID" ,
-to_jsonb(ROW(r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
-r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos,
-ct.relname "Toast name",rt.tab_ind_size "Toast+Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
+r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
+ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
 c.blocks_fetched "Fetch",c.blocks_hit*100/nullif(c.blocks_fetched,0) "C.Hit%",to_char(r.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
 FROM pg_get_rel r
 JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
@@ -382,9 +382,9 @@ SELECT CASE WHEN last_archived_time IS NOT NULL
   FROM pg_gather), ' ') || '</b> behind </li>' ELSE '</li>' END
 ELSE NULL END
 FROM W;
-WITH W AS (select count(*) AS val from pg_get_index i join pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't')
+WITH W AS (select count(*) FILTER (WHERE ct.relkind = 'r') as val, count(*) FILTER (WHERE ct.relkind = 't' ) tval FROM pg_get_index i JOIN pg_get_class ct ON i.indrelid = ct.reloid)
 SELECT CASE WHEN val > 10000
-  THEN '<li>There are <b>'||val||' indexes!</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details </li>'
+  THEN '<li>There are <b>'||val||' Table indexes!</b>  and <b>' || tval || ' Toast Indexes</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details </li>'
   ELSE NULL END
 FROM W;
 WITH W AS (
@@ -433,7 +433,7 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN pg_get_wal ON true
     LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
     LEFT JOIN cts ON true ) as dbts,
-  (SELECT json_agg(pg_get_ns) FROM  pg_get_ns WHERE nsoid > 16384 OR nsname='public') AS ns,
+  (SELECT json_agg(pg_get_ns) FROM  pg_get_ns) AS ns,
   (SELECT to_jsonb( ROW((collect_ts - last_archived_time) > '15 minute' :: interval, pg_wal_lsn_diff( current_wal,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )))
   FROM  pg_gather,  pg_archiver_stat) AS arcfail,
@@ -530,11 +530,9 @@ SELECT to_jsonb(r) FROM
 \echo       case "System" :  
 \echo         let startIndex = val.innerText.indexOf("(") + 1;
 \echo         days = parseInt(val.innerText.substring(startIndex,val.innerText.indexOf(" days", startIndex)));
-\echo         console.log(days) 
 \echo         break;
 \echo       case "Time Line" :
 \echo         let Failover = parseInt(val.innerText.substring(0,val.innerText.indexOf(" (")))-1;
-\echo         console.log(Failover);
 \echo         if (days > 30 && Failover > 5){
 \echo           let MTBF = days/Failover;
 \echo           if (MTBF < 180){
@@ -561,7 +559,7 @@ SELECT to_jsonb(r) FROM
 \echo     strfind += "</li>";
 \echo  }
 \echo  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='https://github.com/jobinau/pg_gather/blob/main/docs/InvalidIndexes.md'>Link</a></li>";
-\echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" out of " + obj.induse.f3 + " Index(es) are Unused, Which accounts for "+ bytesToSize(obj.induse.f4) +"</b>. Consider dropping of all unused Indexes</li>";
+\echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" out of " + obj.induse.f3 + " Index(es) are Unused</b>, which needs <b>additional "+ bytesToSize(obj.induse.f4) +" to cache</b>. Consider dropping of all unused Indexes</li>";
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
@@ -600,7 +598,7 @@ SELECT to_jsonb(r) FROM
 \echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-\echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " user schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database.";
+\echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/schema.md'> Link<a>";
 \echo    if (tempNScnt > 0 && obj.clas.f2 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f2).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
 \echo    strfind += tmpfind + "</li>";
 \echo   }
@@ -647,7 +645,6 @@ SELECT to_jsonb(r) FROM
 \echo   let reccos = "";
 \echo   for (let item of params) {
 \echo     if (typeof item.suggest != "undefined"){
-\echo      console.log(item.param + " = " + item.suggest);
 \echo      reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='https://github.com/jobinau/pg_gather/blob/main/docs/params/" + item.param +".md'>#Explanation</a></li>"
 \echo     }
 \echo   }
@@ -659,6 +656,9 @@ SELECT to_jsonb(r) FROM
 \echo   const i = parseInt(Math.floor(Math.log(bytes) / Math.log(divisor)), 10);
 \echo   if (i === 0) return bytes + sizes[i];
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
+\echo }
+\echo function setheadtip(th,tips){
+\echo   for (i in tips) th.cells[i].title = tips[i];
 \echo }
 \echo function updateJson(jsonString, key, value) {
 \echo   const jsonObject = JSON.parse(jsonString);
@@ -846,11 +846,10 @@ SELECT to_jsonb(r) FROM
 \echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
-\echo   trs[0].cells[2].title="Namespace / Schema oid";trs[0].cells[3].title="Bloat in Percentage";trs[0].cells[4].title="Live Rows/Tuples";trs[0].cells[5].title="Dead Rows/Tuples";
-\echo   trs[0].cells[6].title="Dead/Live ratio"; trs[0].cells[7].title="Table (main fork) size in bytes"; trs[0].cells[8].title="Total Table size (All forks + TOAST) in bytes";
-\echo   trs[0].cells[9].title="Total Table size + Associated Indexes size in bytes"; 
+\echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","Live Rows/Tuples","Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
+\echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","","","","Number of Vacuums per day","","Size of TOAST and its index",
+\echo    "Age of TOAST","Bigger of Table age and TOAST age","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
 \echo   [10,16,17].forEach(function(num){trs[0].cells[num].title="Age of unfrozen tuple. Indication of the need for VACUUM FREEZE. Current autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
-\echo   trs[0].cells[18].title="Number of Blocks Read/Fetched"; trs[0].cells[19].title="Cache hit while reading";
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i]; let TotTab=tr.cells[8]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[9]; TabIndSize=(TabInd.innerHTML);
 \echo     if(TotTabSize > 5000000000 ) { TotTab.classList.add("lime"); TotTab.title = bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge"; 
@@ -997,23 +996,23 @@ SELECT to_jsonb(r) FROM
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
-\echo   if (o.f8 == "r") str += "<br/>Ineritance Partition of : " + o.f7;
-\echo   if (o.f8 == "p") str += "<br/>Native Partition of : " + o.f7;
-\echo   if (o.f5 !== null) str += "<br/>Total Indexes: " + o.f5;
-\echo   if (o.f5 !== null) str += "<br/>Unused Indexes: " + o.f6;
+\echo   if (o.f9 == "r") str += "<br/>Ineritance Partition of : " + o.f8;
+\echo   if (o.f9 == "p") str += "<br/>Native Partition of : " + o.f8;
+\echo   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
+\echo   if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;
 \echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
 \echo   if (vac > 0) str +="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
-\echo   str += "<br/>Inserts / day : " + Math.round(o.f1/obj.dbts.f4);
-\echo   str += "<br/>Updates / day : " + Math.round(o.f2/obj.dbts.f4);
-\echo   str += "<br/>Deletes / day : " + Math.round(o.f3/obj.dbts.f4);
+\echo   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
+\echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
+\echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
 \echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   if (o.f2 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f2/(o.f2+o.f1)+ 20*o.f2*o.f4/((o.f2+o.f1)*o.f2));
+\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
 \echo   if (vac/obj.dbts.f4 > 50) { 
-\echo     let threshold = Math.round((Math.round(o.f2/obj.dbts.f4) + Math.round(o.f3/obj.dbts.f4))/48);
+\echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);
 \echo     if (threshold < 500) threshold = 500;
 \echo     str += "<br/>AUTOVACUUM recommendation : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
 \echo   }
-\echo   return "<b>" + th.cells[0].innerText + "</b><br/>Schema : " + ns.nsname + str;
+\echo   return "<b>" + th.cells[0].innerText + "</b><br/>OID : " + o.f1 + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
 \echo function sessdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
@@ -1126,8 +1125,8 @@ SELECT to_jsonb(r) FROM
 \echo    pid.classList.add("warn"); 
 \echo    tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Victim of Blocker: " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString())
 \echo   };
-\echo  if(DurationtoSeconds(stime.innerText) > 300) stime.classList.add("warn");
-\echo  if (sql.innerText.length > 10 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
+\echo  if(DurationtoSeconds(stime.innerText) > 300 && tr.cells[7].innerText.length > 3) stime.classList.add("warn");
+\echo  if (sql.innerText.length > 100 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
 \echo  sql.innerText = sql.innerText.substring(0, 100); 
 \echo }
 \echo }}
