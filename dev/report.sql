@@ -48,9 +48,9 @@ SELECT * FROM
     THEN (SELECT set_config('timezone',setting,false) FROM pg_get_confs WHERE name='log_timezone')
     ELSE  set_config('timezone',:'tzone',false) 
   END AS val)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Current LSN','Time Line','WAL file','System']) AS pg_gather,
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
-        current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
+        pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
         'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')']) AS "Report"
 FROM pg_gather LEFT JOIN TZ ON TRUE 
 UNION
@@ -146,7 +146,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <div id="sections" style="display:none">
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
-SELECT c.relname ||' - '|| r.relid || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name - OID" ,
+SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name - OID" ,
 to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
@@ -273,7 +273,10 @@ GROUP BY 1 ORDER BY count(*) DESC;
 SELECT * FROM (
     WITH w AS (SELECT pid, string_agg( wait_event ||': '|| cnt*100::float/2000 ||'%',', ') waits, sum(cnt) pidwcnt, max(max) itr_max, min(min) itr_min FROM
     (SELECT pid,COALESCE(wait_event,'CPU') wait_event,count(*) cnt, max(itr),min(itr) FROM pg_pid_wait GROUP BY 1,2 ORDER BY cnt DESC) pw GROUP BY 1),
-  g AS (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity),
+  g AS (SELECT max(ts) ts,max(mx_xid) mx_xid FROM
+  (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity
+    UNION
+   SELECT NULL, pg_snapshot_xmax(snapshot)::text::bigint mx_xid FROM pg_gather) a),
   wrk AS (select leader_pid, count(*) from pg_get_activity where leader_pid is not null group by 1),
   itr AS (SELECT max(itr_max) gitr_max FROM w)
   SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion,wrk.count)), a.state,r.rolname "User"
@@ -313,7 +316,10 @@ WHERE tottrank < 10 OR avgtrank < 10 ;
 
 \pset tableattr 'id="tblreplstat"'
 WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
-  g AS (SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity)
+g AS (SELECT max(mx_xid) mx_xid FROM
+(SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity
+  UNION
+ SELECT pg_snapshot_xmax(snapshot)::text::bigint mx_xid FROM pg_gather) a)
 SELECT usename AS "Replication User",client_addr AS "Replica Address",pid,state,
  pg_wal_lsn_diff(M.greatest, sent_lsn) "Transmission Lag (Bytes)",pg_wal_lsn_diff(sent_lsn,write_lsn) "Replica Write lag(Bytes)",
  pg_wal_lsn_diff(write_lsn,flush_lsn) "Replica Flush lag(Bytes)",pg_wal_lsn_diff(flush_lsn,replay_lsn) "Replay at Replica lag(Bytes)",
@@ -511,7 +517,7 @@ SELECT to_jsonb(r) FROM
 \echo };
 \echo function checkgather(){
 \echo   const trs=document.getElementById("tblgather").rows
-\echo   let days=0;
+\echo   let days,xmax=0;
 \echo   for (let i = 0; i < trs.length; i++) {
 \echo     val = trs[i].cells[1];
 \echo     switch(trs[i].cells[0].innerText){
@@ -530,6 +536,12 @@ SELECT to_jsonb(r) FROM
 \echo       case "System" :  
 \echo         let startIndex = val.innerText.indexOf("(") + 1;
 \echo         days = parseInt(val.innerText.substring(startIndex,val.innerText.indexOf(" days", startIndex)));
+\echo         break;
+\echo       case "Latest xid" :
+\echo         xmax = parseInt(val.innerText);
+\echo         break;
+\echo       case "Oldest xid ref" :
+\echo         val.innerText += " (" + (xmax - parseInt(val.innerText)).toString() + " xids old)";
 \echo         break;
 \echo       case "Time Line" :
 \echo         let Failover = parseInt(val.innerText.substring(0,val.innerText.indexOf(" (")))-1;
@@ -574,6 +586,11 @@ SELECT to_jsonb(r) FROM
 \echo     strfind += "<li>" + tmpstr + "</li>"
 \echo     document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
 \echo    }
+\echo   }
+\echo   for (let item of params) { 
+\echo     if (typeof item.warn != "undefined"){
+\echo      strfind += "<li>" + item.warn +"</li>";
+\echo     }
 \echo   }
 \echo  }
 \echo  if(obj.clsr){
@@ -775,12 +792,16 @@ SELECT to_jsonb(r) FROM
 \echo   server_version: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
+\echo     let sver_ver = params.find(p => p.param === "server_version");
 \echo     if ( mgrver < Math.trunc(meta.pgvers[0])){
 \echo       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
+\echo       sver_ver["warn"] = "Running Unsupported PostgreSQL Version " + mgrver;
 \echo     } else {
 \echo       meta.pgvers.forEach(function(t){
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
-\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates pending. Please upgrade ASAP"; }
+\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates are pending. Please upgrade ASAP"; 
+\echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText + ".</b> " + val.title;
+\echo           }
 \echo         }
 \echo       })  
 \echo     }
@@ -790,6 +811,8 @@ SELECT to_jsonb(r) FROM
 \echo     val=rowref.cells[1];
 \echo     if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.trim() == ""){
 \echo       val.classList.add("warn"); val.title="Session level setting of pg_gather. It is important to set a value globally to avoid long running sessions and associated problems"
+\echo       let tmout = params.find(p => p.param === "statement_timeout");
+\echo       tmout["suggest"] = "'4h'";
 \echo     }
 \echo   },
 \echo   synchronous_standby_names: function(rowref){
@@ -801,13 +824,13 @@ SELECT to_jsonb(r) FROM
 \echo   },
 \echo   work_mem: function(rowref){
 \echo     val=rowref.cells[1];
-\echo     val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 32MB to avoid memory related issues";
+\echo     val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 64MB to avoid memory related issues";
 \echo     if(val.innerText > 98304) val.classList.add("warn");
 \echo     else val.classList.add("lime");
 \echo     let conns = params.find(p => p.param === "max_connections");
 \echo     let wmem = params.find(p => p.param === "work_mem");
 \echo     if ( totMem > 0.2 && conns.val > 1){
-\echo       wmem["suggest"] = "'" + parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ) + "MB'";
+\echo       wmem["suggest"] = "'" + Math.min(parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ),64) + "MB'";
 \echo     }
 \echo   },
 \echo   bgwriter_lru_maxpages: function(rowref){
