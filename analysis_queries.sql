@@ -34,6 +34,13 @@ AND application_name NOT LIKE ALL (ARRAY['PostgreSQL JDBC Driver%','DBeaver%','p
 AND rolname = 'pmmmaint'
 
 
+--3. Catalog objects and size
+SELECT relid,tab_ind_size, ns.nsname 
+FROM pg_get_rel r
+LEFT JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid
+WHERE nsname IN ('pg_catalog','information_schema','pg_toast') AND relid < 16384
+ORDER BY tab_ind_size DESC; 
+
 /*  -- pg_get_block is no longer used after version 22
 --3.Which session is at the top of the blocking
 SELECT blocking_pid,statement_in_blocking_process,count(*)
