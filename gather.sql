@@ -5,7 +5,7 @@
 \set ver 26
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
-SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16, ( current_database() != 'template1' ) as fullgather \gset
+SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16, ( :SERVER_VERSION_NUM >= 170000 ) AS pg17, ( current_database() != 'template1' ) as fullgather \gset
 
 \if :fullgather
 ---Error out and exit, unless healthy
@@ -273,13 +273,18 @@ COPY (SELECT wal_records,wal_fpi,wal_bytes,wal_buffers_full,wal_write,wal_sync,w
 
 --bgwriter
 \echo COPY pg_get_bgwriter FROM stdin;
+\if :pg17
+COPY (SELECT pg_stat_get_checkpointer_num_timed(),pg_stat_get_checkpointer_num_requested(),pg_stat_get_checkpointer_write_time(),pg_stat_get_checkpointer_sync_time(),
+pg_stat_get_checkpointer_buffers_written(),pg_stat_get_bgwriter_buf_written_clean(),pg_stat_get_bgwriter_maxwritten_clean(),NULL,NULL,pg_stat_get_buf_alloc(),pg_stat_get_bgwriter_stat_reset_time()) TO stdout;
+\else
 COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
+\endif
 \echo '\\.'
 
 --IO stats
 \if :pg16
 \echo COPY pg_get_io(btype,obj,context,reads,read_time,writes,write_time,writebacks,writeback_time,extends,extend_time,op_bytes,hits,evictions,reuses,fsyncs,fsync_time,stats_reset) FROM stdin;
-COPY ( SELECT CASE backend_type WHEN 'background writer' THEN 'G' ELSE left(backend_type,1) END btype, left(object,1) obj,
+COPY ( SELECT CASE backend_type WHEN 'background writer' THEN 'G' WHEN 'checkpointer' THEN 'k' ELSE left(backend_type,1) END btype, left(object,1) obj,
 CASE context WHEN 'bulkread' THEN 'R' WHEN 'bulkwrite' THEN 'W' ELSE left(context,1) END context,
 reads,read_time,writes,write_time,writebacks,writeback_time,extends,extend_time,op_bytes,hits,evictions,reuses,fsyncs,fsync_time,stats_reset
 FROM pg_stat_io WHERE backend_type NOT LIKE 's%'
