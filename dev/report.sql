@@ -15,7 +15,7 @@
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:2em }
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
-\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px;}
+\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 100;}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
@@ -340,30 +340,31 @@ round(total_buffers::numeric*8192/(1024*1024),2) "Tot MB Written",
 round((buffers_checkpoint::numeric/tot_cp)*8192/(1024*1024),4) "MB per CP",
 round(buffers_checkpoint::numeric*8192/(min_since_reset*60*1024*1024),4) "Checkpoint MBps",
 round(buffers_clean::numeric*8192/(min_since_reset*60*1024*1024),4) "Bgwriter MBps",
-round(buffers_backend::numeric*8192/(min_since_reset*60*1024*1024),4) "Backend MBps",
+round(bg.buffers_backend::numeric*8192/(min_since_reset*60*1024*1024),4) "Backend MBps",
 round(total_buffers::numeric*8192/(min_since_reset*60*1024*1024),4) "Total MBps",
 round(buffers_alloc::numeric/total_buffers,3)  "New buffers ratio",
 round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
 round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
-round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
+round(100.0*bg.buffers_backend/total_buffers,1)  "Clean by backends (%)",
 round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs",
 coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::numeric),2),0)  "Bgwriter halt (%) due to LRU hit",
 round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
-(SELECT 
+(WITH client AS (SELECT sum(evictions) buffers_backend FROM pg_get_io WHERE btype='c')  
+SELECT 
     NULLIF(round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric,0) min_since_reset,
-    GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
-    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp 
-    FROM pg_get_bgwriter) AS bg
+    GREATEST(buffers_checkpoint + buffers_clean + COALESCE(client.buffers_backend,pg_get_bgwriter.buffers_backend),1) total_buffers,
+    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp,
+    COALESCE(client.buffers_backend,pg_get_bgwriter.buffers_backend) buffers_backend
+FROM pg_get_bgwriter,client) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
-LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages'; 
+LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
 
 \pset tableattr 'id="tbliostat"'
 SELECT
 CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
-  WHEN 'C' THEN 'checkpointer'
-ELSE btype END As "Backend", 
+  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend", 
 sum(reads) "Reads",sum(writes) "Writes",sum(writebacks) "Writebacks", sum(extends) "Extends",sum(hits) "Hits",sum(evictions) "Evictions", sum(reuses) "Reuse", sum(fsyncs) "FSyncs"
 FROM pg_get_io 
 WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
@@ -472,7 +473,7 @@ SELECT to_jsonb(r) FROM
 \echo <script type="text/javascript">
 \echo obj={};
 \echo ver="26";
-\echo meta={pgvers:["12.18","13.14","14.11","15.6","16.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["12.19","13.15","14.12","15.7","16.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo autovacuum_freeze_max_age = 0;
