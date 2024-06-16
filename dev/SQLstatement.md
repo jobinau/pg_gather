@@ -169,12 +169,12 @@ round(total_buffers::numeric*8192/(1024*1024),2) "Tot MB Written",
 round((buffers_checkpoint::numeric/tot_cp)*8192/(1024*1024),4) "MB per CP",
 round(buffers_checkpoint::numeric*8192/(min_since_reset*60*1024*1024),4) "Checkpoint MBps",
 round(buffers_clean::numeric*8192/(min_since_reset*60*1024*1024),4) "Bgwriter MBps",
-round(buffers_backend::numeric*8192/(min_since_reset*60*1024*1024),4) "Backend MBps",
+round(bg.buffers_backend::numeric*8192/(min_since_reset*60*1024*1024),4) "Backend MBps",
 round(total_buffers::numeric*8192/(min_since_reset*60*1024*1024),4) "Total MBps",
 round(buffers_alloc::numeric/total_buffers,3)  "New buffers ratio",
 round(100.0*buffers_checkpoint/total_buffers,1)  "Clean by checkpoints (%)",
 round(100.0*buffers_clean/total_buffers,1)   "Clean by bgwriter (%)",
-round(100.0*buffers_backend/total_buffers,1)  "Clean by backends (%)",
+round(100.0*bg.buffers_backend/total_buffers,1)  "Clean by backends (%)",
 -- Chance of bgwriter stops due to bgwriter_lru_maxpages, in overall possible bgwriter runs
 -- Bgwriter does the cleaning if there is not sufficient free pages. That means small numbers indicates most of the time there is sufficient free buffers
 round(100.0*maxwritten_clean/(min_since_reset*60000 / delay.setting::numeric),2)   "Bgwriter halts (%) per runs (**1)",
@@ -185,11 +185,16 @@ coalesce(round(100.0*maxwritten_clean/(nullif(buffers_clean,0)/ lru.setting::num
 round(min_since_reset/(60*24),1) "Reset days"
 FROM pg_get_bgwriter
 CROSS JOIN 
-(SELECT 
+(
+  --Get the client backend related information from pg_stat_io (for PG17)
+  WITH client AS (SELECT sum(evictions) buffers_backend FROM pg_get_io WHERE btype='c')  
+SELECT 
     NULLIF(round(extract('epoch' from (select collect_ts from pg_gather) - stats_reset)/60)::numeric,0) min_since_reset,
-    GREATEST(buffers_checkpoint + buffers_clean + buffers_backend,1) total_buffers,
-    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp 
-    FROM pg_get_bgwriter) AS bg
+    GREATEST(buffers_checkpoint + buffers_clean + COALESCE(client.buffers_backend,pg_get_bgwriter.buffers_backend),1) total_buffers,
+    NULLIF(checkpoints_timed+checkpoints_req,0) tot_cp,
+    --Select which ever is available as buffers_backend, same for total_buffers
+    COALESCE(client.buffers_backend,pg_get_bgwriter.buffers_backend) buffers_backend
+FROM pg_get_bgwriter,client) AS bg
 LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
 ```
@@ -219,4 +224,24 @@ temp_blks_read/calls "Avg.Temp(r)",
 temp_blks_written/calls "Avg.Temp(w)"
 from pg_get_statements) AS stmnts
 WHERE tottrank < 10 OR avgtrank < 10 ;
+```
+
+## Replication status
+```
+WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
+g AS (SELECT max(mx_xid) mx_xid FROM
+--findout the biggest xmin of all the sessions
+(SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity
+  UNION
+ SELECT NULL::text::bigint mx_xid FROM pg_gather) a)
+SELECT usename AS "Replication User",client_addr AS "Replica Address",pid,state,
+ pg_wal_lsn_diff(M.greatest, sent_lsn) "Transmission Lag (Bytes)",pg_wal_lsn_diff(sent_lsn,write_lsn) "Replica Write lag(Bytes)",
+ pg_wal_lsn_diff(write_lsn,flush_lsn) "Replica Flush lag(Bytes)",pg_wal_lsn_diff(flush_lsn,replay_lsn) "Replay at Replica lag(Bytes)",
+ slot_name "Slot",plugin,slot_type "Type",datname "DB name",temporary,active,GREATEST(g.mx_xid-old_xmin::text::bigint,0) as "xmin age",
+ GREATEST(g.mx_xid-catalog_xmin::text::bigint,0) as "catalog xmin age", GREATEST(pg_wal_lsn_diff(M.greatest,restart_lsn),0) as "Restart LSN lag(Bytes)",
+ GREATEST(pg_wal_lsn_diff(M.greatest,confirmed_flush_lsn),0) as "Confirmed LSN lag(Bytes)"
+FROM pg_replication_stat JOIN M ON TRUE
+  FULL OUTER JOIN pg_get_slots s ON pid = active_pid
+  LEFT JOIN g ON TRUE
+  LEFT JOIN pg_get_db ON s.datoid = datid;
 ```
