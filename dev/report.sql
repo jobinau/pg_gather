@@ -418,8 +418,9 @@ SELECT '<li>Parameter '||error ||': '||name||' = '||setting||' in '||sourcefile|
 SELECT to_jsonb(r) FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
-  (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
-     from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
+  (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
+  FROM pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
+LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (SELECT to_jsonb(ROW(COUNT(*),COUNT(*) FILTER (WHERE CONN < interval '15 minutes' ) )) FROM 
     (WITH g AS (SELECT MAX(state_change) as ts FROM pg_get_activity)
     SELECT pid,g.ts - backend_start CONN
@@ -597,9 +598,9 @@ SELECT to_jsonb(r) FROM
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
-\echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables </li>";
-\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables</b>, query planning can go wrong </li>";
-\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables in single database. You may use backend query (Query No.10) from analysis_queries.sql</li>";
+\echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
+\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
+\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/table_object.md'>Learn Details</a></li>";
 \echo   if (obj.arcfail != null) {
 \echo    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
 \echo    if (obj.arcfail.f1) strfind += "<li>No WAL archiving happened in last 15 minutes <b>archiving could be failing</b>; please check PG logs</li>";
@@ -1222,7 +1223,7 @@ SELECT to_jsonb(r) FROM
 \echo }}
 \echo function checkiostat(){
 \echo tab=document.getElementById("tbliostat")
-\echo tab.caption.innerHTML=''''<span>IO Statistics</span> (beta)''''
+\echo tab.caption.innerHTML=''''<span>IO Statistics</span>''''
 \echo if (tab.rows.length > 1){
 \echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 \echo }
