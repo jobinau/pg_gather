@@ -599,7 +599,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
 \echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
-\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
+\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
 \echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/table_object.md'>Learn Details</a></li>";
 \echo   if (obj.arcfail != null) {
 \echo    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
@@ -787,6 +787,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
 \echo     else val.classList.add("lime");
 \echo   },
+\echo   wal_keep_size: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
+\echo     val.classList.add("lime");
+\echo   },
 \echo   random_page_cost: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     if(val.innerText > 1.2) val.classList.add("warn");
@@ -811,8 +816,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   statement_timeout : function(rowref){
 \echo     val=rowref.cells[1];
-\echo     if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.trim() == ""){
-\echo       val.classList.add("warn"); val.title="Session level setting of pg_gather. It is important to set a value globally to avoid long running sessions and associated problems"
+\echo     if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.indexOf("/") < 0 ){
+\echo       rowref.cells[3].innerText= "default"; val.innerText="0";
+\echo       val.classList.add("warn"); val.title="It is important to set a value globally to avoid long running sessions and associated problems"
 \echo       let tmout = params.find(p => p.param === "statement_timeout");
 \echo       tmout["suggest"] = "'4h'";
 \echo     }
@@ -826,8 +832,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   work_mem: function(rowref){
 \echo     val=rowref.cells[1];
-\echo     val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 64MB to avoid memory related issues";
-\echo     if(val.innerText > 98304) val.classList.add("warn");
+\echo     val.title=bytesToSize(val.innerText*1024,1024) ;
+\echo     if(val.innerText > 98304){ val.classList.add("warn"); val.title += ", Avoid global settings above 64MB to avoid memory related issues"  }
 \echo     else val.classList.add("lime");
 \echo     let conns = params.find(p => p.param === "max_connections");
 \echo     let wmem = params.find(p => p.param === "work_mem");
@@ -1021,7 +1027,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
-\echo   if (o.f9 == "r") str += "<br/>Ineritance Partition of : " + o.f8;
+\echo   if (o.f9 == "r") str += "<br/>Inheritance Partition of : " + o.f8;
 \echo   if (o.f9 == "p") str += "<br/>Native Partition of : " + o.f8;
 \echo   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
 \echo   if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;

@@ -146,7 +146,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <div id="sections" style="display:none">
 <% \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
-SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name - OID" ,
+SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
 to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
@@ -625,7 +625,7 @@ function checkfindings(){
   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
  }else{
   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
-  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
+  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/table_object.md'>Learn Details</a></li>";
   if (obj.arcfail != null) { //entire information can go missing if no record comes to table : pg_gather, which could happen in aurora
    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
@@ -834,6 +834,11 @@ var paramDespatch = {
     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
     else val.classList.add("lime");
   },
+  wal_keep_size: function(rowref){
+    val=rowref.cells[1];
+    val.title=bytesToSize(val.innerText*1024*1024,1024);
+    val.classList.add("lime");
+  },
   random_page_cost: function(rowref){
     val=rowref.cells[1];
     if(val.innerText > 1.2) val.classList.add("warn");
@@ -858,8 +863,9 @@ var paramDespatch = {
   },
   statement_timeout : function(rowref){
     val=rowref.cells[1];
-    if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.trim() == ""){
-      val.classList.add("warn"); val.title="Session level setting of pg_gather. It is important to set a value globally to avoid long running sessions and associated problems"
+    if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.indexOf("/") < 0 ){
+      rowref.cells[3].innerText= "default"; val.innerText="0";
+      val.classList.add("warn"); val.title="It is important to set a value globally to avoid long running sessions and associated problems"
       let tmout = params.find(p => p.param === "statement_timeout");
       tmout["suggest"] = "'4h'";
       //Actual value need to be considering OLTP/OLAP workload
@@ -874,8 +880,8 @@ var paramDespatch = {
   },
   work_mem: function(rowref){
     val=rowref.cells[1];
-    val.title=bytesToSize(val.innerText*1024,1024) + ", Avoid global settings above 64MB to avoid memory related issues";
-    if(val.innerText > 98304) val.classList.add("warn");
+    val.title=bytesToSize(val.innerText*1024,1024) ;
+    if(val.innerText > 98304){ val.classList.add("warn"); val.title += ", Avoid global settings above 64MB to avoid memory related issues"  }
     else val.classList.add("lime");
     let conns = params.find(p => p.param === "max_connections");
     let wmem = params.find(p => p.param === "work_mem");
@@ -1108,7 +1114,7 @@ function tabdtls(th){
   //lookup cells[2] value, the oid of NS in the obj.ns json collection  
   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
   let str=""
-  if (o.f9 == "r") str += "<br/>Ineritance Partition of : " + o.f8;
+  if (o.f9 == "r") str += "<br/>Inheritance Partition of : " + o.f8;
   if (o.f9 == "p") str += "<br/>Native Partition of : " + o.f8;
   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
   if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;
