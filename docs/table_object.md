@@ -11,6 +11,8 @@ A PostgreSQL Database can typically contain different types of objects
 8. Foregin tables 
    etc..
 
+Having too many objects in a single database increases the metadata, which adversily impact the overall database performance and response.
+Less that thousand database objects are most ideal.
 
 # Get the list of objects and their details from pg_gather data
 Please run the following query on the database where the pg_gather data is imported
