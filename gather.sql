@@ -93,6 +93,10 @@ pg_database_size(d.oid) AS db_size, age(datfrozenxid), mxid_age(datminmxid),
 pg_stat_get_db_stat_reset_time(d.oid) AS stats_reset
 FROM pg_database d) TO stdin;
 \echo '\\.'
+
+--Source of top statement is unknown now
+\set stmnt N
+
 --Starting fullgather section
 \if :fullgather
 
@@ -204,7 +208,6 @@ COPY (select oid,extname,extowner,extnamespace,extrelocatable,extversion from pg
 
 --Check for extensions like pg_stat_statements and pg_stat_monitor
 SELECT count(*) FILTER (WHERE extname='pg_stat_statements') > 0 AS pgss,count(*) FILTER (WHERE extname='pg_stat_monitor') > 0 AS pgsm FROM pg_extension \gset
-\set stmnt N
 \if :pgss
     \set stmnt S
     \echo COPY pg_get_statements (userid,dbid,query,calls,total_time,shared_blks_hit,shared_blks_read,shared_blks_dirtied,shared_blks_written,temp_blks_read,temp_blks_written) FROM stdin;
