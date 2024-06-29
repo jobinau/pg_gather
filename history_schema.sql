@@ -12,6 +12,9 @@ CREATE UNLOGGED TABLE IF NOT EXISTS history.pg_gather (
     client inet,
     server inet,
     reload_ts timestamp with time zone,
+    timeline int,
+    systemid bigint,
+    snapshot pg_snapshot,
     current_wal pg_lsn
 );
 
@@ -47,6 +50,7 @@ CREATE UNLOGGED TABLE  IF NOT EXISTS  history.pg_get_activity (
     gss_auth boolean,
     gss_princ text,
     gss_enc boolean,
+    gss_delegation boolean,
     leader_pid integer,
     query_id bigint
 );
@@ -79,6 +83,7 @@ CREATE UNLOGGED TABLE history.pg_get_db (
     blk_write_time double precision,
     db_size bigint,
     age integer,
+    mxidage integer,
     stats_reset timestamp with time zone
 );
 
@@ -104,6 +109,13 @@ CREATE UNLOGGED TABLE history.pg_get_block (
     blocking_xact_start timestamp with time zone
 );
 
+
+CREATE UNLOGGED TABLE history.pg_get_pidblock(
+  collect_ts timestamp with time zone,
+  victim_pid int,
+  blocking_pids int[]
+);
+
 CREATE UNLOGGED TABLE history.pg_replication_stat (
     collect_ts timestamp with time zone,
     usename text,
@@ -116,6 +128,41 @@ CREATE UNLOGGED TABLE history.pg_replication_stat (
     flush_lsn pg_lsn,
     replay_lsn pg_lsn,
     sync_state text
+);
+
+CREATE UNLOGGED TABLE history.pg_get_wal(
+    collect_ts timestamp with time zone,
+    wal_records bigint,
+    wal_fpi bigint,
+    wal_bytes numeric,
+    wal_buffers_full bigint,
+    wal_write bigint,
+    wal_sync bigint,
+    wal_write_time double precision,
+    wal_sync_time double precision,
+    stats_reset timestamp with time zone
+);
+
+CREATE UNLOGGED TABLE history.pg_get_io(
+    collect_ts timestamp with time zone,
+    btype char(1), -- 'background writer=G'
+    obj char(1), -- 'bulkread=R, bulkwrite=W'
+    context char(1),
+    reads bigint,
+    read_time float8,
+    writes bigint,
+    write_time float8,
+    writebacks bigint,
+    writeback_time float8,
+    extends bigint,
+    extend_time float8,
+    op_bytes bigint,
+    hits bigint,
+    evictions bigint,
+    reuses bigint,
+    fsyncs bigint,
+    fsync_time float8,
+    stats_reset timestamptz
 );
 
 CREATE UNLOGGED TABLE history.pg_archiver_stat(
@@ -156,4 +203,11 @@ CREATE UNLOGGED TABLE history.pg_get_slots(
     catalog_xmin xid,
     restart_lsn pg_lsn,
     confirmed_flush_lsn pg_lsn
+);
+
+CREATE UNLOGGED TABLE history.pg_gather_end (
+    collect_ts timestamp with time zone,
+    end_ts timestamp with time zone,
+    end_lsn pg_lsn,
+    stmnt char
 );

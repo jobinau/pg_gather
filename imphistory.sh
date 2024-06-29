@@ -15,11 +15,15 @@ do
   #TODO : Observe over a period of time and remove those 2 lines if possible.
   zcat $f | sed -n '
   /^COPY/, /^\\\./ {
+    s/COPY pg_gather (/COPY pg_gather (imp_ts,/
     s/COPY pg_get_activity (/COPY pg_get_activity (collect_ts,/
     s/COPY pg_pid_wait (/COPY pg_pid_wait (collect_ts,/
     s/COPY pg_get_db (/COPY pg_get_db (collect_ts,/
     s/COPY pg_replication_stat(/COPY pg_replication_stat (collect_ts,/
     s/COPY pg_get_slots(/COPY pg_get_slots(collect_ts,/
+    s/COPY pg_get_pidblock(/COPY pg_get_pidblock(collect_ts,/
+    s/COPY pg_get_wal(/COPY pg_get_wal(collect_ts,/
+    s/COPY pg_get_io(/COPY pg_get_io(collect_ts,/
     /^COPY pg_srvr/, /^\\\./d  #Delete any full gather information
     /^COPY pg_get_roles/, /^\\\./d   # -do-
     /^COPY pg_get_confs/, /^\\\./d   # -do-
