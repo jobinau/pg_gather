@@ -89,17 +89,7 @@ You may use your favourite web browser to read the report.
 
 NOTE: PostgreSQL version 13 or above is required to generate the analysis report.
 
-## 2.3 Importing "*Partial*" data
-As mentioned in the previous section, partial data gathering is helpful if we schedule the `gather.sql` as a simple continuous monitoring tool. A separate schema with the name `history` can hold the imported data.
-A script file with the name `history_schema.sql` is provided for creating this schema and objects.
-```
-psql -X -f history_schema.sql
-```
-This project provides a sample `imphistory.sh` file which automates importing partial data from multiple files into the tables in `history` schema. This script can be executed from the directory which contains all the output files. Multiiple files and Wild cards are allowed. Here is an example:
-```
-$ imphistory.sh out-*.gz > log.txt
-```
-Collecting the import log file is a good practice, as shown above.
+
 
 # ANNEXTURE 1 : Using PostgreSQL container and wrapper script
 The steps for data analysis mentioned above seem simple (single command), but they require a PostgreSQL instance to import the data into. An alternative is to use the `generate_report.sh` script, which can spin up a PostgreSQL Docker container and automate the entire process. To use this script, you must place it in a directory containing the `gather_schema.sql` and `gather_report.sql` files.
