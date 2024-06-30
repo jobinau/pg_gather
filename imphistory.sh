@@ -24,6 +24,7 @@ do
     s/COPY pg_get_pidblock(/COPY pg_get_pidblock(collect_ts,/
     s/COPY pg_get_wal(/COPY pg_get_wal(collect_ts,/
     s/COPY pg_get_io(/COPY pg_get_io(collect_ts,/
+    s/COPY pg_gather_end(/COPY pg_gather_end(collect_ts,/
     /^COPY pg_srvr/, /^\\\./d  #Delete any full gather information
     /^COPY pg_get_roles/, /^\\\./d   # -do-
     /^COPY pg_get_confs/, /^\\\./d   # -do-

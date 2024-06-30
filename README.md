@@ -69,14 +69,8 @@ This script may take over 20 seconds to run because it contains sleeps/delays. W
      cat gather.sql | kubectl exec -i <PGpod> -- psql -X -f - > out.tsv
    ```
 
-## Gathering data continuosly, but Partially
-To capture the details of an occasional problem, you may need to collect data multiple times. `pg_gather` has a special lightweight mode for continuous data gathering, which is automatically enabled when it connects to the "template1" database. You can schedule `gather.sql` to run every minute against the "template1" database and collect the output files into a directory.
-
-Following is an example for scheduling in Linux/Unix systems using `cron`.
-```
-* * * * * psql -U postgres -d template1 -X -f /path/to/gather.sql | gzip >  /path/to/out/out-`date +\%a-\%H.\%M`.txt.gz 2>&1
-```
-When connected to the `template1` database, the gather script collects only live, dynamic, performance-related information, skipping all object-specific information. This is called a **partial** gathering and it can be further compressed with gzip to reduce the size significantly.
+## Gathering data continuosly
+There could be requirements for collecting data continuously and repatedly. `pg_gather` has a special lightweight mode for continuous data gathering, which is automatically enabled when it connects to the "template1" database. Please refer to detailed [documentation specific to continuous and repated data collection](docs/continuous_collection.md)
 
 # 2. Data Analysis
 ## 2.1 Importing collected data
