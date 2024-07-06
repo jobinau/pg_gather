@@ -478,7 +478,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 //Global object to hold json values passed from the SQL analysis
 obj={};
 //pg_gather version
-ver="26";
+ver="27";
 //Currently supported PostgreSQL versions, Extensions
 meta={pgvers:["12.19","13.15","14.12","15.7","16.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
