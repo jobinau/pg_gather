@@ -1,4 +1,9 @@
-# pg_gather Project objectives and FAQ
+# pg_gather Project
+
+# History
+In 2019, The author of the project @jobinau, decided to convert all his scripts, which he accumulated over decades working with PostgreSQL into a single script/tool, So that it will be beneficial for every novice users and DBAs of PostgreSQL.
+Since it was a personal project, Initial couple of versions were purely private/personal and not available in Github. The work remained private/presonal for 1 more year. Later decided opensource it under PostgreSQL licence. In Jan 19, 2021, The Public Github project was created and code was published : https://github.com/jobinau/pg_gather/commit/1b7ccfc5222601adc2f3d27341db87cb780a4098
+Every release there after is public : https://github.com/jobinau/pg_gather/releases
 
 ## Objective 1.  Clarity and auditability on what is collected
     
@@ -17,6 +22,7 @@
     Solution : Use TSV as the standard format to store the data collected. This gives excellent compression. Typical data collection can be stored in kilobytes.
     A simplified, compressed storage is important for continuous, repeated data collection.
     Moreover that makes it easy to transmit over mediums like email attachement easily.
+    Every on-going development must make sure to collect only the minimum data as possible and store it in most effecient format feasible.
 
 ## Objective 4. Perform complex data analytics on the data collected.
     
@@ -32,7 +38,7 @@
 ## Objective 7. Support Partial data collection
     Analytical queries are designed and tested to support collection of partial data. The project accepts that the data collection could be challenging in few enviroments and it may fail due to issues like permission.
 
-## Objective 8 : Zero tollerance to bugs
+## Objective 8 : Zero tolerance to bugs
     
 
 

@@ -63,7 +63,7 @@ GROUP BY 1,2 ORDER BY 1,2 DESC;
 ## Crosstab report
 Crosstab reports of waitevents over a time can provide more insight into the way waitevents are changing with time.
 This kind of information will be useful for graphing.
-A sample [crosstab query is provided](docs/crosstab.sql)
+A sample [crosstab query is provided](crosstab.sql)
 
 ## FAQ
 ## Will the continuous data collection impact the server performance?
