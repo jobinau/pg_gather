@@ -2,7 +2,7 @@
 Avoid exceeding `max_connections` exceeding **10x** of the CPU count
 
 
-## Problmes of high number of connections
+## Problems of high number of connections
 * Possibility of overloading and server become unresponsive / hang
 * DoS attacks : System becomes easy target
 * Lock Management overhead increases
@@ -11,8 +11,8 @@ Avoid exceeding `max_connections` exceeding **10x** of the CPU count
 Overall poor performance, responsiveness and stability issuse are often reported with databases with high `max_connection` values
 
 ## Best case benchmark result
- Even on a best case senario created using micro-benchmark, we could observe that the thoughput flattens as connections approches 10x of the CPU count
- ![throughput](../throughput.png)
+ Even on a best case senario created using micro-benchmark, we could observe that the thoughput flattens as connections approches 10x of the CPU count  
+ ![throughput](../images/throughput.png)
 
 ## Key concepts to remember
 * Each client connection is one process in the database server
@@ -28,7 +28,7 @@ Overall poor performance, responsiveness and stability issuse are often reported
  * As the process count increases, The work of postmaster become inreases to get snapshot of what’s visible/invisible, committed/uncommitted (aka, Transaction Isolation)
  * It takes longer time to get  `GetSnapshotData()` as the work increases. This results in slow responce.
  * PostgreSQL processs caches the metadata accessed leading to incrased memory utilization over a time
- * 
+ * Extension libraries will be loaded to the processes, which increases the memory footprint.
   
 ## Important Articles/References to Read
  1. [Why a high `max_connections` setting can be detrimental to performance](https://richyen.com/postgres/2021/09/03/less-is-more-max-connections.html)
