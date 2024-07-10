@@ -12,7 +12,8 @@ Overall poor performance, responsiveness and stability issuse are often reported
 
 ## Best case benchmark result
  Even on a best case senario created using micro-benchmark, we could observe that the thoughput flattens as connections approches 10x of the CPU count  
- ![throughput](../images/throughput.png)
+ ![throughput graph](../images/throughput.png)
+
 
 ## Key concepts to remember
 * Each client connection is one process in the database server
