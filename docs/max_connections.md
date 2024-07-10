@@ -8,8 +8,11 @@ Avoid exceeding `max_connections` exceeding **10x** of the CPU count
 * Lock Management overhead increases
 * Memory utilization (Practically 10-50MB usage per connection is common)
 * Snapshot overhead increases
-
 Overall poor performance, responsiveness and stability issuse are often reported with databases with high `max_connection` values
+
+## Best case benchmark result
+ Even on a best case senario created using micro-benchmark, we could observe that the thoughput flattens as connections approches 10x of the CPU count
+ ![throughput](../throughput.png)
 
 ## Key concepts to remember
 * Each client connection is one process in the database server
