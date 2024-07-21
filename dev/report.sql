@@ -147,7 +147,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -445,6 +445,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
   LEFT JOIN cts ON true) as dbts,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns) AS ns,
+  (SELECT json_agg(pg_get_tablespace) FROM pg_get_tablespace) AS tbsp,
   (SELECT to_jsonb( ROW((collect_ts - last_archived_time) > '15 minute' :: interval, pg_wal_lsn_diff( current_wal,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )))
   FROM  pg_gather,  pg_archiver_stat) AS arcfail,
@@ -480,6 +481,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo meta={pgvers:["12.19","13.15","14.12","15.7","16.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
+\echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
 \echo let strfind = "";
 \echo totdb=0;
@@ -530,8 +532,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         val.innerText = val.innerText + "-v" + ver;
 \echo         break;
 \echo       case "Collected By" :
-\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data collected using old version of gather.sql file. Please use v" + ver; 
-\echo         strfind += "<li>Data collected using old version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + "</li>";
+\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
+\echo         strfind += "<li>Data collected using old/obsolete version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + " <a href='https://github.com/jobinau/pg_gather/blob/main/docs/versionpolicy.md'>Link</a></li>";
 \echo         }
 \echo         break;
 \echo       case "In recovery?" :
@@ -727,6 +729,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   checkpoint_timeout: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+\echo   },
+\echo   data_directory: function(rowref){
+\echo     datadir=val.innerText;
 \echo   },
 \echo   shared_buffers: function(rowref){
 \echo     val=rowref.cells[1];
@@ -1027,6 +1032,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function tabdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText);
+\echo   console.log(th.cells[1].innerText);
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
@@ -1040,6 +1046,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
 \echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
+\echo   str += "<br>Rel.filename : " + o.f10;
+\echo   if (o.f11 < 16384) str += "<br>Tablespace : pg_default"; 
+\echo     else{
+\echo       let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f11).toString()); 
+\echo       str += "<br>Tablespace : " + o.f11 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
+\echo     }
 \echo   if (o.f3 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
 \echo   if (vac/obj.dbts.f4 > 50) { 
 \echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);
@@ -1089,6 +1101,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
 \echo   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
 \echo   tr.cells[2].appendChild(el);
+\echo })));
+\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
+\echo   navigator.clipboard.writeText(td.parentNode.cells[2].children[0].innerText);
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;

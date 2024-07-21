@@ -12,8 +12,11 @@ Overall poor performance, responsiveness and stability issuse are often reported
 
 ## Best case benchmark result
  Even on a best case senario created using micro-benchmark, we could observe that the thoughput flattens as connections approches 10x of the CPU count  
- ![throughput graph](../images/throughput.png)
-
+ ![throughput](../images/throughput.png)  
+ But at the same time, the latency, the measure of responsiveness goes bad.  
+ ![latency](../images/latency.png)  
+As the latency increases individual SQL statments takes longer time to complete. often resulting in complaints of poor performance from the database.
+If the latency increases a lot, may part of the systems becomes failing due to timeouts.
 
 ## Key concepts to remember
 * Each client connection is one process in the database server
