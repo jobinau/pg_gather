@@ -1,36 +1,37 @@
 # max_connection settings
-Avoid exceeding `max_connections` exceeding **10x** of the CPU count
+Avoid exceeding `max_connections` exceeding **10x** of the CPU count.
 
 
-## Problems of high number of connections
-* Possibility of overloading and server become unresponsive / hang
-* DoS attacks : System becomes easy target
-* Lock Management overhead increases
+## Problems with the high number of connections
+
+* Possibility of overloading and server becoming unresponsive / hang
+* DoS attacks: System becomes an easy target
+* Lock Management overhead increases.
 * Memory utilization (Practically 10-50MB usage per connection is common)
-* Snapshot overhead increases
-Overall poor performance, responsiveness and stability issuse are often reported with databases with high `max_connection` values
+* Snapshot overhead increases. 
+
+Overall poor performance, responsiveness and stability issues are often reported with databases with high `max_connection` values.
 
 ## Best case benchmark result
- Even on a best case senario created using micro-benchmark, we could observe that the thoughput flattens as connections approches 10x of the CPU count  
+Even in a best-case scenario created using a micro-benchmark, we can observe that the throughput flattens as connections approach 10x the CPU count.  
  ![throughput](../images/throughput.png)  
- But at the same time, the latency, the measure of responsiveness goes bad.  
+ But at the same time, the latency - the measure of responsiveness goes terrible.    
  ![latency](../images/latency.png)  
-As the latency increases individual SQL statments takes longer time to complete. often resulting in complaints of poor performance from the database.
-If the latency increases a lot, may part of the systems becomes failing due to timeouts.
+As the latency increases, individual SQL statements take longer to complete, often resulting in poor performance complaints. If the latency increases significantly, some systems may fail due to timeouts.
 
 ## Key concepts to remember
-* Each client connection is one process in the database server
-* When client connection becomes active (some query to process) the corresponding process becomes runnable at the OS
-* One CPU core can handle only 1 runable process at a time.
-  * That means, if there are N CPU cores, There will be only N running processes.
-* When Runable processes reaches the 5x-10x of the CPU count, Overall CPU utilization hits 100% .
-  * There is no benefit of pushing for more concurency if the CPU utilization is hits its maximum.
-* Multi-tasking / Context switches by OS gives the preception of multiple processes running by preempting the process frequently
+* Each client connection is one process in the database server.
+* When the client connection becomes active (some query to process), corresponding process becomes runnable at the OS
+* One CPU core can handle only one runable process at a time.
+  * That means that if there are N CPU cores, there will only be N running processes.
+* When runable processes reach 5x-10x of the CPU count, overall CPU utilization can hit 100%.
+  * There is no benefit of pushing for more concurrency if the CPU utilization hits its maximum.
+* Multi-tasking / Context switches by OS gives the preception of multiple processes running by preempting the process frequently. But context switches comes with big cost
 * More runnable processes beyond the CPU counts results in processes waiting in scheduler queue for longer duration, which effectively results in poor performance.
-* Increases the processes more just increases the contention in the system.
-* PostgreSQL's supervisor process (so called postmaster) need to keep tab on each process it forked.
- * As the process count increases, The work of postmaster become inreases to get snapshot of what’s visible/invisible, committed/uncommitted (aka, Transaction Isolation)
- * It takes longer time to get  `GetSnapshotData()` as the work increases. This results in slow responce.
+* Increase in number of processes more than what the system could hanlde, just increases the contention in the system.
+* PostgreSQL's supervisor process (so-called postmaster) needs to keep a tab on each process it forked. As the process count increases, The work of postmaster become inreases.
+* As the number of sessions increases its become more complex to get snapshot of what’s visible/invisible, committed/uncommitted (aka, Transaction Isolation)
+* It takes a longer time to getGetSnapshotData() as the work increases. This results in slow response.
  * PostgreSQL processs caches the metadata accessed leading to incrased memory utilization over a time
  * Extension libraries will be loaded to the processes, which increases the memory footprint.
   
