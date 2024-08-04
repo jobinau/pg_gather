@@ -829,7 +829,15 @@ var paramDespatch = {
       val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
     }
   },
-  log_lock_waits: function(rowref){}, //TODO: Recommend enabling if it is off
+  log_truncate_on_rotation: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "log_truncate_on_rotation");
+    if (val.innerText == "off")  param["suggest"] = "on";
+  },
+  log_lock_waits: function(rowref){
+    val=rowref.cells[1]; let param = params.find(p => p.param === "log_lock_waits");
+    if(val.innerText == "off") param["suggest"] = "on";
+  }, 
   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
   max_wal_size: function(rowref){
     val=rowref.cells[1];

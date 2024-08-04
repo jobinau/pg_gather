@@ -781,7 +781,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       val.title="log_temp_files is already set. Analyze PostgreSQL log for problematic SQLs. Adjust parameter value if required";
 \echo     }
 \echo   },
-\echo   log_lock_waits: function(rowref){},
+\echo   log_truncate_on_rotation: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "log_truncate_on_rotation");
+\echo     if (val.innerText == "off")  param["suggest"] = "on";
+\echo   },
+\echo   log_lock_waits: function(rowref){
+\echo     val=rowref.cells[1]; let param = params.find(p => p.param === "log_lock_waits");
+\echo     if(val.innerText == "off") param["suggest"] = "on";
+\echo   }, 
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
