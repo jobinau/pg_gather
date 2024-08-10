@@ -147,7 +147,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace,c.reloptions)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -715,7 +715,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   autovacuum_max_workers : function(rowref) {
 \echo     val=rowref.cells[1];
-\echo     if(val.innerText > 3) { val.classList.add("warn"); val.title="High number of workers causes each workers to run slower because of the cost limit" }
+\echo     if(val.innerText > 3) { val.classList.add("warn"); val.title="High number of workers causes each workers to run slower because of the cost limit" ;
+\echo       let param = params.find(p => p.param === "autovacuum_max_workers");
+\echo       param["suggest"] = "3";
+\echo     }
 \echo   },
 \echo   autovacuum_vacuum_cost_limit: function(rowref){
 \echo     val=rowref.cells[1];
@@ -1056,16 +1059,19 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
 \echo   str += "<br>Rel.filename : " + o.f10;
 \echo   if (o.f11 < 16384) str += "<br>Tablespace : pg_default"; 
-\echo     else{
-\echo       let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f11).toString()); 
-\echo       str += "<br>Tablespace : " + o.f11 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
-\echo     }
-\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR recommendation :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
+\echo   else{
+\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f11).toString()); 
+\echo     str += "<br>Tablespace : " + o.f11 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
+\echo   }
+\echo   if (o.f12 !== null ) str += "<br>Current Settings : " + o.f12;
+\echo   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
+\echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
+\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
 \echo   if (vac/obj.dbts.f4 > 50) { 
 \echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);
 \echo     if (threshold < 500) threshold = 500;
-\echo     str += "<br/>AUTOVACUUM recommendation : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
-\echo   }
+\echo     str += "<br/>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
+\echo   }}
 \echo   return "<b>" + th.cells[0].innerText + "</b><br/>OID : " + o.f1 + "</b><br/>Schema : " + ns.nsname + str;
 \echo }
 \echo function sessdtls(th){
@@ -1183,9 +1189,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo    tr.cells[1].innerText = updateJson( tr.cells[1].innerText , "f6", "Victim of Blocker: " + obj.victims.find(el => el.f1 == pid.innerText).f2.toString())
 \echo   };
 \echo   if(DurationtoSeconds(stime.innerText) > 300 && tr.cells[7].innerText.length > 3) stime.classList.add("warn");
-\echo  if (sql.innerText.length > 100 && !sql.innerText.startsWith("**") ){ sql.title = sql.innerText; 
-\echo  sql.innerText = sql.innerText.substring(0, 100); 
-\echo }
+\echo  if (sql.innerText.length > 100 && !sql.innerText.startsWith("**") ){ 
+\echo   sql.title = sql.innerText; 
+\echo   sql.innerText = sql.innerText.substring(0, 100); 
+\echo  };
 \echo }}
 \echo function checkstmnts(){
 \echo let tab= document.getElementById("tblstmnt");
