@@ -7,7 +7,7 @@ fi
 for f in "$@"
 do 
   ##Data collection timestamp. This info can be inserted for collect_ts of each line
-  coll_ts=`zcat $f | head -n 15 | sed -n '/COPY pg_gather/ {n; s/\([0-9-]*\s[0-9:\.+-]*\).*/\1/; p}'`
+  coll_ts=`zcat $f | head -n 20 | sed -n '/COPY pg_gather/ {n; s/\([0-9-]*\s[0-9:\.+-]*\).*/\1/; p}'`
   printf "\nImporting %s from %s\n" "$coll_ts" "$f"
   #In some customer cases, additional column appeared for pg_pid_wait like : ?column?|8459	ClientRead
   #Suspectedly because customer passing -x instead of -X, Not yet confirmed with confidence. So treated as unknown bug
@@ -27,6 +27,7 @@ do
     s/COPY pg_gather_end(/COPY pg_gather_end(collect_ts,/
     /^COPY pg_srvr/, /^\\\./d  #Delete any full gather information
     /^COPY pg_get_roles/, /^\\\./d   # -do-
+    /^COPY pg_get_db_role_confs/, /^\\\./d   # -do-
     /^COPY pg_get_confs/, /^\\\./d   # -do-
     /^COPY pg_get_file_confs/, /^\\\./d  #-do-
     /^COPY pg_get_class/, /^\\\./d  #-do-
@@ -34,7 +35,11 @@ do
     /^COPY pg_get_rel/, /^\\\./d  #-do-
     /^COPY pg_tab_bloat/, /^\\\./d  #-do-
     /^COPY pg_get_toast/, /^\\\./d  #-do-
+    /^COPY pg_get_inherits/, /^\\\./d  #-do-
+    /^COPY pg_get_tablespace/, /^\\\./d  #-do-
     /^COPY pg_get_extension/, /^\\\./d  #-do-
+    /^COPY pg_get_hba_rules/, /^\\\./d  #-do-
+    /^COPY pg_get_prep_xacts/, /^\\\./d  #-do-
     /^COPY pg_get_statements/, /^\\\./d  #-do-
     /^COPY pg_get_ns/, /^\\\./d  #-do-
     /^[[:space:]]*$/d
