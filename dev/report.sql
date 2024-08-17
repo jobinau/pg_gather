@@ -775,8 +775,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val=rowref.cells[1]; 
 \echo     if (val.innerText == 0){ val.classList.add("warn"); val.title="Highly suggestable to use atleast 5min to prevent application misbehaviour" }
 \echo   },
-\echo   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
-\echo     val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
+\echo   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { 
+\echo     val.classList.add("warn");
+\echo     val.title="Avoid JIT globally (Disable), Use only at smaller scope" 
+\echo     let param = params.find(p => p.param === "jit");
+\echo     param["suggest"] = "off";
+\echo   }},
 \echo   log_temp_files: function(rowref){
 \echo     val = val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "log_temp_files");

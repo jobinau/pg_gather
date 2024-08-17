@@ -823,8 +823,12 @@ var paramDespatch = {
     val=rowref.cells[1]; 
     if (val.innerText == 0){ val.classList.add("warn"); val.title="Highly suggestable to use atleast 5min to prevent application misbehaviour" }
   },
-  jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { val.classList.add("warn"); 
-    val.title="Avoid JIT globally (Disable), Use only at smaller scope" }},
+  jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { 
+    val.classList.add("warn");
+    val.title="Avoid JIT globally (Disable), Use only at smaller scope" 
+    let param = params.find(p => p.param === "jit");
+    param["suggest"] = "off";
+  }},
   log_temp_files: function(rowref){
     val = val=rowref.cells[1];
     let param = params.find(p => p.param === "log_temp_files");
