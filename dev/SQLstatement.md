@@ -84,6 +84,11 @@ SELECT to_jsonb(r) FROM
     LEFT JOIN cts ON true --Avoidable join because c_ts(dbts.f3) is still not used.
     ) as dbts,
   --
+  -- Findout the DBs with highest mxid age.
+  (WITH maxmxid AS (SELECT max(mxidage) FROM pg_get_db),
+  topdbmx AS (SELECT array_agg(datname),maxmxid.max FROM pg_get_db JOIN maxmxid ON pg_get_db.mxidage=maxmxid.max AND pg_get_db.mxidage > 1000 GROUP BY 2)
+  SELECT to_jsonb(ROW(array_agg,max)) FROM topdbmx) AS mxiddbs,
+
   --Array of schema names
   (select json_agg(pg_get_ns) from pg_get_ns where nsoid > 16384 or nsname='public') AS ns
 
