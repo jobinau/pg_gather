@@ -764,7 +764,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
-\echo   huge_pages: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   huge_pages: function(rowref){ 
+\echo     val=rowref.cells[1]; 
+\echo     if (val.innerText != "on" ) {
+\echo       val.classList.add("warn");
+\echo       let param = params.find(p => p.param === "huge_pages");
+\echo       param["suggest"] = "on";
+\echo     } else val.classList.add("lime"); 
+\echo   },
 \echo   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   idle_session_timeout:function(rowref){ 

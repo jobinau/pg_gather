@@ -812,7 +812,14 @@ var paramDespatch = {
   //Just highlight/Warn few important parameters and their values
   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, //TODO: Warn if is more than 1 mintue
   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
-  huge_pages: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+  huge_pages: function(rowref){ 
+    val=rowref.cells[1]; 
+    if (val.innerText != "on" ) {
+      val.classList.add("warn");
+      let param = params.find(p => p.param === "huge_pages");
+      param["suggest"] = "on";
+    } else val.classList.add("lime"); 
+  },
   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
   idle_session_timeout:function(rowref){ 
