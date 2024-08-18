@@ -104,6 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
   <ol>
   </ol>
   <p>* Collecting pg_gather data during right utilization levels is important to tune the system for the specific workload</p>
+  <button type="button" onclick="getreccomendation()" title="Calculate / Recalculate Parameters">&#128257; Calculate</button>
   </div>
 </details>
 </div>
@@ -691,19 +692,13 @@ function checkconns(){
   tab.appendChild(el);
 }
 
-//Event listeners for changing the CPU and Memory
-document.getElementById("cpus").addEventListener("change", (event) => {
-  totCPU = event.target.value;
-  checkpars();   //TODO : checking every parameter is unnessary.
-  getreccomendation();
-});
-document.getElementById("mem").addEventListener("change", (event) => {
-  totMem = event.target.value;
-  checkpars();   //TODO : checking every parameter is unnessary.
-  getreccomendation();
-});
+//Event listeners for changing the CPU, Memory, Storage, Workload and Filesystem. Get the new recommendation
+["cpus","mem","strg","wrkld","flsys"].forEach(function(t) {document.getElementById(t).addEventListener("change", (event) => { getreccomendation(); })});
 
 function getreccomendation(){
+  totMem = document.getElementById("mem").value;
+  totCPU = document.getElementById("cpus").value;
+  checkpars();
   let reccomandations = document.getElementById("paramtune").children[1];
   let reccos = "";
   for (let item of params) {
@@ -779,6 +774,14 @@ var paramDespatch = {
     autovacuum_freeze_max_age = Number(val.innerText);  //Store the value to global variable
     if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
   },
+  bgwriter_lru_maxpages: function(rowref){
+    let param = params.find(p => p.param === "bgwriter_lru_maxpages");
+    if (typeof param["suggest"] != "undefined"){
+      val = val=rowref.cells[1];
+      val.classList.add("warn"); 
+      val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
+    }
+  },
   checkpoint_timeout: function(rowref){
     val=rowref.cells[1];
     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
@@ -786,17 +789,8 @@ var paramDespatch = {
   data_directory: function(rowref){
     datadir=val.innerText;
   },
-  shared_buffers: function(rowref){
-    val=rowref.cells[1];
-    val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-    //if RAM is is not given, and shared_bffer is above 128MB. Assume that shared_buffer is 1/4th of the RAM and do revese calculation to get RAM
-    if(parseFloat(document.getElementById("mem").value) < "0.2" ){
-      document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
-      totMem = val.innerText*8*4/(1024*1024);
-    }
-    if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-      { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
-  },
+  deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, //TODO: Warn if is more than 1 mintue
+  effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
   max_connections: function(rowref){
     val=rowref.cells[1];
     val.title="Avoid value exceeding 10x of the CPUs"
@@ -809,9 +803,16 @@ var paramDespatch = {
     } else if (val.innerText > 500) val.classList.add("warn")
       else val.classList.add("lime")
   },
-  //Just highlight/Warn few important parameters and their values
-  deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, //TODO: Warn if is more than 1 mintue
-  effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
+  random_page_cost: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "random_page_cost");
+    let strg = document.getElementById("strg").value;
+  if ( strg == "ssd" && val.innerText > 1.2 ){
+    param["suggest"] = "1.1";   val.classList.add("warn");
+  } else if ( strg == "san" && val.innerText > 1.5 ){
+    param["suggest"] = "1.5";   val.classList.add("warn");
+  } else { param["suggest"] = "4"; val.classList.add("lime")}; 
+  },
   huge_pages: function(rowref){ 
     val=rowref.cells[1]; 
     if (val.innerText != "on" ) {
@@ -874,10 +875,6 @@ var paramDespatch = {
     val.title=bytesToSize(val.innerText*1024*1024,1024);
     val.classList.add("lime");
   },
-  random_page_cost: function(rowref){
-    val=rowref.cells[1];
-    if(val.innerText > 1.2) val.classList.add("warn");
-  },
   server_version: function(rowref){
     val=rowref.cells[1];
     let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
@@ -895,6 +892,17 @@ var paramDespatch = {
       })  
     }
     if(val.classList.length < 1) val.classList.add("lime");  //if no problems found, just highlight the data
+  },
+  shared_buffers: function(rowref){
+    val=rowref.cells[1];
+    val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+    //if RAM is is not given, and shared_bffer is above 128MB. Assume that shared_buffer is 1/4th of the RAM and do revese calculation to get RAM
+    if(parseFloat(document.getElementById("mem").value) < "0.2" ){
+      document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
+      totMem = val.innerText*8*4/(1024*1024);
+    }
+    if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+      { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
   },
   statement_timeout : function(rowref){
     val=rowref.cells[1];
@@ -923,14 +931,6 @@ var paramDespatch = {
     // 1/5th of the RAM can be given for total work_mem. So 1/5th of RAM / max_connections
     if ( totMem > 0.2 && conns.val > 1){
       wmem["suggest"] = "'" + Math.min(parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ),64) + "MB'";
-    }
-  },
-  bgwriter_lru_maxpages: function(rowref){
-    let param = params.find(p => p.param === "bgwriter_lru_maxpages");
-    if (typeof param["suggest"] != "undefined"){
-      val = val=rowref.cells[1];
-      val.classList.add("warn"); 
-      val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
     }
   },
   default : function(rowref) {}  //NOT used. remove after Test of time

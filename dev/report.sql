@@ -104,6 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo   <ol>
 \echo   </ol>
 \echo   <p>* Collecting pg_gather data during right utilization levels is important to tune the system for the specific workload</p>
+\echo   <button type="button" onclick="getreccomendation()" title="Calculate / Recalculate Parameters">&#128257; Calculate</button>
 \echo   </div>
 \echo </details>
 \echo </div>
@@ -658,17 +659,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   el.innerHTML = "<th colspan='7'>Active: "+ obj.sess.f1 +", Idle-in-transaction: " + obj.sess.f2 + ", Idle: " + obj.sess.f3 + ", Background: " + obj.sess.f4 + ", Workers: " + obj.sess.f5 + ", Total: " + obj.sess.f6 + "</th>";
 \echo   tab.appendChild(el);
 \echo }
-\echo document.getElementById("cpus").addEventListener("change", (event) => {
-\echo   totCPU = event.target.value;
-\echo   checkpars();  
-\echo   getreccomendation();
-\echo });
-\echo document.getElementById("mem").addEventListener("change", (event) => {
-\echo   totMem = event.target.value;
-\echo   checkpars();  
-\echo   getreccomendation();
-\echo });
+\echo ["cpus","mem","strg","wrkld","flsys"].forEach(function(t) {document.getElementById(t).addEventListener("change", (event) => { getreccomendation(); })});
 \echo function getreccomendation(){
+\echo   totMem = document.getElementById("mem").value;
+\echo   totCPU = document.getElementById("cpus").value;
+\echo   checkpars();
 \echo   let reccomandations = document.getElementById("paramtune").children[1];
 \echo   let reccos = "";
 \echo   for (let item of params) {
@@ -733,6 +728,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     autovacuum_freeze_max_age = Number(val.innerText); 
 \echo     if (autovacuum_freeze_max_age > 800000000) val.classList.add("warn");
 \echo   },
+\echo   bgwriter_lru_maxpages: function(rowref){
+\echo     let param = params.find(p => p.param === "bgwriter_lru_maxpages");
+\echo     if (typeof param["suggest"] != "undefined"){
+\echo       val = val=rowref.cells[1];
+\echo       val.classList.add("warn"); 
+\echo       val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
+\echo     }
+\echo   },
 \echo   checkpoint_timeout: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
@@ -740,16 +743,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   data_directory: function(rowref){
 \echo     datadir=val.innerText;
 \echo   },
-\echo   shared_buffers: function(rowref){
-\echo     val=rowref.cells[1];
-\echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-\echo     if(parseFloat(document.getElementById("mem").value) < "0.2" ){
-\echo       document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
-\echo       totMem = val.innerText*8*4/(1024*1024);
-\echo     }
-\echo     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-\echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
-\echo   },
+\echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
 \echo   max_connections: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title="Avoid value exceeding 10x of the CPUs"
@@ -762,8 +757,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     } else if (val.innerText > 500) val.classList.add("warn")
 \echo       else val.classList.add("lime")
 \echo   },
-\echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
-\echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
+\echo   random_page_cost: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "random_page_cost");
+\echo     let strg = document.getElementById("strg").value;
+\echo   if ( strg == "ssd" && val.innerText > 1.2 ){
+\echo     param["suggest"] = "1.1";   val.classList.add("warn");
+\echo   } else if ( strg == "san" && val.innerText > 1.5 ){
+\echo     param["suggest"] = "1.5";   val.classList.add("warn");
+\echo   } else { param["suggest"] = "4"; val.classList.add("lime")}; 
+\echo   },
 \echo   huge_pages: function(rowref){ 
 \echo     val=rowref.cells[1]; 
 \echo     if (val.innerText != "on" ) {
@@ -826,10 +829,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
 \echo     val.classList.add("lime");
 \echo   },
-\echo   random_page_cost: function(rowref){
-\echo     val=rowref.cells[1];
-\echo     if(val.innerText > 1.2) val.classList.add("warn");
-\echo   },
 \echo   server_version: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let setval = val.innerText.split(" ")[0]; mgrver=setval.split(".")[0];
@@ -847,6 +846,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       })  
 \echo     }
 \echo     if(val.classList.length < 1) val.classList.add("lime"); 
+\echo   },
+\echo   shared_buffers: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
+\echo     if(parseFloat(document.getElementById("mem").value) < "0.2" ){
+\echo       document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
+\echo       totMem = val.innerText*8*4/(1024*1024);
+\echo     }
+\echo     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
+\echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
 \echo   },
 \echo   statement_timeout : function(rowref){
 \echo     val=rowref.cells[1];
@@ -873,14 +882,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let wmem = params.find(p => p.param === "work_mem");
 \echo     if ( totMem > 0.2 && conns.val > 1){
 \echo       wmem["suggest"] = "'" + Math.min(parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ),64) + "MB'";
-\echo     }
-\echo   },
-\echo   bgwriter_lru_maxpages: function(rowref){
-\echo     let param = params.find(p => p.param === "bgwriter_lru_maxpages");
-\echo     if (typeof param["suggest"] != "undefined"){
-\echo       val = val=rowref.cells[1];
-\echo       val.classList.add("warn"); 
-\echo       val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
 \echo     }
 \echo   },
 \echo   default : function(rowref) {} 
