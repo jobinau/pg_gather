@@ -918,6 +918,13 @@ var paramDespatch = {
     val=rowref.cells[1];
     if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
   },
+  track_io_timing: function(rowref){
+    val=rowref.cells[1];
+    if (val.innerText == "off"){
+      let param = params.find(p => p.param === "track_io_timing");
+      param["suggest"] = "on";
+    }
+  },
   wal_compression: function(rowref){
     val=rowref.cells[1]; val.classList.add("lime"); walcomprz = val.innerText; //highlight and update the global variable
   },

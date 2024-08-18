@@ -870,6 +870,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val=rowref.cells[1];
 \echo     if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
 \echo   },
+\echo   track_io_timing: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if (val.innerText == "off"){
+\echo       let param = params.find(p => p.param === "track_io_timing");
+\echo       param["suggest"] = "on";
+\echo     }
+\echo   },
 \echo   wal_compression: function(rowref){
 \echo     val=rowref.cells[1]; val.classList.add("lime"); walcomprz = val.innerText;
 \echo   },
