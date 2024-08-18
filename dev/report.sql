@@ -463,8 +463,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    SELECT json_agg(blkr) FROM ublokers
    WHERE NOT EXISTS (SELECT 1 FROM blockers WHERE ublokers.blkr = ANY(victim))) blkrs,
   (select json_agg((victim_pid,blocking_pids)) from pg_get_pidblock) victims,
-  (select to_jsonb((EXTRACT(epoch FROM (end_ts-collect_ts)),pg_wal_lsn_diff(end_lsn,current_wal)*60*60/EXTRACT(epoch FROM (end_ts-collect_ts)))) 
-  from pg_gather,pg_gather_end) sumry,
+  (SELECT  to_jsonb(( EXTRACT(epoch FROM (end_ts - collect_ts)),  pg_wal_lsn_diff(end_lsn, current_wal) * 60 * 60 / EXTRACT( epoch FROM (end_ts - collect_ts) ),
+  wal_bytes/(extract (EPOCH FROM  (collect_ts - stats_reset))/3600)))
+  FROM pg_gather JOIN pg_gather_end ON true
+   LEFT JOIN pg_get_wal ON true) sumry,
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
@@ -622,7 +624,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      if ( obj.sumry.f1 < 23 ) strfind += "System response is good</li>";
 \echo      else if ( obj.sumry.f1 < 28 ) strfind += "System response is below average</li>";
 \echo      else strfind += "System response appears to be poor</li>";
-\echo      strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>"; }
+\echo      strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b>"; 
+\echo      if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
+\echo      else strfind += "</li>" }
 \echo   if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
 \echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
@@ -745,28 +749,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
-\echo   max_connections: function(rowref){
-\echo     val=rowref.cells[1];
-\echo     val.title="Avoid value exceeding 10x of the CPUs"
-\echo     if( totCPU > 0 ){
-\echo       if(val.innerText > 10 * totCPU) { 
-\echo         val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
-\echo         let conns = params.find(p => p.param === "max_connections");
-\echo         conns["suggest"] = 10 * totCPU;
-\echo       }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
-\echo     } else if (val.innerText > 500) val.classList.add("warn")
-\echo       else val.classList.add("lime")
-\echo   },
-\echo   random_page_cost: function(rowref){
-\echo     val=rowref.cells[1];
-\echo     let param = params.find(p => p.param === "random_page_cost");
-\echo     let strg = document.getElementById("strg").value;
-\echo   if ( strg == "ssd" && val.innerText > 1.2 ){
-\echo     param["suggest"] = "1.1";   val.classList.add("warn");
-\echo   } else if ( strg == "san" && val.innerText > 1.5 ){
-\echo     param["suggest"] = "1.5";   val.classList.add("warn");
-\echo   } else { param["suggest"] = "4"; val.classList.add("lime")}; 
-\echo   },
 \echo   huge_pages: function(rowref){ 
 \echo     val=rowref.cells[1]; 
 \echo     if (val.innerText != "on" ) {
@@ -812,6 +794,18 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if(val.innerText == "off") param["suggest"] = "on";
 \echo   }, 
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
+\echo   max_connections: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     val.title="Avoid value exceeding 10x of the CPUs"
+\echo     if( totCPU > 0 ){
+\echo       if(val.innerText > 10 * totCPU) { 
+\echo         val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
+\echo         let conns = params.find(p => p.param === "max_connections");
+\echo         conns["suggest"] = 10 * totCPU;
+\echo       }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+\echo     } else if (val.innerText > 500) val.classList.add("warn")
+\echo       else val.classList.add("lime")
+\echo   },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
@@ -823,6 +817,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
 \echo     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
 \echo     else val.classList.add("lime");
+\echo   },
+\echo   random_page_cost: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "random_page_cost");
+\echo     let strg = document.getElementById("strg").value;
+\echo   if ( strg == "ssd" && val.innerText > 1.2 ){
+\echo     param["suggest"] = "1.1";   val.classList.add("warn");
+\echo   } else if ( strg == "san" && val.innerText > 1.5 ){
+\echo     param["suggest"] = "1.5";   val.classList.add("warn");
+\echo   } else { param["suggest"] = "4"; val.classList.add("lime")}; 
 \echo   },
 \echo   wal_keep_size: function(rowref){
 \echo     val=rowref.cells[1];
@@ -855,7 +859,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       totMem = val.innerText*8*4/(1024*1024);
 \echo     }
 \echo     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-\echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+\echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
+\echo       let param = params.find(p => p.param === "shared_buffers");
+\echo       param["suggest"]= "'"+ bytesToSize(totMem*1000000000*0.25) + "'";
+\echo       }
 \echo   },
 \echo   statement_timeout : function(rowref){
 \echo     val=rowref.cells[1];

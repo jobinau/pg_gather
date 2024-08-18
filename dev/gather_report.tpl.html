@@ -463,8 +463,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    SELECT json_agg(blkr) FROM ublokers
    WHERE NOT EXISTS (SELECT 1 FROM blockers WHERE ublokers.blkr = ANY(victim))) blkrs,
   (select json_agg((victim_pid,blocking_pids)) from pg_get_pidblock) victims,
-  (select to_jsonb((EXTRACT(epoch FROM (end_ts-collect_ts)),pg_wal_lsn_diff(end_lsn,current_wal)*60*60/EXTRACT(epoch FROM (end_ts-collect_ts)))) 
-  from pg_gather,pg_gather_end) sumry,
+  (SELECT  to_jsonb(( EXTRACT(epoch FROM (end_ts - collect_ts)),  pg_wal_lsn_diff(end_lsn, current_wal) * 60 * 60 / EXTRACT( epoch FROM (end_ts - collect_ts) ),
+  wal_bytes/(extract (EPOCH FROM  (collect_ts - stats_reset))/3600)))
+  FROM pg_gather JOIN pg_gather_end ON true
+   LEFT JOIN pg_get_wal ON true) sumry,
   (SELECT json_agg((relname,maint_work_mem_gb)) FROM (SELECT relname,n_live_tup*0.2*6 maint_work_mem_gb 
    FROM pg_get_rel JOIN pg_get_class ON n_live_tup > 894784853 AND pg_get_rel.relid = pg_get_class.reloid 
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
@@ -650,7 +652,9 @@ function checkfindings(){
      if ( obj.sumry.f1 < 23 ) strfind += "System response is good</li>";
      else if ( obj.sumry.f1 < 28 ) strfind += "System response is below average</li>";
      else strfind += "System response appears to be poor</li>";
-     strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b></li>"; }
+     strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b>"; 
+     if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
+     else strfind += "</li>" }
   if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   if (obj.ns !== null){
@@ -791,28 +795,6 @@ var paramDespatch = {
   },
   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, //TODO: Warn if is more than 1 mintue
   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
-  max_connections: function(rowref){
-    val=rowref.cells[1];
-    val.title="Avoid value exceeding 10x of the CPUs"
-    if( totCPU > 0 ){
-      if(val.innerText > 10 * totCPU) { 
-        val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
-        let conns = params.find(p => p.param === "max_connections");
-        conns["suggest"] = 10 * totCPU;
-      }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
-    } else if (val.innerText > 500) val.classList.add("warn")
-      else val.classList.add("lime")
-  },
-  random_page_cost: function(rowref){
-    val=rowref.cells[1];
-    let param = params.find(p => p.param === "random_page_cost");
-    let strg = document.getElementById("strg").value;
-  if ( strg == "ssd" && val.innerText > 1.2 ){
-    param["suggest"] = "1.1";   val.classList.add("warn");
-  } else if ( strg == "san" && val.innerText > 1.5 ){
-    param["suggest"] = "1.5";   val.classList.add("warn");
-  } else { param["suggest"] = "4"; val.classList.add("lime")}; 
-  },
   huge_pages: function(rowref){ 
     val=rowref.cells[1]; 
     if (val.innerText != "on" ) {
@@ -858,6 +840,18 @@ var paramDespatch = {
     if(val.innerText == "off") param["suggest"] = "on";
   }, 
   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
+  max_connections: function(rowref){
+    val=rowref.cells[1];
+    val.title="Avoid value exceeding 10x of the CPUs"
+    if( totCPU > 0 ){
+      if(val.innerText > 10 * totCPU) { 
+        val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
+        let conns = params.find(p => p.param === "max_connections");
+        conns["suggest"] = 10 * totCPU;
+      }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+    } else if (val.innerText > 500) val.classList.add("warn")
+      else val.classList.add("lime")
+  },
   max_wal_size: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024*1024,1024);
@@ -869,6 +863,16 @@ var paramDespatch = {
     val.title=bytesToSize(val.innerText*1024*1024,1024);
     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
     else val.classList.add("lime");
+  },
+  random_page_cost: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "random_page_cost");
+    let strg = document.getElementById("strg").value;
+  if ( strg == "ssd" && val.innerText > 1.2 ){
+    param["suggest"] = "1.1";   val.classList.add("warn");
+  } else if ( strg == "san" && val.innerText > 1.5 ){
+    param["suggest"] = "1.5";   val.classList.add("warn");
+  } else { param["suggest"] = "4"; val.classList.add("lime")}; 
   },
   wal_keep_size: function(rowref){
     val=rowref.cells[1];
@@ -902,7 +906,10 @@ var paramDespatch = {
       totMem = val.innerText*8*4/(1024*1024);
     }
     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-      { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off" }
+      { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
+      let param = params.find(p => p.param === "shared_buffers");
+      param["suggest"]= "'"+ bytesToSize(totMem*1000000000*0.25) + "'";
+      }
   },
   statement_timeout : function(rowref){
     val=rowref.cells[1];
