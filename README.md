@@ -7,7 +7,7 @@ Scan and collect the minimal amount of data needed to identify potential problem
   
 Everything is SQL-only, leveraging the built-in features of psql, the command-line utility of PostgreSQL
 
-**Supported PostgreSQL Versions** :  10, 11, 12, 13, 14, 15 & 16  
+**Supported PostgreSQL Versions** :  10, 11, 12, 13, 14, 15, 16 & 17
 **Older versions** : For PostgeSQL 9.6 and older, Please refer the [documentation page](docs/oldversions.md)
 
 # Highlights
