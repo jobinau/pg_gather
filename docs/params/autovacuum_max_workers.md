@@ -12,12 +12,7 @@ Consider a bigger value for `autovacuum_max_workers` in those cases where the sc
 3. Each autovacuum woker can allocate `maintenance_work_mem` amount of memory. This can result in high memory presure on the server and cause poor performance or even outage.
 
 ## Supplimentory vacuum jobs
-Scheduling supplimentory autovacuum jobs is highy recommended on highly active database systems due to many of its advantages and limitations of built-in autovacuum algorithm
-The built-in Autovacuum considers the Dead tuples (Number and Ratio) as the basis of scheduling the autovacuum workers on a table. Other criterias like age of table is ignored by autovacuum.
-Another major disadvantage of autovacuum is that, there is high chance of autovacuum workers starting during the peak times because of the DDL changes. All these limitations can be addressed using a scheduled vacuum job running in the off peak hours.
-As an added benefit, It reduces the chance that the same table becoming candidate for autovacuum again during the peak hours.
-Sample SQL script is available here : https://github.com/jobinau/pgscripts/blob/main/vacuumjob.sql . This script is widely used in many enviroments and found to address the problems discussed above.
-For example, This script can be scheduled as follows
+Scheduling supplementary autovacuum jobs is highly recommended on highly active database systems due to many of the advantages and limitations of built-in autovacuum algorithms. The built-in Autovacuum considers the Dead tuples (Number and Ratio) as the basis of scheduling the autovacuum workers on a table. Other criteria, like the table's age, are ignored by the autovacuum. Another major disadvantage of autovacuum is the high chance of autovacuum workers starting during peak times because of the DDL changes. All these limitations can be addressed using a scheduled vacuum job running in the off-peak hours. As an added benefit, It reduces the chance that the same table becomes candidate for autovacuum again during peak hours. Sample SQL script is available here: https://github.com/jobinau/pgscripts/blob/main/vacuumjob.sql . This script is widely used in many environments and found to address the problems discussed above. For example, This script can be scheduled as follows:
 ```
 20 11 * * * /full/path/to/psql -X -f /path/to/vacuumjob.sql > /tmp/vacuumjob.out 2>&1
 ```
