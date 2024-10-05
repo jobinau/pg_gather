@@ -7,12 +7,16 @@ Unused indexes cause severe penalties in the system: It slow down DML operations
 Following SQL statement can be used against the database where the pg_gather data is imported.
 
 ```
-SELECT ns.nsname AS "Schema", ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
-  FROM pg_get_index i 
-  JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
-  JOIN pg_get_ns ns ON ct.relnamespace = ns.nsoid
-  JOIN pg_get_class ci ON i.indexrelid = ci.reloid
-WHERE numscans = 0;
+SELECT  ns.nsname AS "Schema",ci.relname as "Index", ct.relname AS "Table", ptab.relname "TOAST of Table",
+indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
+ FROM pg_get_index i
+ JOIN pg_get_class ct ON i.indrelid = ct.reloid
+ JOIN pg_get_ns ns ON ct.relnamespace = ns.nsoid
+ JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+ LEFT JOIN pg_get_toast tst ON ct.reloid = tst.toastid
+ LEFT JOIN pg_get_class ptab ON tst.relid = ptab.reloid
+ WHERE tst.relid IS NULL OR ptab.reloid IS NOT NULL
+ ORDER BY size DESC;
 ```
 
 ## From database 

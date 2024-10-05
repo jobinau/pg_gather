@@ -475,7 +475,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    g AS (SELECT max(itr_max) gmax_itr FROM w)
   SELECT to_jsonb(ROW(SUM(((itr_max - itr_min)::float/gmax_itr)*2000 - cnt),max(gmax_itr),count(pid))) FROM w,g
    WHERE ((itr_max - itr_min)::float/gmax_itr)*2000 - cnt > 0) netdlay,
-   (SELECT to_jsonb(ROW(count(*) FILTER (WHERE indisvalid=false),count(*) FILTER (WHERE numscans=0),count(*),sum(size) FILTER (WHERE numscans=0))) FROM pg_get_index) induse,
+   (SELECT to_jsonb(ROW(count(*) FILTER (WHERE indisvalid=false)
+   ,count(*) FILTER (WHERE numscans=0 AND tst.toastid IS NULL) --Unused Indexes of user tables
+   ,count(*) FILTER (WHERE numscans=0 AND tst.toastid > 16384) --Unused TOAST index of user tables
+   ,count(*) FILTER (WHERE tst.toastid IS NULL) --TOTAL User/Regular indexes
+   ,count(*) FILTER (WHERE tst.toastid > 16384) --TOTAL Toast Indexes
+   ,sum(size) FILTER (WHERE numscans=0)))
+    FROM pg_get_index i
+    JOIN pg_get_class ct ON i.indrelid = ct.reloid
+    LEFT JOIN pg_get_toast tst ON ct.reloid = tst.toastid) induse,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
@@ -585,7 +593,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     strfind += "</li>";
 \echo  }
 \echo  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='https://github.com/jobinau/pg_gather/blob/main/docs/InvalidIndexes.md'>Link</a></li>";
-\echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" out of " + obj.induse.f3 + " Index(es) are Unused</b>, which needs <b>additional "+ bytesToSize(obj.induse.f4) +" to cache</b>. Consider dropping of all unused Indexes. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/unusedIndexes.md'>Link</a> </li>";
+\echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/unusedIndexes.md'>Details</a></li>";
 \echo  if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b><a href='https://github.com/jobinau/pg_gather/blob/main/docs/mxid.md'>Link</a></li>"
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
