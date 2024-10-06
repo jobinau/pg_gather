@@ -128,6 +128,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo  <a href="#topics" title="Sections">☰ Section Index (Alt+I)</a>
 \echo  <div id="menu" style="display:none; position: relative">
 \echo   <ol>
+\echo     <li><a href="#tblgather">Head Info</a></li>
 \echo     <li><a href="#tabInfo">Tables</a></li>
 \echo     <li><a href="#tabPart">Partition info</a></li>
 \echo     <li><a href="#IndInfo">Indexes</a></li>
@@ -140,6 +141,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <li><a href="#tblstmnt">Top Statements</a></li>
 \echo     <li><a href="#tblreplstat">Replications</a></li>
 \echo     <li><a href="#tblchkpnt" >BGWriter & Checkpointer</a></li>
+\echo     <li><a href="#tbliostat">IO Statistics</a></li>
 \echo     <li><a href="#finditem">Findings</a></li>
 \echo   </ol>
 \echo  </div>
@@ -277,7 +279,7 @@ SELECT * FROM (
   g AS (SELECT max(ts) ts,max(mx_xid) mx_xid FROM
   (SELECT MAX(state_change) as ts,MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity
     UNION
-   SELECT NULL, pg_snapshot_xmax(snapshot)::text::bigint mx_xid FROM pg_gather) a),
+   SELECT NULL, pg_snapshot_xmax(snapshot)::xid::text::bigint mx_xid FROM pg_gather) a),
   wrk AS (select leader_pid, count(*) from pg_get_activity where leader_pid is not null group by 1),
   itr AS (SELECT max(itr_max) gitr_max FROM w)
   SELECT a.pid,to_jsonb(ROW(d.datname,application_name,client_hostname,sslversion,wrk.count)), a.state,r.rolname "User"
@@ -320,7 +322,7 @@ WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent
 g AS (SELECT max(mx_xid) mx_xid FROM
 (SELECT MAX(GREATEST(backend_xid::text::bigint,backend_xmin::text::bigint)) mx_xid FROM pg_get_activity
   UNION
- SELECT pg_snapshot_xmax(snapshot)::text::bigint mx_xid FROM pg_gather) a)
+ SELECT pg_snapshot_xmax(snapshot)::xid::text::bigint mx_xid FROM pg_gather) a)
 SELECT usename AS "Replication User",client_addr AS "Replica Address",pid,state,
  pg_wal_lsn_diff(M.greatest, sent_lsn) "Transmission Lag (Bytes)",pg_wal_lsn_diff(sent_lsn,write_lsn) "Replica Write lag(Bytes)",
  pg_wal_lsn_diff(write_lsn,flush_lsn) "Replica Flush lag(Bytes)",pg_wal_lsn_diff(write_lsn,replay_lsn) "Replay at Replica lag(Bytes)",
