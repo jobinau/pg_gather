@@ -53,8 +53,19 @@ For example, Updating the same rows of a table from multiple sessions can lead t
 ## WALInsertLock
 Consider increasing the `wal_buffers`. Upto 64MB max.
 
+## WalReceiverMain
+Receiver is waiting for new data to arrive
+
+## WalReceiverWaitStart
+Walreceiver is waiting for startup process to set the lsn and timeline
+
 ## WalSenderMain
 WAL Sender process is just waiting in the main loop. Ignorable
+
+## WalSenderWriteData  
+Generally observed with Logical replication as the cause of replication lag.
+This Waitevent indicates that the WAL sender process is waiting for sending the data because the socket is not ready. In other words, walsender has pending data in the output buffer and are waiting to write data to a client (subscriber)
+This Could be due to high network latency or poor bandwidth.
 
 ## WalSenderWaitForWAL
 WAL Sender process is waiting for the WAL to be flushed. The WAL sender sleeps for sometime and wakes up if scoket is available.
