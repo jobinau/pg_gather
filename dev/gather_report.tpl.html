@@ -16,7 +16,7 @@ ol { width: fit-content;}
 .lineblk {float: left; margin:2em }
 .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 100;}
-#cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
+#cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
@@ -67,7 +67,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset tableattr off
 %>
 <div>
-<details style="clear: left; width: fit-content;">
+<details style="clear: left; width: fit-content; border: 2px solid black; border-radius: 5px; padding: 1em;">
   <summary style="font: italic bold 1.5em Georgia">Tune This PostgreSQL</summary>
   <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
   <label for="cpus">CPUs:
@@ -104,8 +104,10 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
   <ol>
   </ol>
   <p>* Collecting pg_gather data during right utilization levels is important to tune the system for the specific workload</p>
+</div>
   <button type="button" onclick="getreccomendation()" title="Calculate / Recalculate Parameters">&#128257; Calculate</button>
-  </div>
+  <button type="button" onclick="copyashtml()" title="Copy as html tags">Copy as HTML tags</button>
+  <button type="button" onclick="copyrichhtml()" title="Copy as Rich HTML">Copy as Rich HTML</button>
 </details>
 </div>
 <h2 id="topics">Sections</h2>
@@ -724,6 +726,34 @@ function getreccomendation(){
   reccomandations.innerHTML = reccos;
 }
 
+function flash(msg){
+  var el=document.createElement("div");
+  el.setAttribute("id", "cur");
+  el.setAttribute("style", "position: fixed;top: 50%;left: 50%;transform: translate(-50%, -50%);");
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.remove();},2000);
+}
+
+//Copy the parameter recommendations as HTML
+function copyashtml(){
+  let elem = document.getElementById("paramtune");
+  let paramtune = elem.cloneNode(true); //Deep clone and set style for the clone.
+  paramtune.style="font-weight:initial;line-height:1.5em;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey";
+  navigator.clipboard.writeText(paramtune.outerHTML);
+  flash("Parameter recommendations are copied to clipboard as HTML code");
+}
+
+function copyrichhtml(){
+  let elem = document.getElementById("paramtune")
+  let paramtune = elem.cloneNode(true); //Deep clone and set style for the clone.
+  paramtune.style="font-weight:initial;line-height:1.5em;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey";
+  const clipboardItem = new ClipboardItem({	"text/plain": new Blob([paramtune.innerText],	{ type: "text/plain" }),
+              "text/html": new Blob([paramtune.outerHTML],{ type: "text/html" })});
+  navigator.clipboard.write([clipboardItem]);
+  flash("Parameter recommendations are copied to clipboard as HTML Rich object");
+}
+
 //Convert bytes into human readable formats
 function bytesToSize(bytes,divisor = 1000) {
   const sizes = ["B","KB","MB","GB","TB"];
@@ -1267,7 +1297,7 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
 
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
   navigator.clipboard.writeText(td.parentNode.cells[2].children[0].innerText);
-  //console.log();
+  flash("Details copied to clipboard");
 })));
 
 //On mouseout, remove the div element. "fistchild" don't have the div element
@@ -1286,11 +1316,12 @@ elem.onmouseout = function() { document.getElementById("menu").style.display = "
 document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(2)").forEach(td => td.addEventListener("dblclick", (() => {
   if (td.title){
   navigator.clipboard.writeText(td.title).then(() => {  
-    var el=document.createElement("div");
-    el.setAttribute("id", "cur");
-    el.textContent = "SQL text is copied to clipboard";
-    td.appendChild(el);
-    setTimeout(() => { el.remove();},2000);
+    // var el=document.createElement("div");
+    // el.setAttribute("id", "cur");
+    // el.textContent = "SQL text is copied to clipboard";
+    // td.appendChild(el);
+    // setTimeout(() => { el.remove();},2000);
+    flash("SQL text is copied to clipboard");
    });
 }
 })));

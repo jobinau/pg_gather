@@ -16,7 +16,7 @@
 \echo .lineblk {float: left; margin:2em }
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 100;}
-\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 0.8s ease forwards; }  /*sort indicator*/
+\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
@@ -67,7 +67,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset tableattr off
 
 \echo <div>
-\echo <details style="clear: left; width: fit-content;">
+\echo <details style="clear: left; width: fit-content; border: 2px solid black; border-radius: 5px; padding: 1em;">
 \echo   <summary style="font: italic bold 1.5em Georgia">Tune This PostgreSQL</summary>
 \echo   <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
 \echo   <label for="cpus">CPUs:
@@ -104,8 +104,10 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo   <ol>
 \echo   </ol>
 \echo   <p>* Collecting pg_gather data during right utilization levels is important to tune the system for the specific workload</p>
+\echo </div>
 \echo   <button type="button" onclick="getreccomendation()" title="Calculate / Recalculate Parameters">&#128257; Calculate</button>
-\echo   </div>
+\echo   <button type="button" onclick="copyashtml()" title="Copy as html tags">Copy as HTML tags</button>
+\echo   <button type="button" onclick="copyrichhtml()" title="Copy as Rich HTML">Copy as Rich HTML</button>
 \echo </details>
 \echo </div>
 \echo <h2 id="topics">Sections</h2>
@@ -688,6 +690,30 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo   reccomandations.innerHTML = reccos;
 \echo }
+\echo function flash(msg){
+\echo   var el=document.createElement("div");
+\echo   el.setAttribute("id", "cur");
+\echo   el.setAttribute("style", "position: fixed;top: 50%;left: 50%;transform: translate(-50%, -50%);");
+\echo   el.textContent = msg;
+\echo   document.body.appendChild(el);
+\echo   setTimeout(() => { el.remove();},2000);
+\echo }
+\echo function copyashtml(){
+\echo   let elem = document.getElementById("paramtune");
+\echo   let paramtune = elem.cloneNode(true);
+\echo   paramtune.style="font-weight:initial;line-height:1.5em;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey";
+\echo   navigator.clipboard.writeText(paramtune.outerHTML);
+\echo   flash("Parameter recommendations are copied to clipboard as HTML code");
+\echo }
+\echo function copyrichhtml(){
+\echo   let elem = document.getElementById("paramtune")
+\echo   let paramtune = elem.cloneNode(true);
+\echo   paramtune.style="font-weight:initial;line-height:1.5em;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey";
+\echo   const clipboardItem = new ClipboardItem({	"text/plain": new Blob([paramtune.innerText],	{ type: "text/plain" }),
+\echo               "text/html": new Blob([paramtune.outerHTML],{ type: "text/html" })});
+\echo   navigator.clipboard.write([clipboardItem]);
+\echo   flash("Parameter recommendations are copied to clipboard as HTML Rich object");
+\echo }
 \echo function bytesToSize(bytes,divisor = 1000) {
 \echo   const sizes = ["B","KB","MB","GB","TB"];
 \echo   if (bytes == 0) return "0B";
@@ -1172,6 +1198,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   navigator.clipboard.writeText(td.parentNode.cells[2].children[0].innerText);
+\echo   flash("Details copied to clipboard");
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
 \echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
@@ -1183,11 +1210,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(2)").forEach(td => td.addEventListener("dblclick", (() => {
 \echo   if (td.title){
 \echo   navigator.clipboard.writeText(td.title).then(() => {  
-\echo     var el=document.createElement("div");
-\echo     el.setAttribute("id", "cur");
-\echo     el.textContent = "SQL text is copied to clipboard";
-\echo     td.appendChild(el);
-\echo     setTimeout(() => { el.remove();},2000);
+\echo     flash("SQL text is copied to clipboard");
 \echo    });
 \echo }
 \echo })));
