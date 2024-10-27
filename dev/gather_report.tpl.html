@@ -863,6 +863,18 @@ var paramDespatch = {
     } else if (val.innerText > 500) val.classList.add("warn")
       else val.classList.add("lime")
   },
+  max_standby_archive_delay: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "max_standby_archive_delay");
+    console.log(this);
+    if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime") }
+  },
+  max_standby_streaming_delay: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "max_standby_streaming_delay");
+    console.log(val.innerText);
+    if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime");}
+  },
   max_wal_size: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024*1024,1024);

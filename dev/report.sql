@@ -817,6 +817,18 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     } else if (val.innerText > 500) val.classList.add("warn")
 \echo       else val.classList.add("lime")
 \echo   },
+\echo   max_standby_archive_delay: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "max_standby_archive_delay");
+\echo     console.log(this);
+\echo     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime") }
+\echo   },
+\echo   max_standby_streaming_delay: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "max_standby_streaming_delay");
+\echo     console.log(val.innerText);
+\echo     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime");}
+\echo   },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
