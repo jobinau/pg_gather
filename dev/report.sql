@@ -67,8 +67,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset tableattr off
 
 \echo <div>
-\echo <details style="clear: left; width: fit-content; border: 2px solid black; border-radius: 5px; padding: 1em;">
-\echo   <summary style="font: italic bold 1.5em Georgia">Tune This PostgreSQL</summary>
+\echo <details style="clear: left; border: 2px solid #b3aeae; border-radius: 5px; padding: 1em;margin: 2em;">
+\echo   <summary style="font: italic bold 2em Georgia">Parameter Tuning</summary>
 \echo   <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
 \echo   <label for="cpus">CPUs:
 \echo   <input type="number" id="cpus" name="cpus" value="0">
@@ -803,6 +803,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   idle_in_transaction_session_timeout: function(rowref){ 
 \echo     val=rowref.cells[1]; 
 \echo     if (val.innerText == 0){ val.classList.add("warn"); val.title="Highly suggestable to use atleast 5min to prevent application misbehaviour" }
+\echo     let param = params.find(p => p.param === "idle_in_transaction_session_timeout");
+\echo     param["suggest"] = "'5min'";
 \echo   },
 \echo   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { 
 \echo     val.classList.add("warn");
@@ -829,7 +831,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   log_lock_waits: function(rowref){
 \echo     val=rowref.cells[1]; let param = params.find(p => p.param === "log_lock_waits");
 \echo     if(val.innerText == "off") param["suggest"] = "on";
-\echo   }, 
+\echo   },
+\echo   lock_timeout: function(rowref){
+\echo     val=rowref.cells[1]; let param = params.find(p => p.param === "lock_timeout");
+\echo     if(val.innerText == "0") param["suggest"] = "'1min'";
+\echo   },
 \echo   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
 \echo   max_connections: function(rowref){
 \echo     val=rowref.cells[1];
@@ -871,10 +877,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "random_page_cost");
 \echo     let strg = document.getElementById("strg").value;
-\echo   if ( strg == "ssd" && val.innerText > 1.2 ){
-\echo     param["suggest"] = "1.1";   val.classList.add("warn");
-\echo   } else if ( strg == "san" && val.innerText > 1.5 ){
-\echo     param["suggest"] = "1.5";   val.classList.add("warn");
+\echo   if ( strg == "ssd" ){
+\echo     if (val.innerText > 1.2){param["suggest"] = "1.1";   val.classList.add("warn");}
+\echo     else val.classList.add("lime");
+\echo   } else if ( strg == "san" ){
+\echo     if (val.innerText > 1.5){ param["suggest"] = "1.5";   val.classList.add("warn");}
+\echo     else val.classList.add("lime");
 \echo   } else { param["suggest"] = "4"; val.classList.add("lime")}; 
 \echo   },
 \echo   wal_keep_size: function(rowref){
@@ -1123,7 +1131,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function tabdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   console.log(th.cells[1].innerText);
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
@@ -1148,7 +1155,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
 \echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
 \echo   if (vac/obj.dbts.f4 > 50) { 
-\echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);
+\echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48); 
 \echo     if (threshold < 500) threshold = 500;
 \echo     str += "<br/>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
 \echo   }}

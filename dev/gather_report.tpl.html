@@ -67,8 +67,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset tableattr off
 %>
 <div>
-<details style="clear: left; width: fit-content; border: 2px solid black; border-radius: 5px; padding: 1em;">
-  <summary style="font: italic bold 1.5em Georgia">Tune This PostgreSQL</summary>
+<details style="clear: left; border: 2px solid #b3aeae; border-radius: 5px; padding: 1em;margin: 2em;">
+  <summary style="font: italic bold 2em Georgia">Parameter Tuning</summary>
   <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
   <label for="cpus">CPUs:
   <input type="number" id="cpus" name="cpus" value="0">
@@ -853,6 +853,8 @@ var paramDespatch = {
   idle_in_transaction_session_timeout: function(rowref){ 
     val=rowref.cells[1]; 
     if (val.innerText == 0){ val.classList.add("warn"); val.title="Highly suggestable to use atleast 5min to prevent application misbehaviour" }
+    let param = params.find(p => p.param === "idle_in_transaction_session_timeout");
+    param["suggest"] = "'5min'";
   },
   jit: function(rowref){ val=rowref.cells[1]; if (val.innerText=="on") { 
     val.classList.add("warn");
@@ -879,7 +881,11 @@ var paramDespatch = {
   log_lock_waits: function(rowref){
     val=rowref.cells[1]; let param = params.find(p => p.param === "log_lock_waits");
     if(val.innerText == "off") param["suggest"] = "on";
-  }, 
+  },
+  lock_timeout: function(rowref){
+    val=rowref.cells[1]; let param = params.find(p => p.param === "lock_timeout");
+    if(val.innerText == "0") param["suggest"] = "'1min'";
+  },
   maintenance_work_mem: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*1024,1024); },
   max_connections: function(rowref){
     val=rowref.cells[1];
@@ -921,10 +927,12 @@ var paramDespatch = {
     val=rowref.cells[1];
     let param = params.find(p => p.param === "random_page_cost");
     let strg = document.getElementById("strg").value;
-  if ( strg == "ssd" && val.innerText > 1.2 ){
-    param["suggest"] = "1.1";   val.classList.add("warn");
-  } else if ( strg == "san" && val.innerText > 1.5 ){
-    param["suggest"] = "1.5";   val.classList.add("warn");
+  if ( strg == "ssd" ){
+    if (val.innerText > 1.2){param["suggest"] = "1.1";   val.classList.add("warn");}
+    else val.classList.add("lime");
+  } else if ( strg == "san" ){
+    if (val.innerText > 1.5){ param["suggest"] = "1.5";   val.classList.add("warn");}
+    else val.classList.add("lime");
   } else { param["suggest"] = "4"; val.classList.add("lime")}; 
   },
   wal_keep_size: function(rowref){
@@ -1213,7 +1221,6 @@ function dbsdtls(th){
 //Pop-up for Tables.
 function tabdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
-  console.log(th.cells[1].innerText);
   let vac=th.cells[13].innerText;
   //lookup cells[2] value, the oid of NS in the obj.ns json collection  
   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
@@ -1239,7 +1246,7 @@ function tabdtls(th){
     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
   if (vac/obj.dbts.f4 > 50) { 
-    let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);
+    let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);  //(UPDATEs per day + DELETEs per day) / 48
     if (threshold < 500) threshold = 500;
     str += "<br/>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
   }}
