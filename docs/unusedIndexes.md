@@ -29,3 +29,19 @@ SELECT n.nspname AS schema,relid::regclass as table, indexrelid::regclass as ind
     JOIN pg_namespace n ON c.relnamespace = n.oid
 WHERE idx_scan = 0;
 ```
+OR more detailed (TOAST and TOAST index)
+```
+SELECT n.nspname AS schema,t.relname "table", c.relname as index, tst.relname "TOAST",
+tst.oid "TOAST ID 1",
+tstind.relid "TOAST ID 2",
+tstind.indexrelname "TOAST Index",  
+tstind.indexrelid "TOST INDEX relid",
+i.indisunique, i.indisprimary,pg_stat_user_indexes.idx_scan "Index usage", tstind.idx_scan "Toast index usage"
+    FROM pg_stat_user_indexes
+    JOIN pg_index i USING (indexrelid)
+    JOIN pg_class c ON i.indexrelid = c.oid
+    JOIN pg_class t ON i.indrelid = t.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    LEFT JOIN pg_class tst ON t.reltoastrelid = tst.oid
+    LEFT JOIN pg_stat_all_indexes tstind ON tst.oid = tstind.relid;
+```
