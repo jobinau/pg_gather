@@ -69,7 +69,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <div>
 \echo <details style="clear: left; border: 2px solid #b3aeae; border-radius: 5px; padding: 1em;margin: 2em;">
 \echo   <summary style="font: italic bold 2em Georgia">Parameter Tuning</summary>
-\echo   <div style="border: 2px solid blue; border-radius: 5px; padding: 1em;">
+\echo   <fieldset style="border: 2px solid blue; border-radius: 5px; padding: 1em; width: fit-content;">
+\echo   <legend>Inputs</legend>
 \echo   <label for="cpus">CPUs:
 \echo   <input type="number" id="cpus" name="cpus" value="0">
 \echo   </label>
@@ -96,10 +97,9 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <option value="cow">COW (like: zfs/btrfs)</option>
 \echo    </select>
 \echo  </label>
-\echo  <p>NOTE : Please input the CPU and Memory available on the host machine and select the most appropriate options from the list to get recommendations<br />
-\echo   Please seek expert advice if you are in doubt</p>
-\echo </div>
-\echo   <div id="paramtune" style="padding:2em;position:relative">
+\echo  <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you''re unsure, seek expert guidance.</p>
+\echo </fieldset>
+\echo   <div id="paramtune" style="padding:2em;position:relative;width: fit-content;">
 \echo    <h3 style="font: italic 1.2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Recommendations:</h3>
 \echo   <ol>
 \echo   </ol>
@@ -497,7 +497,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo <script type="text/javascript">
 \echo obj={};
 \echo ver="28";
-\echo meta={pgvers:["12.20","13.16","14.13","15.8","16.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
 \echo datadir="";
@@ -604,12 +604,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
 \echo  if (obj.netdlay.f1 > 10) {
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 * 100 > 20 ){ strfind += "<li> There are <b>"+ obj.netdlay.f3 +" Sessions with considerable Net/Delays</b>"
+\echo    tmpstr = "Total <a href='https://github.com/jobinau/pg_gather/blob/main/docs/NetDelay.md'>Net/Delay<a>"
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 > 1){
-\echo       tmpstr = "Total Net/Delay* is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
+\echo       tmpstr += " is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
 \echo    }else if(obj.netdlay.f1 / obj.netdlay.f2 > 0.1){
-\echo     tmpstr = "Total Net/Delay* is equivalent to <b>" + (obj.netdlay.f1 * 100 / obj.netdlay.f2).toFixed(2) + "% </b> of server activity"
+\echo     tmpstr += " is equivalent to <b>" + (obj.netdlay.f1 * 100 / obj.netdlay.f2).toFixed(2) + "% </b> of server activity"
 \echo    }
-\echo    if (tmpstr != "" ){
+\echo    if (tmpstr.length > 100 ){
 \echo     strfind += "<li>" + tmpstr + "</li>"
 \echo     document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
 \echo    }

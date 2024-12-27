@@ -1,4 +1,4 @@
-# Netowrk OR Delay
+# Net / Delay
 [![Nework / Delay Explained](https://img.youtube.com/vi/v5Y9YT44rOY/0.jpg)](https://youtu.be/v5Y9YT44rOY)
 
 Network or Delay. This is the time spent without doing anything. Waiting for something to happen. 
