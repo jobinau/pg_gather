@@ -1133,6 +1133,7 @@ function checkextn(){
   const trs=tab.rows
   const len=trs.length;
   let riskyExtn=[];
+  if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Additional Extensions found.</b> Extensions can cause considerable overhead and performance degradataion. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/extensions.md'>Details</a></li>"
   for(var i=1;i<len;i++){
     tr=trs[i];
     //if the extension name is found in riskyExtn list, warn

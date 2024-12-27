@@ -1055,6 +1055,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const trs=tab.rows
 \echo   const len=trs.length;
 \echo   let riskyExtn=[];
+\echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Additional Extensions found.</b> Extensions can cause considerable overhead and performance degradataion <a href=''>#Details</a></li>"
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if (meta.riskyExtn.includes(tr.cells[1].innerHTML)){ tr.cells[1].classList.add("warn"); tr.cells[1].title = "Risky to use in mission critical systems without support aggrement. Crashes are reported" ; }
