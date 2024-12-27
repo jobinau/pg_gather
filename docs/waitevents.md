@@ -34,8 +34,17 @@ The application side might be taking too long to respond to the database. For ex
 This "ClientRead" wait-event combined with "idle-in-transaction" can cause contention in the server. 
 
 ## Net/Delay*
-Network / Delay won't always result in "ClientRead", because the network delay can affect select statements also, which are indepent of transaction block.
-This is the estimate of each session wasting its time by waiting for communication outside a transaction block. For example, Application sends first SELECT statement, then takes a delay before sending the next SELECT statement. Poor network performance (high latency) is a common cause of this waits.
+This is the Time elapsed by the session without doing anything. Multiple things can cause this.
+1. High network latency.  
+Not every "Network/Delay" won't always result in "ClientRead" because the network delay can affect select statements also, which are independent of the transaction block. 
+2. poolers/proxies 
+Connection poolers/proxies standing in between the application server and the database can cause delays. 
+3. Application design 
+When the Application becomes too chatty, database sessions start spending more time waiting for communication. 
+4. Processing time at application side 
+For example, the Application sends the first SELECT statement, then takes a delay before sending the next SELECT statement. 
+5. Overloaded servers - Waiting for scheduling 
+OS scheduler can give only smaller chunk of time as the host machine gets overloaded. Moreover There could be significant delay between two schedules.  This leads to a situation that connection/session waiting for execution. 
 
 ## ClientWrite
 Waiting to write data to client/application, Generally caused by application retriving large amount of data at ones.
