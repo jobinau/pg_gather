@@ -497,6 +497,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo <script type="text/javascript">
 \echo obj={};
 \echo ver="28";
+\echo docurl="https://jobinau.github.io/pg_gather/";
 \echo meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo walcomprz="";
@@ -552,7 +553,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         break;
 \echo       case "Collected By" :
 \echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
-\echo         strfind += "<li>Data collected using old/obsolete version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + " <a href='https://github.com/jobinau/pg_gather/blob/main/docs/versionpolicy.md'>Link</a></li>";
+\echo         strfind += "<li>Data collected using old/obsolete version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + " <a href='"+ docurl +"versionpolicy.html'>Link</a></li>";
 \echo         }
 \echo         break;
 \echo       case "In recovery?" :
@@ -596,15 +597,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     } 
 \echo     strfind += "</li>";
 \echo  }
-\echo  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='https://github.com/jobinau/pg_gather/blob/main/docs/InvalidIndexes.md'>Link</a></li>";
-\echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/unusedIndexes.md'>Details</a></li>";
-\echo  if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b><a href='https://github.com/jobinau/pg_gather/blob/main/docs/mxid.md'>Link</a></li>"
+\echo  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='"+ docurl +"InvalidIndexes.html'>Link</a></li>";
+\echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='"+ docurl +"unusedIndexes.html'>Details</a></li>";
+\echo  if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b><a href='"+ docurl +"mxid.html'>Link</a></li>"
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
 \echo  if (obj.netdlay.f1 > 10) {
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 * 100 > 20 ){ strfind += "<li> There are <b>"+ obj.netdlay.f3 +" Sessions with considerable Net/Delays</b>"
-\echo    tmpstr = "Total <a href='https://github.com/jobinau/pg_gather/blob/main/docs/NetDelay.md'>Net/Delay<a>"
+\echo    tmpstr = "Total <a href='"+ docurl +"NetDelay.html'>Net/Delay<a>"
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 > 1){
 \echo       tmpstr += " is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
 \echo    }else if(obj.netdlay.f1 / obj.netdlay.f2 > 0.1){
@@ -625,8 +626,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
 \echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
-\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
-\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/table_object.md'>Learn Details</a></li>";
+\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='"+ docurl +"missingstats.html'>Learn Details</a></li>";
+\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
 \echo   if (obj.arcfail != null) {
 \echo    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
 \echo    if (obj.arcfail.f1 > 300) strfind += "<li>No WAL archiving happened in last "+ Math.round(obj.arcfail.f1/60) +" minutes. <b>Archiving could be failing</b>; please check PG logs</li>";
@@ -645,12 +646,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-\echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/schema.md'> Link<a>";
+\echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Link<a>";
 \echo    if (tempNScnt > 0 && obj.clas.f2 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f2).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
 \echo    strfind += tmpfind + "</li>";
 \echo   }
 \echo   if (obj.meta.f1 > 15728640){
-\echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='https://github.com/jobinau/pg_gather/blob/main/docs/catalogbloat.md'> Link<a></li>"
+\echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Link<a></li>"
 \echo   }
 \echo  }
 \echo   document.getElementById("finditem").innerHTML += strfind;
@@ -686,7 +687,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let reccos = "";
 \echo   for (let item of params) {
 \echo     if (typeof item.suggest != "undefined"){
-\echo      reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='https://github.com/jobinau/pg_gather/blob/main/docs/params/" + item.param +".md'>#Explanation</a></li>"
+\echo      reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='"+ docurl +"params/" + item.param +".html'>#Explanation</a></li>"
 \echo     }
 \echo   }
 \echo   reccomandations.innerHTML = reccos;
@@ -1055,7 +1056,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const trs=tab.rows
 \echo   const len=trs.length;
 \echo   let riskyExtn=[];
-\echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Additional Extensions found.</b> Extensions can cause considerable overhead and performance degradataion <a href=''>#Details</a></li>"
+\echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Additional Extensions found.</b> Extensions can cause considerable overhead and performance degradataion. <a href='"+ docurl +"extensions.html'>Details</a></li>"
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if (meta.riskyExtn.includes(tr.cells[1].innerHTML)){ tr.cells[1].classList.add("warn"); tr.cells[1].title = "Risky to use in mission critical systems without support aggrement. Crashes are reported" ; }
@@ -1243,7 +1244,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function checkdbtime(){
 \echo tab=document.getElementById("tableConten")
-\echo tab.caption.innerHTML=''''<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Reference</a>)''''
+\echo tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 \echo trs=tab.rows;
 \echo let tempstr=""
 \echo if (trs.length > 1){ 

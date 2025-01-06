@@ -499,6 +499,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 obj={};
 //pg_gather version
 ver="28";
+docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
 meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
@@ -576,7 +577,7 @@ function checkgather(){
         break;
       case "Collected By" :
         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
-        strfind += "<li>Data collected using old/obsolete version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + " <a href='https://github.com/jobinau/pg_gather/blob/main/docs/versionpolicy.md'>Link</a></li>";
+        strfind += "<li>Data collected using old/obsolete version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + " <a href='"+ docurl +"versionpolicy.html'>Link</a></li>";
         }
         break;
       case "In recovery?" :
@@ -623,15 +624,15 @@ function checkfindings(){
     } 
     strfind += "</li>";
  }
- if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='https://github.com/jobinau/pg_gather/blob/main/docs/InvalidIndexes.md'>Link</a></li>";
- if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/unusedIndexes.md'>Details</a></li>";
- if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b><a href='https://github.com/jobinau/pg_gather/blob/main/docs/mxid.md'>Link</a></li>"
+ if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='"+ docurl +"InvalidIndexes.html'>Link</a></li>";
+ if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='"+ docurl +"unusedIndexes.html'>Details</a></li>";
+ if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b> <a href='"+ docurl +"mxid.html'>Link</a></li>"
  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
  if (obj.netdlay.f1 > 10) {
    if (obj.netdlay.f1 / obj.netdlay.f2 * 100 > 20 ){ strfind += "<li> There are <b>"+ obj.netdlay.f3 +" Sessions with considerable Net/Delays</b>"
-   tmpstr = "Total <a href='https://github.com/jobinau/pg_gather/blob/main/docs/NetDelay.md'>Net/Delay<a>"
+   tmpstr = "Total <a href='"+ docurl +"NetDelay.html'>Net/Delay<a>"
    if (obj.netdlay.f1 / obj.netdlay.f2 > 1){
       tmpstr += " is <b>" + (obj.netdlay.f1 / obj.netdlay.f2).toFixed(1) + "Times ! </b> of overall server activity. which is huge"
    }else if(obj.netdlay.f1 / obj.netdlay.f2 > 0.1){
@@ -652,8 +653,8 @@ function checkfindings(){
   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
  }else{
   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
-  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/missingstats.md'>Learn Details</a></li>";
-  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/table_object.md'>Learn Details</a></li>";
+  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='"+ docurl +"missingstats.html'>Learn Details</a></li>";
+  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
   if (obj.arcfail != null) { //entire information can go missing if no record comes to table : pg_gather, which could happen in aurora
    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
    if (obj.arcfail.f1 > 300) strfind += "<li>No WAL archiving happened in last "+ Math.round(obj.arcfail.f1/60) +" minutes. <b>Archiving could be failing</b>; please check PG logs</li>";
@@ -673,12 +674,12 @@ function checkfindings(){
   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   if (obj.ns !== null){
    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-   tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/schema.md'> Link<a>";
+   tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Link<a>";
    if (tempNScnt > 0 && obj.clas.f2 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f2).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
    strfind += tmpfind + "</li>";
   }
   if (obj.meta.f1 > 15728640){ //metadata more than 15MB
-    strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='https://github.com/jobinau/pg_gather/blob/main/docs/catalogbloat.md'> Link<a></li>"
+    strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Link<a></li>"
   }
  }
   //update the findings section
@@ -721,7 +722,7 @@ function getreccomendation(){
   let reccos = "";
   for (let item of params) {
     if (typeof item.suggest != "undefined"){
-     reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='https://github.com/jobinau/pg_gather/blob/main/docs/params/" + item.param +".md'>#Explanation</a></li>"
+     reccos += "<li>" + item.param + " = " + item.suggest + "&emsp;<a href='"+ docurl +"params/" + item.param +".html'>#Explanation</a></li>"
     }
   }
   reccomandations.innerHTML = reccos;
@@ -1133,7 +1134,7 @@ function checkextn(){
   const trs=tab.rows
   const len=trs.length;
   let riskyExtn=[];
-  if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Additional Extensions found.</b> Extensions can cause considerable overhead and performance degradataion. <a href='https://github.com/jobinau/pg_gather/blob/main/docs/extensions.md'>Details</a></li>"
+  if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Additional Extensions found.</b> Extensions can cause considerable overhead and performance degradataion. <a href='"+ docurl +"extensions.html'>Details</a></li>"
   for(var i=1;i<len;i++){
     tr=trs[i];
     //if the extension name is found in riskyExtn list, warn
@@ -1361,7 +1362,7 @@ for (let tr of trs) {
 //database time draw graph
 function checkdbtime(){
 tab=document.getElementById("tableConten")
-tab.caption.innerHTML=''<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="https://github.com/jobinau/pg_gather/blob/main/docs/waitevents.md">Reference</a>)''
+tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 trs=tab.rows;
 let tempstr=""
 if (trs.length > 1){ 
