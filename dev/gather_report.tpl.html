@@ -489,9 +489,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     FROM pg_get_index i
     JOIN pg_get_class ct ON i.indrelid = ct.reloid
     LEFT JOIN pg_get_toast tst ON ct.reloid = tst.toastid) induse,
-    ( WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_index GROUP BY indrelid)
-    SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk))) 
-    FROM pg_class c LEFT JOIN pkuk ON pkuk.indrelid = c.oid WHERE c.relkind IN ('r')) nokey,
+    (WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_get_index GROUP BY indrelid)
+    SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk)))
+    FROM pg_get_class c LEFT JOIN pkuk ON pkuk.indrelid = c.reloid WHERE c.relkind IN ('r')) nokey,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 %>
