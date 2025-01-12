@@ -68,7 +68,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 
 \echo <div>
 \echo <details style="clear: left; border: 2px solid #b3aeae; border-radius: 5px; padding: 1em;margin: 2em;">
-\echo   <summary style="font: italic bold 2em Georgia">Parameter Tuning</summary>
+\echo   <summary style="font: italic bold 2em Georgia">Parameter Recommendations</summary>
 \echo   <fieldset style="border: 2px solid blue; border-radius: 5px; padding: 1em; width: fit-content;">
 \echo   <legend>Inputs</legend>
 \echo   <label for="cpus">CPUs:
@@ -152,7 +152,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace,c.reloptions)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,isum.pk,isum.uk,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace,c.reloptions)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -165,7 +165,8 @@ LEFT JOIN pg_get_rel rt ON rt.relid = t.toastid
 LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 LEFT JOIN pg_get_inherits inh ON r.relid = inh.inhrelid
 LEFT JOIN pg_get_class inhp ON inh.inhparent = inhp.reloid
-LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan,indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
+LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan, count(indexrelid) FILTER (WHERE indisprimary) pk,  
+   count(indexrelid) FILTER (WHERE indisunique) uk, indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
 \pset tableattr 'id="tabPart"'
@@ -488,6 +489,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     FROM pg_get_index i
     JOIN pg_get_class ct ON i.indrelid = ct.reloid
     LEFT JOIN pg_get_toast tst ON ct.reloid = tst.toastid) induse,
+    ( WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_index GROUP BY indrelid)
+    SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk))) 
+    FROM pg_class c LEFT JOIN pkuk ON pkuk.indrelid = c.oid WHERE c.relkind IN ('r')) nokey,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
@@ -599,10 +603,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  }
 \echo  if (obj.induse.f1 > 0 ) strfind += "<li><b>"+ obj.induse.f1 +" Invalid Index(es)</b> found. Recreate or drop them. Refer <a href='"+ docurl +"InvalidIndexes.html'>Link</a></li>";
 \echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='"+ docurl +"unusedIndexes.html'>Details</a></li>";
-\echo  if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b><a href='"+ docurl +"mxid.html'>Link</a></li>"
+\echo  if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b> <a href='"+ docurl +"mxid.html'>Link</a></li>"
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
+\echo  if (obj.nokey.f1 > 0) strfind += "<li><b>"+ obj.nokey.f1 +" Tables without Primary Key</b> and <b>"+ obj.nokey.f2 +" Tables without niether Primary key nor Unique keys</b> found. Please consider adding them</li>";
 \echo  if (obj.netdlay.f1 > 10) {
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 * 100 > 20 ){ strfind += "<li> There are <b>"+ obj.netdlay.f3 +" Sessions with considerable Net/Delays</b>"
 \echo    tmpstr = "Total <a href='"+ docurl +"NetDelay.html'>Net/Delay<a>"
@@ -1137,23 +1142,26 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
-\echo   if (o.f9 == "r") str += "<br/>Inheritance Partition of : " + o.f8;
-\echo   if (o.f9 == "p") str += "<br/>Native Partition of : " + o.f8;
+\echo   if (o.f11 == "r") str += "<br/>Inheritance Partition of : " + o.f10;
+\echo   if (o.f11 == "p") str += "<br/>Native Partition of : " + o.f10;
 \echo   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
 \echo   if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;
+\echo   if (o.f8 > 0) str += "<br/>Primary key: Exists";
+\echo   else str += "<br/>No Primary key ";
+\echo   if (o.f9-o.f8 > 0) str += "<br/>Unique keys (than PK): " + (o.f9-o.f8);
 \echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
 \echo   if (vac > 0) str +="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
 \echo   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
 \echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
 \echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   str += "<br>Rel.filename : " + o.f10;
-\echo   if (o.f11 < 16384) str += "<br>Tablespace : pg_default"; 
+\echo   str += "<br>Rel.filename : " + o.f12;
+\echo   if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
 \echo   else{
-\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f11).toString()); 
-\echo     str += "<br>Tablespace : " + o.f11 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
+\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f13).toString()); 
+\echo     str += "<br>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
 \echo   }
-\echo   if (o.f12 !== null ) str += "<br>Current Settings : " + o.f12;
+\echo   if (o.f14 !== null ) str += "<br>Current Settings : " + o.f14;
 \echo   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
 \echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));

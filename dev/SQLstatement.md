@@ -51,8 +51,9 @@ SELECT to_jsonb(r) FROM
   (select recovery from pg_gather) AS clsr,
   --
   --Number of tables without analyze or vacuum (stats missing)
-  (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
-     from pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')) AS tabs,
+    (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
+  FROM pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
+LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   --
   -- cn stands for connections. count of total connections and number of number of connections started in last 15 mintues are returned
   -- only those connections which has some waitevent is considered
@@ -122,6 +123,12 @@ SELECT to_jsonb(r) FROM
    ORDER BY 2 DESC LIMIT 3) AS wmemuse) wmemuse,
 
   (SELECT to_jsonb(count(*)) FROM pg_get_index WHERE indisvalid=false) indinvalid,
+
+  --Findout tables without neither primary key nor unique keys
+  ( WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_index GROUP BY indrelid)
+    SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk))) 
+    FROM pg_class c LEFT JOIN pkuk ON pkuk.indrelid = c.oid WHERE c.relkind IN ('r')) nokey,
+
   -- Catalog metadata size and number of objects
   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
