@@ -65,8 +65,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     WHERE EXISTS (SELECT pid FROM pg_pid_wait WHERE pid=pg_get_activity.pid)
     AND backend_type='client backend') cn) AS cn,
   --
-  --Number of partitioned tables
-  (select count(*) from pg_get_class where relkind='p') as ptabs,
+  --Number of partitioned tables, Number of unlogged tables, maximum relid reached. 
+  (SELECT to_jsonb(ROW(count(*) FILTER (WHERE relkind='p'), count(*) FILTER (WHERE relkind='r' AND relpersistence='u'), max(reloid))) from pg_get_class) as clas,
   --
   --Number of active, idle, idle-in-transaactions etc
   (SELECT  to_jsonb(ROW(count(*) FILTER (WHERE state='active' AND state IS NOT NULL), 
