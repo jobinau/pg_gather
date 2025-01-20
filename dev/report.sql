@@ -605,7 +605,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if (obj.induse.f2 > 0 ) strfind += "<li><b>"+ obj.induse.f2 +" regular user indexes and " + obj.induse.f3 + " Toast Indexes are unused,</b> out of " + obj.induse.f4 + " user indexes and " + obj.induse.f5 + " Toast Indexes . Currently the unused indexes needs <b>additional "+ bytesToSize(obj.induse.f6) +" to cache</b>. <a href='"+ docurl +"unusedIndexes.html'>Details</a></li>";
 \echo  if (obj.mxiddbs !== null) strfind += "<li> Multi Transaction ID age : <b>" + obj.mxiddbs.f2 + "</b> for databases  <b>" + obj.mxiddbs.f1 + "</b> <a href='"+ docurl +"mxid.html'>Details</a></li>"
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
-\echo  if (obj.clas.f2 > 0) strfind += "<li><b>"+ obj.clas.f2 +" Unlogged tables found. These tables and associated indexes are ephemeral</li>";
+\echo  if (obj.clas.f2 > 0) strfind += "<li><b>"+ obj.clas.f2 +" Unlogged tables found.</b> These tables and associated indexes are ephemeral. <a href='"+ docurl +"unloggedtables.html'>Details</a></li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
 \echo  if (obj.nokey.f1 > 0) strfind += "<li><b>"+ obj.nokey.f1 +" Tables without Primary Key</b> and <b>"+ obj.nokey.f2 +" Tables without niether Primary key nor Unique keys</b> found. Please refer <a href='"+ docurl +"pkuk.html'>Details</a></li>";
