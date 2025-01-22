@@ -87,7 +87,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo  <label for="wrkld" style="padding-left: 3em;"> Work load:
 \echo   <select id="wrkld" name="wrkld">
 \echo     <option value="oltp">OLTP</option>
-\echo     <option value="olap">OLAP</option>
+\echo     <option value="olap">OLAP/DSS</option>
 \echo     <option value="mixed">Mixed</option>
 \echo    </select>
 \echo  </label>
@@ -511,6 +511,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo totdb=0;
 \echo totCPU=0;
 \echo totMem=0;
+\echo wrkld="";
 \echo let blokers = []
 \echo let blkvictims = []
 \echo let params = []
@@ -688,6 +689,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo function getreccomendation(){
 \echo   totMem = document.getElementById("mem").value;
 \echo   totCPU = document.getElementById("cpus").value;
+\echo   wrkld = document.getElementById("wrkld").value;
 \echo   checkpars();
 \echo   let reccomandations = document.getElementById("paramtune").children[1];
 \echo   let reccos = "";
@@ -860,13 +862,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   max_standby_archive_delay: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "max_standby_archive_delay");
-\echo     console.log(this);
 \echo     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime") }
 \echo   },
 \echo   max_standby_streaming_delay: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "max_standby_streaming_delay");
-\echo     console.log(val.innerText);
 \echo     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime");}
 \echo   },
 \echo   max_wal_size: function(rowref){
@@ -880,6 +880,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
 \echo     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
 \echo     else val.classList.add("lime");
+\echo   },
+\echo   parallel_leader_participation: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "parallel_leader_participation");
+\echo     console.log(val.innerText + " " + wrkld);
+\echo     if (wrkld == "oltp" && val.innerText == "off") param["suggest"] = "on";
+\echo     else if (wrkld == "olap" && val.innerText == "on") param["suggest"] = "off" ;
+\echo     else delete param["suggest"];
 \echo   },
 \echo   random_page_cost: function(rowref){
 \echo     val=rowref.cells[1];

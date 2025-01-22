@@ -87,7 +87,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
  <label for="wrkld" style="padding-left: 3em;"> Work load:
   <select id="wrkld" name="wrkld">
     <option value="oltp">OLTP</option>
-    <option value="olap">OLAP</option>
+    <option value="olap">OLAP/DSS</option>
     <option value="mixed">Mixed</option>
    </select>
  </label>
@@ -519,6 +519,7 @@ totdb=0;
 //Number of CPUs and Memory. Since many parameter are based on CPU and memory better to hold as a global variable.
 totCPU=0;
 totMem=0;
+wrkld=""; //workload type (OLTP, OLAP etc.)
 //Prepare the list of blockers and Victims
 let blokers = []
 let blkvictims = []
@@ -723,6 +724,7 @@ function checkconns(){
 function getreccomendation(){
   totMem = document.getElementById("mem").value;
   totCPU = document.getElementById("cpus").value;
+  wrkld = document.getElementById("wrkld").value;
   checkpars();
   let reccomandations = document.getElementById("paramtune").children[1];
   let reccos = "";
@@ -910,13 +912,11 @@ var paramDespatch = {
   max_standby_archive_delay: function(rowref){
     val=rowref.cells[1];
     let param = params.find(p => p.param === "max_standby_archive_delay");
-    console.log(this);
     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime") }
   },
   max_standby_streaming_delay: function(rowref){
     val=rowref.cells[1];
     let param = params.find(p => p.param === "max_standby_streaming_delay");
-    console.log(val.innerText);
     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime");}
   },
   max_wal_size: function(rowref){
@@ -930,6 +930,14 @@ var paramDespatch = {
     val.title=bytesToSize(val.innerText*1024*1024,1024);
     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
     else val.classList.add("lime");
+  },
+  parallel_leader_participation: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "parallel_leader_participation");
+    console.log(val.innerText + " " + wrkld);
+    if (wrkld == "oltp" && val.innerText == "off") param["suggest"] = "on";
+    else if (wrkld == "olap" && val.innerText == "on") param["suggest"] = "off" ;
+    else delete param["suggest"];
   },
   random_page_cost: function(rowref){
     val=rowref.cells[1];
