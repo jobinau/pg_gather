@@ -312,10 +312,15 @@ INSERT INTO pg_get_bgwriter SELECT checkpoints_timed,checkpoints_req,checkpoint_
 
 
 --Compare two gather data and analyze the change
+DROP TABLE IF EXISTS pg_get_rel_old,pg_gather_old,pg_get_class_old,pg_get_index_old;
 ALTER TABLE pg_get_rel RENAME TO pg_get_rel_old;
 ALTER TABLE pg_gather RENAME TO pg_gather_old;
+ALTER TABLE pg_get_class RENAME TO pg_get_class_old;
+ALTER TABLE pg_get_index RENAME TO pg_get_index_old;
+
 select EXTRACT(EPOCH FROM ('2022-06-07 22:11:11'::timestamp - '2022-06-01 21:18:13'::timestamp))/86400;
 
+--The following Query is for two collections from same instance. For different instances, the query needs to be modified.
 SELECT c.relname "Name" ,
 --r.relnamespace "Schema",r.n_live_tup "Live tup",r.n_dead_tup "Dead tup", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,4) END "Dead/Live",
 --r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",
@@ -333,7 +338,10 @@ LEFT JOIN pg_tab_bloat tb ON r.relid = tb.table_oid
 ORDER BY 5 DESC LIMIT 100;
 
 --Compare Primary and Standby for Index usage
-ALTER TABLE pg_get_index RENAME TO pg_get_index_old;
+
+--Compare objects in two different instances. Say Prod and Dev.
+select relname,relkind from pg_get_class where ( relname,relkind) not in (SELECT  relname,relkind FROM pg_get_class_old);
+
 
 --Optionally merge the data from other instances
 MERGE INTO pg_get_index_old o USING pg_get_index n ON
