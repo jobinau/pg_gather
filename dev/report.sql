@@ -72,10 +72,10 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo   <fieldset style="border: 2px solid blue; border-radius: 5px; padding: 1em; width: fit-content;">
 \echo   <legend>Inputs</legend>
 \echo   <label for="cpus">CPUs:
-\echo   <input type="number" id="cpus" name="cpus" value="0">
+\echo   <input type="number" id="cpus" name="cpus" value="4">
 \echo   </label>
 \echo   <label for="mem" style="padding-left: 3em;">Memory(GB):
-\echo   <input type="number" id="mem" name="mem" value="0">
+\echo   <input type="number" id="mem" name="mem" value="8">
 \echo  </label>
 \echo  <label for="strg" style="padding-left: 3em;"> Storage:
 \echo   <select id="strg" name="strg">
@@ -504,13 +504,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo docurl="https://jobinau.github.io/pg_gather/";
 \echo meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
-\echo walcomprz="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
 \echo let strfind = "";
 \echo totdb=0;
-\echo totCPU=0;
-\echo totMem=0;
+\echo totCPU=4; 
+\echo totMem=8; 
 \echo wrkld="";
 \echo let blokers = []
 \echo let blkvictims = []
@@ -623,12 +622,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
 \echo    }
 \echo   }
-\echo   for (let item of params) { 
+\echo  }
+\echo  for (let item of params) { 
 \echo     if (typeof item.warn != "undefined"){
 \echo      strfind += "<li>" + item.warn +"</li>";
 \echo     }
 \echo   }
-\echo  }
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
@@ -650,7 +649,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
 \echo      else strfind += "</li>" }
 \echo   if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
-\echo   if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
 \echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a>";
@@ -884,7 +882,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   parallel_leader_participation: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "parallel_leader_participation");
-\echo     console.log(val.innerText + " " + wrkld);
 \echo     if (wrkld == "oltp" && val.innerText == "off") param["suggest"] = "on";
 \echo     else if (wrkld == "olap" && val.innerText == "on") param["suggest"] = "off" ;
 \echo     else delete param["suggest"];
@@ -966,7 +963,17 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     }
 \echo   },
 \echo   wal_compression: function(rowref){
-\echo     val=rowref.cells[1]; val.classList.add("lime"); walcomprz = val.innerText;
+\echo     val=rowref.cells[1]; val.classList.add("lime");
+\echo     if(totCPU > 3){
+\echo       if (val.innerText == "off") { val.classList.add("warn"); val.title="Consider enabling wal_compression for better performance" 
+\echo         let param = params.find(p => p.param === "wal_compression");
+\echo         param["suggest"] = "'on'";
+\echo         if (mgrver >= 15) {
+\echo           param["warn"] = "<b>wal_compression is '"+ val.innerText+"' on PostgreSQL "+ mgrver +".</b> 'lz4' or 'zstd' is recommended, if available. <a href='"+ docurl +"params/wal_compression.html'> Details<a>"
+\echo           param["suggest"] = "'lz4'";
+\echo         }
+\echo       }
+\echo     }
 \echo   },
 \echo   work_mem: function(rowref){
 \echo     val=rowref.cells[1];

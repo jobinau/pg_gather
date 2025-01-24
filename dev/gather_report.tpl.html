@@ -72,10 +72,10 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
   <fieldset style="border: 2px solid blue; border-radius: 5px; padding: 1em; width: fit-content;">
   <legend>Inputs</legend>
   <label for="cpus">CPUs:
-  <input type="number" id="cpus" name="cpus" value="0">
+  <input type="number" id="cpus" name="cpus" value="4">
   </label>
   <label for="mem" style="padding-left: 3em;">Memory(GB):
-  <input type="number" id="mem" name="mem" value="0">
+  <input type="number" id="mem" name="mem" value="8">
  </label>
  <label for="strg" style="padding-left: 3em;"> Storage:
   <select id="strg" name="strg">
@@ -507,7 +507,7 @@ docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
 meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
-walcomprz="";
+//walcomprz="";
 datadir=""; //data directory is needed for understanding the tablespaces.
 //Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
 autovacuum_freeze_max_age = 0;
@@ -517,8 +517,8 @@ let strfind = "";
 //total DB size
 totdb=0;
 //Number of CPUs and Memory. Since many parameter are based on CPU and memory better to hold as a global variable.
-totCPU=0;
-totMem=0;
+totCPU=4;  //total number of CPUs, Minimum 4 is assumed, unless modified by the user
+totMem=8;  //total memory in GB, Minimum 8GB is assumed, unless modified by the user
 wrkld=""; //workload type (OLTP, OLAP etc.)
 //Prepare the list of blockers and Victims
 let blokers = []
@@ -650,12 +650,12 @@ function checkfindings(){
     document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
    }
   }
-  for (let item of params) {  //Add all Parameter related warnigns.
+ }
+ for (let item of params) {  //Add all Parameter related warnigns.
     if (typeof item.warn != "undefined"){
      strfind += "<li>" + item.warn +"</li>";
     }
   }
- }
  if(obj.clsr){
   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
  }else{
@@ -678,7 +678,7 @@ function checkfindings(){
      if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
      else strfind += "</li>" }
   if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
-  if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
+  //if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   if (obj.ns !== null){
    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a>";
@@ -934,7 +934,6 @@ var paramDespatch = {
   parallel_leader_participation: function(rowref){
     val=rowref.cells[1];
     let param = params.find(p => p.param === "parallel_leader_participation");
-    console.log(val.innerText + " " + wrkld);
     if (wrkld == "oltp" && val.innerText == "off") param["suggest"] = "on";
     else if (wrkld == "olap" && val.innerText == "on") param["suggest"] = "off" ;
     else delete param["suggest"];
@@ -1018,7 +1017,17 @@ var paramDespatch = {
     }
   },
   wal_compression: function(rowref){
-    val=rowref.cells[1]; val.classList.add("lime"); walcomprz = val.innerText; //highlight and update the global variable
+    val=rowref.cells[1]; val.classList.add("lime"); //walcomprz = val.innerText; highlight and update the global variable
+    if(totCPU > 3){
+      if (val.innerText == "off") { val.classList.add("warn"); val.title="Consider enabling wal_compression for better performance" 
+        let param = params.find(p => p.param === "wal_compression");
+        param["suggest"] = "'on'";
+        if (mgrver >= 15) {
+          param["warn"] = "<b>wal_compression is '"+ val.innerText+"' on PostgreSQL "+ mgrver +".</b> 'lz4' or 'zstd' is recommended, if available. <a href='"+ docurl +"params/wal_compression.html'> Details<a>"
+          param["suggest"] = "'lz4'";
+        }
+      }
+    }
   },
   work_mem: function(rowref){
     val=rowref.cells[1];
