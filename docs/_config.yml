@@ -1,4 +1,4 @@
 title: pg_gather
-remote_theme: remote_theme: zendesk/jekyll-theme-zendesk-garden@main
+remote_theme: zendesk/jekyll-theme-zendesk-garden@main
 plugins:
 - jekyll-remote-theme # add this line to the plugins list if you already have one
