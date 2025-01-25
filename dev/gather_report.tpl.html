@@ -499,10 +499,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 </div> <!--End of "sections"-->
 <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 <script type="text/javascript">
+//pg_gather version
+ver="29";
 //Global object to hold json values passed from the SQL analysis
 obj={};
-//pg_gather version
-ver="28";
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
 meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
