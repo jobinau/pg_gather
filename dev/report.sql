@@ -1178,7 +1178,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
 \echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
+\echo   str += "<br/>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4);
 \echo   str += "<br>Rel.filename : " + o.f12;
 \echo   if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
 \echo   else{
@@ -1188,7 +1188,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (o.f14 !== null ) str += "<br>Current Settings : " + o.f14;
 \echo   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
+\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3)); 
 \echo   if (vac/obj.dbts.f4 > 50) { 
 \echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48); 
 \echo     if (threshold < 500) threshold = 500;

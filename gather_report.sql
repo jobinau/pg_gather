@@ -1178,7 +1178,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
 \echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
 \echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
+\echo   str += "<br/>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4);
 \echo   str += "<br>Rel.filename : " + o.f12;
 \echo   if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
 \echo   else{

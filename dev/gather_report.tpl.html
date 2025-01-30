@@ -1259,6 +1259,8 @@ function tabdtls(th){
   //lookup cells[2] value, the oid of NS in the obj.ns json collection  
   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
   let str=""
+  // f1 = r.relid ; f2 = r.n_tup_ins ; f3= r.n_tup_upd ; f4= r.n_tup_del ; f5 = r.n_tup_hot_upd ; f6 = isum.totind ; f7 = isum.ind0scan ; f8 = isum.pk, f9 = isum.uk,
+  // f10 = inhp.relname ; f11 = inhp.relkind ; f12 = c.relfilenode ; f13 = c.reltablespace, f14 = c.reloptions
   if (o.f11 == "r") str += "<br/>Inheritance Partition of : " + o.f10;
   if (o.f11 == "p") str += "<br/>Native Partition of : " + o.f10;
   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
@@ -1271,7 +1273,7 @@ function tabdtls(th){
   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
-  str += "<br/>HOT.updates / day : " + Math.round(o.f4/obj.dbts.f4);
+  str += "<br/>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4);
   str += "<br>Rel.filename : " + o.f12;
   if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
   else{
@@ -1281,7 +1283,7 @@ function tabdtls(th){
   if (o.f14 !== null ) str += "<br>Current Settings : " + o.f14;
   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-  if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));
+  if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));  //Refer FILLFACTOR in sqlstatement.md
   if (vac/obj.dbts.f4 > 50) { 
     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);  //(UPDATEs per day + DELETEs per day) / 48
     if (threshold < 500) threshold = 500;
