@@ -257,3 +257,12 @@ FROM pg_replication_stat JOIN M ON TRUE
   LEFT JOIN g ON TRUE
   LEFT JOIN pg_get_db ON s.datoid = datid;
 ```
+
+## FILLFACTOR calculation 
+100    -    Space for new tuples   +      HOT updates in new tuples
+
+(Assuming 20% can be reserved)
+
+100 - 20 *      n_tup_upd               +      20   *    n_tup_upd            *    n_tup_hot_upd
+           ---------                                   ------------                --------------
+           (n_tup_upd + n_tup_ins)                 (n_tup_upd + n_tup_ins)           n_tup_upd
