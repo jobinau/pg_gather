@@ -25,6 +25,11 @@ sed -i -r '
 
 ```
 ** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statements.
+You may refer to the following video explantion on how this works.  
+https://youtu.be/uFb0_MsCZEc
+
+[![Mask data using sed utility](https://youtu.be/uFb0_MsCZEc/0.jpg)](https://youtu.be/uFb0_MsCZEc)
+
 ## 2. Masking client IP addresses
 Any monitoring or analysis tool which accesses the `pg_stat_activity` for understanding the session activities can see the client IP addresses. Following sample `sed` command can be used for masking the part of the IP address, leaving only the last digit of the IPv4
 ```
