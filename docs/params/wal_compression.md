@@ -1,6 +1,6 @@
 # wal_compression
-Better WAL compression algorithms like lz4 and zstd are supported by PostgreSQL 15 and above.  
-Generally, Modern machines are not limited by CPU capacity when running PostgreSQL database. Spending the additional CPU capacity on the machine for a better compression could be valuable
+Better WAL compression algorithms like `lz4` and `zstd` are supported by PostgreSQL 15 and above.
+Generally, Modern machines are not limited by CPU capacity when running the PostgreSQL database. Using the additional CPU capacity on the machine for better compression could be valuable
 
 ### Important points to remember : 
 1. There is **no absolute winner or looser in compression** alogirthms. Different algorithms would be suitable for different use cases, workloads and performance characterstics of machine hardware.

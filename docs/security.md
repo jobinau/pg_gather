@@ -15,6 +15,14 @@ sed -i '
   /^COPY pg_get_activity (/, /^\\\./ {
     s/\(^[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]*\t[^\t]\{50\}\)[^\t]*\([\t.]*\)/\1\2/g
   }' out.txt
+
+## OR using Extended regular expression (-r)
+
+sed -i -r '
+/^COPY pg_get_activity/, /^\\\./ {
+ s/(([^\t]*\t){5}[^\t]{10})[^\t]*([\t.]*)/\1\2/
+}' out.txt
+
 ```
 ** Please remember that masking or trimming the query/statement will prevent us from understanding problematic queries and statements.
 ## 2. Masking client IP addresses
