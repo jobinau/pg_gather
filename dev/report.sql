@@ -44,10 +44,8 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \endif
 \set tzone `echo "$PG_GATHER_TIMEZONE"`
 SELECT * FROM 
-(WITH TZ AS (SELECT CASE WHEN :'tzone' = ''
-    THEN (SELECT set_config('timezone',setting,false) FROM pg_get_confs WHERE name='log_timezone')
-    ELSE  set_config('timezone',:'tzone',false) 
-  END AS val)
+(WITH TZ AS (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting)
+  SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
