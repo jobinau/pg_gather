@@ -570,7 +570,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         xmax = parseInt(val.innerText);
 \echo         break;
 \echo       case "Oldest xid ref" :
-\echo         val.innerText += " (" + (xmax - parseInt(val.innerText)).toString() + " xids old)";
+\echo         let diff=xmax - parseInt(val.innerText);
+\echo         val.innerText += " (" + (diff).toString() + " xids old)";
+\echo         if (diff > 10000) {val.classList.add("warn"); val.title = "The oldest transaction is " + diff + " xids old, as per xid horizon"; 
+\echo           strfind += "<li>The oldest transaction is <b>" + diff + " xids old</b>. This can have serious concequnces. Refer <a href='"+ docurl +"xidhorizon.html'>Details</a></li>";
+\echo         }
 \echo         break;
 \echo       case "Time Line" :
 \echo         let Failover = parseInt(val.innerText.substring(0,val.innerText.indexOf(" (")))-1;

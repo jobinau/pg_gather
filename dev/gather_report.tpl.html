@@ -595,7 +595,11 @@ function checkgather(){
         xmax = parseInt(val.innerText);
         break;
       case "Oldest xid ref" :
-        val.innerText += " (" + (xmax - parseInt(val.innerText)).toString() + " xids old)";
+        let diff=xmax - parseInt(val.innerText);
+        val.innerText += " (" + (diff).toString() + " xids old)";
+        if (diff > 10000) {val.classList.add("warn"); val.title = "The oldest transaction is " + diff + " xids old, as per xid horizon"; 
+          strfind += "<li>The oldest transaction is <b>" + diff + " xids old</b>. This can have serious concequnces. Refer <a href='"+ docurl +"xidhorizon.html'>Details</a></li>";
+        }
         break;
       case "Time Line" :
         let Failover = parseInt(val.innerText.substring(0,val.innerText.indexOf(" (")))-1;
