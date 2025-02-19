@@ -656,13 +656,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b>"; 
 \echo      if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
 \echo      else strfind += "</li>" }
-\echo   if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
 \echo   if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-\echo    tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a>";
-\echo    if (tempNScnt > 0 && obj.clas.f3 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
-\echo    strfind += tmpfind + "</li>";
+\echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
 \echo   }
+\echo   if ( obj.clas.f3 > 50000 ) strfind += "<li>Currently <b>OID of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + "</b>. indicating the usage of temporary tables / High DDL activity </li>";
 \echo   if (obj.meta.f1 > 15728640){
 \echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
 \echo   }
@@ -929,12 +927,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let sver_ver = params.find(p => p.param === "server_version");
 \echo     if ( mgrver < Math.trunc(meta.pgvers[0])){
 \echo       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-\echo       sver_ver["warn"] = "Running Unsupported PostgreSQL Version " + mgrver;
+\echo       sver_ver["warn"] = "Running <b>Obsolete (End-of-Life) and Unsupported PostgreSQL Version: " + mgrver + "</b>. Please upgrade urgently";
 \echo     } else {
 \echo       meta.pgvers.forEach(function(t){
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
 \echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates are pending. Please upgrade ASAP"; 
-\echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText + ".</b> " + val.title;
+\echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +". IMPORTANT: "+ val.title + ".</b>";
 \echo           }
 \echo         }
 \echo       })  

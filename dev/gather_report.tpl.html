@@ -685,14 +685,13 @@ function checkfindings(){
      strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b>"; 
      if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
      else strfind += "</li>" }
-  if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
+  //if ( mgrver.length > 0 &&  mgrver < Math.trunc(meta.pgvers[0])) strfind += "<li>PostgreSQL <b>Version : " + mgrver + " is outdated (EOL) and not supported</b>, Please upgrade urgently</li>";
   //if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   if (obj.ns !== null){
    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-   tmpfind = "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a>";
-   if (tempNScnt > 0 && obj.clas.f3 > 50000) tmpfind += "<br>Currently oid of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + " <b>indicating the usage of temp tables</b>"
-   strfind += tmpfind + "</li>";
+   strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
   }
+  if ( obj.clas.f3 > 50000 ) strfind += "<li>Currently <b>OID of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + "</b>. indicating the usage of temporary tables / High DDL activity </li>";
   if (obj.meta.f1 > 15728640){ //metadata more than 15MB
     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
   }
@@ -981,12 +980,12 @@ var paramDespatch = {
     let sver_ver = params.find(p => p.param === "server_version");
     if ( mgrver < Math.trunc(meta.pgvers[0])){
       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-      sver_ver["warn"] = "Running Unsupported PostgreSQL Version " + mgrver;
+      sver_ver["warn"] = "Running <b>Obsolete (End-of-Life) and Unsupported PostgreSQL Version: " + mgrver + "</b>. Please upgrade urgently";
     } else {
       meta.pgvers.forEach(function(t){
         if (Math.trunc(setval) == Math.trunc(t)){
           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates are pending. Please upgrade ASAP"; 
-           sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText + ".</b> " + val.title;
+           sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +". IMPORTANT: "+ val.title + ".</b>";
           }
         }
       })  
