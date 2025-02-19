@@ -26,6 +26,14 @@
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
 -- SELECT setting AS pgver FROM pg_get_confs WHERE name = 'server_version_num' \gset
+SELECT min(min) AS reset_ts FROM 
+(SELECT min(stats_reset) FROM pg_get_io
+UNION
+SELECT stats_reset FROM pg_stat_archiver
+UNION
+SELECT stats_reset FROM pg_get_wal
+UNION
+SELECT stats_reset FROM pg_get_bgwriter) a \gset
 
 \echo <h1>
 \echo   <svg width="10em" viewBox="0 0 140 80">
@@ -55,13 +63,12 @@ UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
-WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather),
-  wal_stat AS (SELECT stats_reset FROM pg_get_wal)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(pg_get_db.stats_reset,'YYYY-MM-DD HH24-MI-SS'),datid,mxidage))
+WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
+SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),datid,mxidage))
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
-FROM pg_get_db LEFT JOIN wal_stat ON true
-LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.stats_reset,wal_stat.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
+FROM pg_get_db
+LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.stats_reset, :'reset_ts')))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
 \pset tableattr off
 
 \echo <div>
@@ -443,10 +450,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     THEN (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%') ELSE (SELECT 'template1' "curdb")
   END),
   cts AS (SELECT COALESCE((SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) FROM pg_gather),current_timestamp) AS c_ts)
-  SELECT to_jsonb(ROW(curdb,COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset),c_ts,days))
+  SELECT to_jsonb(ROW(curdb,COALESCE(pg_get_db.stats_reset,:'reset_ts'),c_ts,days))
   FROM  curdb LEFT JOIN pg_get_db ON pg_get_db.datname=curdb.curdb
-  LEFT JOIN pg_get_wal ON true
-  LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,pg_get_wal.stats_reset)))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
+  LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts- COALESCE(pg_get_db.stats_reset,:'reset_ts')))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE
   LEFT JOIN cts ON true) as dbts,
   (WITH maxmxid AS (SELECT max(mxidage) FROM pg_get_db),
   topdbmx AS (SELECT array_agg(datname),maxmxid.max FROM pg_get_db JOIN maxmxid ON pg_get_db.mxidage=maxmxid.max AND pg_get_db.mxidage > 1000 GROUP BY 2)
@@ -500,7 +506,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo ver="29";
 \echo obj={};
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={pgvers:["12.22","13.18","14.15","15.10","16.6","17.2"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["13.19","14.16","15.11","16.7","17.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
@@ -659,6 +665,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo   if (obj.meta.f1 > 15728640){
 \echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
+\echo   }
+\echo   if (obj.tbsp.length > 0){
+\echo     const result=obj.tbsp.map(function(item) { return item.tsname + ": " + item.location;}).join(", ");
+\echo     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
 \echo   }
 \echo  }
 \echo   document.getElementById("finditem").innerHTML += strfind;
