@@ -323,7 +323,7 @@ temp_blks_read/calls "Avg.Temp(r)",
 temp_blks_written/calls "Avg.Temp(w)"
 ,100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
 from pg_get_statements) AS stmnts
-WHERE tottrank < 10 OR avgtrank < 10 ;
+WHERE tottrank < 15 OR avgtrank < 15 ;
 
 \pset tableattr 'id="tblreplstat"'
 WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
@@ -463,7 +463,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )
   , last_archived_wal, last_archived_time::text || ' (' || CASE WHEN EXTRACT(EPOCH FROM(collect_ts - last_archived_time)) < 0 THEN 'Right Now'::text ELSE (collect_ts - last_archived_time)::text END  || ')'))
   FROM  pg_gather,  pg_archiver_stat) AS arcfail,
-  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'))) FROM pg_get_confs) AS params,
+  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'),any_value(setting) FILTER (WHERE name = 'block_size'))) FROM pg_get_confs) AS params,
   (WITH g AS (SELECT collect_ts,pg_start_ts,reload_ts,to_timestamp ( systemid >> 32 ) init_ts from pg_gather),
     r AS (SELECT LEAST(min(last_vac),min(last_anlyze)) known_ts FROM pg_get_rel)
   SELECT CASE WHEN (g.init_ts IS NULL OR g.reload_ts - g.init_ts > '80 minutes'::interval) AND ( r.known_ts > g.reload_ts OR r.known_ts IS NULL) AND g.collect_ts - g.reload_ts < '10 days'::interval 
@@ -664,7 +664,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (obj.meta.f1 > 15728640){
 \echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
 \echo   }
-\echo   if (obj.tbsp.length > 0){
+\echo   if (obj.tbsp !== null && obj.tbsp.length > 0){
 \echo     const result=obj.tbsp.map(function(item) { return item.tsname + ": " + item.location;}).join(", ");
 \echo     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
 \echo   }
@@ -1325,22 +1325,30 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }}
 \echo function checkstmnts(){
 \echo let tab= document.getElementById("tblstmnt");
-\echo tab.caption.innerHTML = "<span>Top Statements</span>"
+\echo tab.caption.innerHTML = "<span>Top Statements</span> Ranked from high to low impact"
+\echo blksize=obj.params.f4;
 \echo if(tab.rows.length < 2) 
 \echo  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found"
 \echo else{
 \echo  trs=tab.rows;
 \echo  setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
-\echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]);
-\echo   for (let tr of trs){
+\echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
+\echo  for (let tr of trs){
 \echo  sql=tr.cells[1];
 \echo  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
-\echo  let cel=tr.cells[6];
+\echo  let cel=tr.cells[2];
+\echo  if ( cel.innerText > 10) cel.classList.add("lime");
+\echo  cel=tr.cells[4];
+\echo  if ( cel.innerText > 60000 ) cel.classList.add("warn");
+\echo  else if ( cel.innerText > 10000 ) cel.classList.add("lime");
+\echo  cel=tr.cells[6];
 \echo  if ( cel.innerText.trim() != "" && cel.innerText < 50) cel.classList.add("warn");
-\echo  cel=tr.cells[9];
-\echo  if (cel.innerText > 12800) cel.classList.add("lime");
-\echo  cel=tr.cells[10];
-\echo  if (cel.innerText > 12800) cel.classList.add("lime");
+\echo  [5,7,8,9,10].forEach(function(num){ 
+\echo   cel=tr.cells[num]; 
+\echo   cel.title = bytesToSize(Number(cel.innerText*blksize));
+\echo   if (cel.innerText > 12800) cel.classList.add("warn");   
+\echo   else if (cel.innerText > 4096) cel.classList.add("lime");
+\echo  });
 \echo }}}
 \echo function setTitles(tr,tiltes){
 \echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];

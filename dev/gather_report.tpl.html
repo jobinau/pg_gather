@@ -323,7 +323,7 @@ temp_blks_read/calls "Avg.Temp(r)",
 temp_blks_written/calls "Avg.Temp(w)"
 ,100 * shared_blks_hit / nullif((shared_blks_read + shared_blks_hit),0) as "C.Hit%"
 from pg_get_statements) AS stmnts
-WHERE tottrank < 10 OR avgtrank < 10 ;
+WHERE tottrank < 15 OR avgtrank < 15 ;
 
 \pset tableattr 'id="tblreplstat"'
 WITH M AS (SELECT GREATEST((SELECT(current_wal) FROM pg_gather),(SELECT MAX(sent_lsn) FROM pg_replication_stat))),
@@ -463,7 +463,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )
   , last_archived_wal, last_archived_time::text || ' (' || CASE WHEN EXTRACT(EPOCH FROM(collect_ts - last_archived_time)) < 0 THEN 'Right Now'::text ELSE (collect_ts - last_archived_time)::text END  || ')'))
   FROM  pg_gather,  pg_archiver_stat) AS arcfail,
-  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'))) FROM pg_get_confs) AS params,
+  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'),any_value(setting) FILTER (WHERE name = 'block_size'))) FROM pg_get_confs) AS params,
   (WITH g AS (SELECT collect_ts,pg_start_ts,reload_ts,to_timestamp ( systemid >> 32 ) init_ts from pg_gather),
     r AS (SELECT LEAST(min(last_vac),min(last_anlyze)) known_ts FROM pg_get_rel)
   SELECT CASE WHEN (g.init_ts IS NULL OR g.reload_ts - g.init_ts > '80 minutes'::interval) AND ( r.known_ts > g.reload_ts OR r.known_ts IS NULL) AND g.collect_ts - g.reload_ts < '10 days'::interval 
@@ -695,7 +695,7 @@ function checkfindings(){
   if (obj.meta.f1 > 15728640){ //metadata more than 15MB
     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
   }
-  if (obj.tbsp.length > 0){
+  if (obj.tbsp !== null && obj.tbsp.length > 0){
     const result=obj.tbsp.map(function(item) { return item.tsname + ": " + item.location;}).join(", ");
     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
   }
@@ -1456,22 +1456,30 @@ for (let tr of trs){
 function checkstmnts(){
 //if there is no info from pg_stat_statements
 let tab= document.getElementById("tblstmnt");
-tab.caption.innerHTML = "<span>Top Statements</span>"
+tab.caption.innerHTML = "<span>Top Statements</span> Ranked from high to low impact"
+blksize=obj.params.f4;
 if(tab.rows.length < 2) 
  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found" //if there is nothing in the table, remove the table
 else{
  trs=tab.rows;
  setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
- "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Read","Avg. Temp Write"]);
-  for (let tr of trs){
+ "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
+ for (let tr of trs){
  sql=tr.cells[1];
  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
- let cel=tr.cells[6]; //Cache hit column. If cache it is poor highlight accordingly
+ let cel=tr.cells[2]; //SQL workload column. If it is more than 10% highlight accordingly
+ if ( cel.innerText > 10) cel.classList.add("lime");
+ cel=tr.cells[4]; //statement execution time
+ if ( cel.innerText > 60000 ) cel.classList.add("warn"); // if statement execution time is more than 1 minute
+ else if ( cel.innerText > 10000 ) cel.classList.add("lime"); // if statement execution time is more than 10 seconds  
+ cel=tr.cells[6]; //Cache hit column. If cache it is poor highlight accordingly
  if ( cel.innerText.trim() != "" && cel.innerText < 50) cel.classList.add("warn"); // else if (cel.innerText < 90) cel.classList.add("lime");
- cel=tr.cells[9]; //Temp Read. if average temp read is more than 100MB highlight
- if (cel.innerText > 12800) cel.classList.add("lime");
- cel=tr.cells[10]; //Temp Write. If aveage temp write is more than 100MB highlight
- if (cel.innerText > 12800) cel.classList.add("lime");
+ [5,7,8,9,10].forEach(function(num){ 
+  cel=tr.cells[num]; 
+  cel.title = bytesToSize(Number(cel.innerText*blksize));
+  if (cel.innerText > 12800) cel.classList.add("warn");    //if more than 100MB
+  else if (cel.innerText > 4096) cel.classList.add("lime"); //if more than 32MB
+ });
 }}}
 
 function setTitles(tr,tiltes){
