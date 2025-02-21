@@ -1,6 +1,5 @@
 # huge_pages - Use Linux hugepages
-Lack of hugepage usage is the No.1 reason for most of the OOM cases in PostgreSQL database systems
-The memory management and accounting becomes much complex without hugepages.
+Lack of hugepage usage is the No.1 reason for most of the Stability issues and OOM cases in PostgreSQL database systems. The memory management and accounting becomes much complex without hugepages.
 Use of huge pages are considered as one of the most essential OS level tuning for databases
 Detailed discussion of the importance of hugepages is beyond the scope of this documentation.  So I would recommend following blog post :
 [Why Linux HugePages are Super Important for Database Servers: A Case with PostgreSQL](https://www.percona.com/blog/why-linux-hugepages-are-super-important-for-database-servers-a-case-with-postgresql/)
