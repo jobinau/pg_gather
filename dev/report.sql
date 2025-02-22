@@ -668,7 +668,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     const result=obj.tbsp.map(function(item) { return item.tsname + ": " + item.location;}).join(", ");
 \echo     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
 \echo   }
-\echo  }
+\echo  } 
+\echo   if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
+\echo     strfind += "<li><b>VERY IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
+\echo   }
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
@@ -948,8 +951,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     } else {
 \echo       meta.pgvers.forEach(function(t){
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
-\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title= t.split(".")[1] - setval.split(".")[1] + " minor version updates are pending. Please upgrade ASAP"; 
-\echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +". IMPORTANT: "+ val.title + ".</b>";
+\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s). Please upgrade ASAP"; 
+\echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
+\echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b>";
+\echo            console.log(sver_ver["warn"]);
 \echo           }
 \echo         }
 \echo       })  
