@@ -850,7 +850,10 @@ var paramDespatch = {
   },
   checkpoint_timeout: function(rowref){
     val=rowref.cells[1];
-    if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+    if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"
+      let param = params.find(p => p.param === "checkpoint_timeout");
+      param["suggest"] = "1800";
+    }
   },
   data_directory: function(rowref){
     datadir=val.innerText;
@@ -933,13 +936,27 @@ var paramDespatch = {
   max_wal_size: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024*1024,1024);
-    if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" }
+    let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
+    let param = params.find(p => p.param === "max_wal_size");
+    if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
+      param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 + "GB'" ;  //convert the value to GB and round to 10GB
+    }
+    else if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" 
+      param["suggest"] = "8192";
+    }
     else val.classList.add("lime");
   },
   min_wal_size: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024*1024,1024);
-    if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
+    let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
+    let param = params.find(p => p.param === "min_wal_size");
+    if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
+      param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 / 2 + "GB'" ;  //convert the value to GB and round to 10GB (half of max_wal_size)
+    }
+    else if(val.innerText < 2048) { val.classList.add("warn"); val.title += ",Too low for production use" 
+      param["suggest"] = "'2GB'";
+    }
     else val.classList.add("lime");
   },
   parallel_leader_participation: function(rowref){
@@ -995,15 +1012,21 @@ var paramDespatch = {
   shared_buffers: function(rowref){
     val=rowref.cells[1];
     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-    //if RAM is is not given, and shared_bffer is above 128MB. Assume that shared_buffer is 1/4th of the RAM and do revese calculation to get RAM
-    if(parseFloat(document.getElementById("mem").value) < "0.2" ){
-      document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
-      totMem = val.innerText*8*4/(1024*1024);
+    let param = params.find(p => p.param === "shared_buffers");
+    if (val.innerText > 16384 && totMem == 8 ) { //if shared_bffer is above 128MB. Total memory is 8GB (default)
+      totMem = Math.ceil(val.innerText * 8 * 4 / 1048576);  //Calculate RAM in GB as shared_buffers *4  
+    } else if (val.innerText == 16384){  //If shared_buffers is PostgreSQL's default value (128MB)
+      param["suggest"] = "'"+ totMem*0.25 + "'"; //Suggest 25% of the available memory
+    }
+    if(parseFloat(document.getElementById("mem").value) != totMem ){ //If the memory is changed by the user or calculated Memory is different
+      document.getElementById("mem").value = totMem; //Update the memory value in the form
+      document.getElementById("cpus").value = Math.ceil(totMem/4); //Update the CPU value in the form
+      console.log("Memory is updated to " + totMem + "GB and CPU to " + Math.ceil(totMem/4));
     }
     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-      { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
-      let param = params.find(p => p.param === "shared_buffers");
-      param["suggest"]= "'"+ bytesToSize(totMem*1000000000*0.25) + "'";
+      { 
+      val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
+      param["suggest"]= "'"+ totMem*0.25 + "GB'";
       }
   },
   statement_timeout : function(rowref){
@@ -1458,6 +1481,7 @@ function checkstmnts(){
 let tab= document.getElementById("tblstmnt");
 tab.caption.innerHTML = "<span>Top Statements</span> Ranked from high to low impact"
 blksize=obj.params.f4;
+let hwsql=0,hwbool=0;
 if(tab.rows.length < 2) 
  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found" //if there is nothing in the table, remove the table
 else{
@@ -1466,21 +1490,25 @@ else{
  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
  for (let tr of trs){
  sql=tr.cells[1];
+ hwbool=0;
  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
  let cel=tr.cells[2]; //SQL workload column. If it is more than 10% highlight accordingly
  if ( cel.innerText > 10) cel.classList.add("lime");
  cel=tr.cells[4]; //statement execution time
- if ( cel.innerText > 60000 ) cel.classList.add("warn"); // if statement execution time is more than 1 minute
+ if ( cel.innerText > 60000 ){ cel.classList.add("warn"); hwbool++; } // if statement execution time is more than 1 minute
  else if ( cel.innerText > 10000 ) cel.classList.add("lime"); // if statement execution time is more than 10 seconds  
  cel=tr.cells[6]; //Cache hit column. If cache it is poor highlight accordingly
  if ( cel.innerText.trim() != "" && cel.innerText < 50) cel.classList.add("warn"); // else if (cel.innerText < 90) cel.classList.add("lime");
  [5,7,8,9,10].forEach(function(num){ 
   cel=tr.cells[num]; 
   cel.title = bytesToSize(Number(cel.innerText*blksize));
-  if (cel.innerText > 12800) cel.classList.add("warn");    //if more than 100MB
+  if (cel.innerText > 12800){ cel.classList.add("warn"); hwbool++; }    //if more than 100MB
   else if (cel.innerText > 4096) cel.classList.add("lime"); //if more than 32MB
  });
-}}}
+ if (hwbool > 0) hwsql++;
+}
+if (hwsql > 0) strfind += "<li><b>"+ hwsql +" High impact SQL statements found.</b> Please refer <a href=#tblstmnt>Top Statements</a> section for details. Consider optimizing them</li>";
+}}
 
 function setTitles(tr,tiltes){
   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];

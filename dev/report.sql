@@ -797,7 +797,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   checkpoint_timeout: function(rowref){
 \echo     val=rowref.cells[1];
-\echo     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"}
+\echo     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"
+\echo       let param = params.find(p => p.param === "checkpoint_timeout");
+\echo       param["suggest"] = "1800";
+\echo     }
 \echo   },
 \echo   data_directory: function(rowref){
 \echo     datadir=val.innerText;
@@ -880,13 +883,27 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" }
+\echo     let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
+\echo     let param = params.find(p => p.param === "max_wal_size");
+\echo     if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
+\echo       param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 + "GB'" ; 
+\echo     }
+\echo     else if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" 
+\echo       param["suggest"] = "8192";
+\echo     }
 \echo     else val.classList.add("lime");
 \echo   },
 \echo   min_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     if(val.innerText < 2048) {val.classList.add("warn"); val.title+=",Too low for production use" }
+\echo     let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
+\echo     let param = params.find(p => p.param === "min_wal_size");
+\echo     if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
+\echo       param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 / 2 + "GB'" ; 
+\echo     }
+\echo     else if(val.innerText < 2048) { val.classList.add("warn"); val.title += ",Too low for production use" 
+\echo       param["suggest"] = "'2GB'";
+\echo     }
 \echo     else val.classList.add("lime");
 \echo   },
 \echo   parallel_leader_participation: function(rowref){
@@ -942,14 +959,21 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   shared_buffers: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024);
-\echo     if(parseFloat(document.getElementById("mem").value) < "0.2" ){
-\echo       document.getElementById("mem").value = val.innerText*8*4/(1024*1024);
-\echo       totMem = val.innerText*8*4/(1024*1024);
+\echo     let param = params.find(p => p.param === "shared_buffers");
+\echo     if (val.innerText > 16384 && totMem == 8 ) {
+\echo       totMem = Math.ceil(val.innerText * 8 * 4 / 1048576); 
+\echo     } else if (val.innerText == 16384){ 
+\echo       param["suggest"] = "'"+ totMem*0.25 + "'";
+\echo     }
+\echo     if(parseFloat(document.getElementById("mem").value) != totMem ){
+\echo       document.getElementById("mem").value = totMem;
+\echo       document.getElementById("cpus").value = Math.ceil(totMem/4);
+\echo       console.log("Memory is updated to " + totMem + "GB and CPU to " + Math.ceil(totMem/4));
 \echo     }
 \echo     if( totMem > 0 && ( totMem < val.innerText*8*0.2/1048576 || totMem > val.innerText*8*0.3/1048576 ))
-\echo       { val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
-\echo       let param = params.find(p => p.param === "shared_buffers");
-\echo       param["suggest"]= "'"+ bytesToSize(totMem*1000000000*0.25) + "'";
+\echo       { 
+\echo       val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
+\echo       param["suggest"]= "'"+ totMem*0.25 + "GB'";
 \echo       }
 \echo   },
 \echo   statement_timeout : function(rowref){
@@ -1327,6 +1351,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo let tab= document.getElementById("tblstmnt");
 \echo tab.caption.innerHTML = "<span>Top Statements</span> Ranked from high to low impact"
 \echo blksize=obj.params.f4;
+\echo let hwsql=0,hwbool=0;
 \echo if(tab.rows.length < 2) 
 \echo  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found"
 \echo else{
@@ -1335,21 +1360,25 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
 \echo  for (let tr of trs){
 \echo  sql=tr.cells[1];
+\echo  hwbool=0;
 \echo  if (sql.innerText.length > 10 ){ sql.title = sql.innerText; sql.innerText = sql.innerText.substring(0, 100); }
 \echo  let cel=tr.cells[2];
 \echo  if ( cel.innerText > 10) cel.classList.add("lime");
 \echo  cel=tr.cells[4];
-\echo  if ( cel.innerText > 60000 ) cel.classList.add("warn");
+\echo  if ( cel.innerText > 60000 ){ cel.classList.add("warn"); hwbool++; }
 \echo  else if ( cel.innerText > 10000 ) cel.classList.add("lime");
 \echo  cel=tr.cells[6];
 \echo  if ( cel.innerText.trim() != "" && cel.innerText < 50) cel.classList.add("warn");
 \echo  [5,7,8,9,10].forEach(function(num){ 
 \echo   cel=tr.cells[num]; 
 \echo   cel.title = bytesToSize(Number(cel.innerText*blksize));
-\echo   if (cel.innerText > 12800) cel.classList.add("warn");   
+\echo   if (cel.innerText > 12800){ cel.classList.add("warn"); hwbool++; }   
 \echo   else if (cel.innerText > 4096) cel.classList.add("lime");
 \echo  });
-\echo }}}
+\echo  if (hwbool > 0) hwsql++;
+\echo }
+\echo if (hwsql > 0) strfind += "<li><b>"+ hwsql +" High impact SQL statements found.</b> Please refer <a href=#tblstmnt>Top Statements</a> section for details. Consider optimizing them</li>";
+\echo }}
 \echo function setTitles(tr,tiltes){
 \echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
 \echo }
