@@ -1,8 +1,15 @@
 # huge_pages - Use Linux hugepages
-Lack of hugepage usage is the No.1 reason for most of the Stability issues and OOM cases in PostgreSQL database systems. The memory management and accounting becomes much complex without hugepages.
-Use of huge pages are considered as one of the most essential OS level tuning for databases
-Detailed discussion of the importance of hugepages is beyond the scope of this documentation.  So I would recommend following blog post :
-[Why Linux HugePages are Super Important for Database Servers: A Case with PostgreSQL](https://www.percona.com/blog/why-linux-hugepages-are-super-important-for-database-servers-a-case-with-postgresql/)
+
+### Warning: Critical Impact of Not Using Hugepages
+Failure to implement Hugepages is a primary cause of stability and reliability issues in PostgreSQL database systems. Memory-related problems and out-of-memory (OOM) terminations are frequently reported in systems that do not utilize Hugepages. Additionally, connection issues and inconsistent execution times are also prevalent.
+Without Hugepages, memory management and accounting become significantly more complex, leading to increased risk of system instability and performance degradation. The use of Hugepages is essential for optimal memory management and is a critical OS-level tuning requirement for handling database workloads. 
+Failure to implement this feature may result in severe performance issues - occational drop in performance, stalls, connection failures and system instability.  
+
+Detailed discussion of the importance of hugepages is beyond the scope of this summary info. Following blog post is highly recommend for further reading :
+### [Why Linux HugePages are Super Important for Database Servers: A Case with PostgreSQL](https://www.percona.com/blog/why-linux-hugepages-are-super-important-for-database-servers-a-case-with-postgresql/)
+
+## Warning about Missleading Benchmarks
+Synthentic benchmarks often consideres only speed, without considering other stability / reliablity aspect of the database system on the long run. Many of the synthetic benchmarks may not be able to demonstrate any considerable speed difference after enabling Hugepages.
 
 # Suggessions
 1. Disable THP (Trasperent huge pages), preferably on the bootloader level of Linux
