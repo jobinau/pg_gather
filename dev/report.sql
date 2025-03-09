@@ -669,9 +669,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
 \echo   }
 \echo  } 
-\echo   if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
-\echo     strfind += "<li><b>VERY IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
-\echo   }
+\echo  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
+\echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
+\echo  }
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
@@ -809,6 +809,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     datadir=val.innerText;
 \echo   },
 \echo   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   default_toast_compression: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "default_toast_compression");
+\echo     if (val.innerText != "lz4") { val.classList.add("warn"); val.title="Better to use pglz for TOAST compression";
+\echo       param["suggest"] = "lz4";
+\echo      }
+\echo   },
 \echo   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
 \echo   huge_pages: function(rowref){ 
 \echo     val=rowref.cells[1]; 
@@ -864,12 +871,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   max_connections: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title="Avoid value exceeding 10x of the CPUs"
+\echo     let conns = params.find(p => p.param === "max_connections");
 \echo     if( totCPU > 0 ){
 \echo       if(val.innerText > 10 * totCPU) { 
-\echo         val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
-\echo         let conns = params.find(p => p.param === "max_connections");
+\echo         val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs, max_connections above " + 10*totCPU + " Is not recommendable for performance and stability";
 \echo         conns["suggest"] = 10 * totCPU;
-\echo       }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+\echo       }else { val.classList.remove("warn"); val.classList.add("lime");
+\echo         conns["suggest"] = 10 * totCPU;
+\echo       }
 \echo     } else if (val.innerText > 500) val.classList.add("warn")
 \echo       else val.classList.add("lime")
 \echo   },

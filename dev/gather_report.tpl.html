@@ -700,9 +700,9 @@ function checkfindings(){
     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
   }
  }  //END of Primary server
-  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
-    strfind += "<li><b>VERY IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
-  }
+ if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
+    strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
+ }
   //update the findings section
   document.getElementById("finditem").innerHTML += strfind;
 
@@ -862,6 +862,13 @@ var paramDespatch = {
     datadir=val.innerText;
   },
   deadlock_timeout: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); }, //TODO: Warn if is more than 1 mintue
+  default_toast_compression: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "default_toast_compression");
+    if (val.innerText != "lz4") { val.classList.add("warn"); val.title="Better to use pglz for TOAST compression";
+      param["suggest"] = "lz4";
+     }
+  },
   effective_cache_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); val.title=bytesToSize(val.innerText*8192,1024); }, 
   huge_pages: function(rowref){ 
     val=rowref.cells[1]; 
@@ -917,12 +924,14 @@ var paramDespatch = {
   max_connections: function(rowref){
     val=rowref.cells[1];
     val.title="Avoid value exceeding 10x of the CPUs"
+    let conns = params.find(p => p.param === "max_connections");
     if( totCPU > 0 ){
       if(val.innerText > 10 * totCPU) { 
-        val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs value above " + 10*totCPU + " Is not recommendable for performance and stability";
-        let conns = params.find(p => p.param === "max_connections");
+        val.classList.add("warn"); val.title="If there is only " + totCPU + " CPUs, max_connections above " + 10*totCPU + " Is not recommendable for performance and stability";
         conns["suggest"] = 10 * totCPU;
-      }else { val.classList.remove("warn"); val.classList.add("lime"); val.title="Current value is good" }
+      }else { val.classList.remove("warn"); val.classList.add("lime");
+        conns["suggest"] = 10 * totCPU;
+      }
     } else if (val.innerText > 500) val.classList.add("warn")
       else val.classList.add("lime")
   },
