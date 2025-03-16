@@ -561,7 +561,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         break;
 \echo       case "Collected By" :
 \echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
-\echo         strfind += "<li>Data collected using old/obsolete version (v"+ val.innerText.slice(-2) + ") of gather.sql file. Please use v" + ver + " <a href='"+ docurl +"versionpolicy.html'>Details</a></li>";
+\echo         strfind += "<li><b>Old/obsolete version (v"+ val.innerText.slice(-2) + ") of pg_gather script (gather.sql) is used for data collection</b>. Please use v" + ver + " <a href='"+ docurl +"versionpolicy.html'>Details</a></li>";
 \echo         }
 \echo         break;
 \echo       case "In recovery?" :
@@ -768,6 +768,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   archive_command : function(rowref) {
 \echo     val=rowref.cells[1];
 \echo     if (obj.params !== null && obj.params.f1 !== null && obj.params.f1.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
+\echo     else if (val.innerText.includes("barman")){ strfind += "<li><b>Use of Barman is detected</b>. Please be aware of the possible risks, if <code>rsync</code> is used as backup_method. <a href='"+ docurl +"barman.html'> Details<a></li>"; }
+\echo     else if (val.innerText.includes("cp ") || val.innerText.includes("rsync ")) { val.classList.add("warn"); strfind +="<li><b>Use of 'cp'/'rsync' command is detected in archive_commnad</b>, which is highly discouraged. Please use reliable backup tools for WAL archiving</li>" }
 \echo     else if (val.innerText.length < 5) {val.classList.add("warn"); val.title="A valid archive_command is expected for WAL archiving, unless archive library is used" ; }
 \echo   },
 \echo   autovacuum : function(rowref) {
@@ -989,6 +991,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       val.classList.add("warn"); val.title="Approx. 25% of available memory is recommended, current value of " + bytesToSize(val.innerText*8192,1024) + " appears to be off"; 
 \echo       param["suggest"]= "'"+ totMem*0.25 + "GB'";
 \echo       }
+\echo   },
+\echo   shared_preload_libraries: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if (val.innerText.length > 0 ){
+\echo       const elements = val.innerText.split(",");
+\echo       if (elements.length > 2) { val.classList.add("warn"); val.title="Too many extension libraries loaded. It could affect the performance" }
+\echo       if (elements.includes("repmgr")) strfind += "<li><b>Use of repmgr is found.</b> Please consider a more reliable HA framework</li>" 
+\echo     }
 \echo   },
 \echo   statement_timeout : function(rowref){
 \echo     val=rowref.cells[1];
