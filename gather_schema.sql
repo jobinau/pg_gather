@@ -269,10 +269,10 @@ CREATE UNLOGGED TABLE pg_get_wal(
  wal_fpi bigint,
  wal_bytes numeric,
  wal_buffers_full bigint,
- wal_write bigint,
- wal_sync bigint,
- wal_write_time double precision,
- wal_sync_time double precision,
+ wal_write bigint,   --Remove this column for PG18+
+ wal_sync bigint,    --Remove this column for PG18+
+ wal_write_time double precision, --Remove this column for PG18+
+ wal_sync_time double precision, --Remove this column for PG18+
  stats_reset timestamp with time zone
 );
 

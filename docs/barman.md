@@ -22,7 +22,7 @@ The acutal backup is perfomed by either of the underlying tools. So all limitati
 8. **No Native Cloud bucket support**   
   The cloud bucket support is also a wrapper.
   The `barman-cloud-backup` script is used to create a local backup of a Postgres server and transfer it to a supported cloud provider.
-9. **No Incremental Backups to Cloud Buckets**
+9. **No Incremental Backups possible to Cloud Buckets**
   Due to above mentioned archtiectural limiation, Incremental backups to cloud buckets are also not possible.
 10. **No auto detection of switchover/failover**  
   If there is fail-over or swtich-over to standby in a PostgreSQL cluster, Barman don't have an automatic mechanism to change the backup configuration.
