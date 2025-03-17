@@ -703,6 +703,7 @@ function checkfindings(){
  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
  }
+ if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
   //update the findings section
   document.getElementById("finditem").innerHTML += strfind;
 
@@ -1138,6 +1139,7 @@ function checktabs(){
   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
   const trs=document.getElementById("tabInfo").rows
   const len=trs.length;
+  let bloatTabTot = 0; //Total bloated tables with more than 20% bloat
   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","Live Rows/Tuples","Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","","","","Number of Vacuums per day","","Size of TOAST and its index",
    "Age of TOAST","Bigger of Table age and TOAST age","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
@@ -1152,6 +1154,7 @@ function checktabs(){
     } else TabInd.title=bytesToSize(TabIndSize); 
     //Tab+Ind > 10GB
     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
+    if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
     //Check vacuum frequncy
     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
     //Check the TOAST size
@@ -1174,6 +1177,7 @@ function checktabs(){
      }
   }
 const endTime = new Date().getTime();
+obj.tabs.bloatTabNum = bloatTabTot;
 console.log("time taken for checktabs :" + (endTime - startTime));
 }
 
