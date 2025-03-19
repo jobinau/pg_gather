@@ -1,0 +1,35 @@
+<html><head>
+<script type="text/javascript"
+  src="dygraph.js"></script>
+<link rel="stylesheet" type="text/css"
+  src="dygraph.css" />
+</head><body>
+<label for="fileInput" style="padding-left: 3em;"> CSV file: </label>
+<input type="file" id="fileInput" />
+<div id="graphdiv"style="width: 100%;height: 95%;"></div>
+<script type="text/javascript">
+document.getElementById('fileInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const text = e.target.result;
+          console.log(text);
+          data = text;
+          g = new Dygraph(document.getElementById("graphdiv"), data);
+        };
+        reader.readAsText(file);
+      }
+    });
+/* Dygraph.onDOMready(function onDOMready() {
+  g = new Dygraph(
+
+    // containing div
+    document.getElementById("graphdiv"),
+
+    // CSV or path to a CSV file.
+    data
+  );
+}); */
+</script>
+</body></html>
