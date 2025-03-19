@@ -3,7 +3,7 @@ Table bloat can affect the performance of individual SQL statements as well as t
 A bloat beyond 20% need to be considered serious.
 
 # How do I get the List
-pg_gather report, which presents the list of bloated tables? Just sort by "Bloat%' column
+Bloated tables and their bloat percentage is listed in pg_gather report under tables section. Just sort by "Bloat%' column to get the list of tables in the order.
 
 ## From pg_gather backend
 following SQL might help

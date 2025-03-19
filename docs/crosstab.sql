@@ -2,7 +2,6 @@
 --   This requires tablefunc contrib extension to be created      --
 --   tablefunc is part of PostgreSQL contrib modules              --
 --------------------------------------------------------------------
-CREATE EXTENSION IF NOT EXISTS tablefunc;
 --Findout the wait events and prepare the columns for the crosstab report
 SELECT STRING_AGG(col,',') AS cols FROM 
 (SELECT COALESCE(wait_event,'CPU') || ' int' "col"
