@@ -60,10 +60,17 @@ WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','
 GROUP BY 1,2 ORDER BY 1,2 DESC;
 ```
 
-## Crosstab report
+# Crosstab report
 Crosstab reports of waitevents over a time can provide more insight into the way waitevents are changing with time.
-This kind of information will be useful for graphing.
-A sample [crosstab query is provided](crosstab.sql) using which a CSV file for graphing can be generated like `psql --csv -f crosstab.sql > crosstab.csv`
+The crosstab SQL requires the `tablefunc` extension to be created on the database where we are doing the data analysis. This extension (`tablefunc`) is part of PostgreSQL contrib modules.
+```
+CREATE EXTENSION IF NOT EXISTS tablefunc;
+```
+A sample [crosstab SQL is provided](crosstab.sql) using which a CSV file can be generated like : 
+```
+psql --csv -f crosstab.sql > crosstab.csv
+```  
+Dynamic graphs can be prepared out of this CSV data which could provide a high level ivew. A simple, sample graphing page is provided here: https://jobinau.github.io/pg_gather/dygraphs/graph.html
 
 ## FAQ
 ## Will the continuous data collection impact the server performance?
