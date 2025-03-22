@@ -71,7 +71,7 @@ FROM pg_get_db
 LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.stats_reset, :'reset_ts')))/86400)::bigint,1) as days FROM cts) AS lat1 ON TRUE;
 \pset tableattr off
 %>
-<div>
+<div id="paramrecs">
 <details style="clear: left; border: 2px solid #b3aeae; border-radius: 5px; padding: 1em;margin: 2em;">
   <summary style="font: italic bold 2em Georgia">Parameter Recommendations</summary>
   <fieldset style="border: 2px solid blue; border-radius: 5px; padding: 1em; width: fit-content;">
@@ -118,7 +118,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <h2 id="topics">Sections</h2>
 <ol>
 <li><a href="#tabInfo">Tables</a></li>
-<li><a href="#tabPart">Partition info</a></li>
+<li><a href="#tabPart">Partitioned Tables</a></li>
 <li><a href="#IndInfo">Indexes</a></li>
 <li><a href="#params">Parameters / Settings</a></li>
 <li><a href="#tblextn">Extensions</a></li>
@@ -136,8 +136,9 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
  <div id="menu" style="display:none; position: relative">
   <ol>
     <li><a href="#tblgather">Head Info</a></li>
+    <li><a href="#paramrecs">Parameter Recommendations</a></li>
     <li><a href="#tabInfo">Tables</a></li>
-    <li><a href="#tabPart">Partition info</a></li>
+    <li><a href="#tabPart">Partitioned Tables</a></li>
     <li><a href="#IndInfo">Indexes</a></li>
     <li><a href="#params">Parameters / Settings</a></li>
     <li><a href="#tblextn">Extensions</a></li>
@@ -830,7 +831,7 @@ var paramDespatch = {
     val=rowref.cells[1];
     if (obj.params !== null && obj.params.f1 !== null && obj.params.f1.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
     else if (val.innerText.includes("barman")){ strfind += "<li><b>Use of Barman is detected</b>. Please be aware of the possible risks, if <code>rsync</code> is used as backup_method. <a href='"+ docurl +"barman.html'> Details<a></li>"; }
-    else if (val.innerText.includes("cp ") || val.innerText.includes("rsync ")) { val.classList.add("warn"); strfind +="<li><b>Use of 'cp'/'rsync' command is detected in archive_commnad</b>, which is highly discouraged. Please use reliable backup tools for WAL archiving</li>" }
+    else if (val.innerText.includes("cp ") || val.innerText.includes("rsync ")) { val.classList.add("warn"); strfind +="<li><b>Use of 'cp'/'rsync' command is detected in archive_commnad</b>, which is highly discouraged. Please use reliable backup tools for WAL archiving.<a href='"+ docurl +"cp.html'> Details<a></li></li>" }
     else if (val.innerText.length < 5) {val.classList.add("warn"); val.title="A valid archive_command is expected for WAL archiving, unless archive library is used" ; }
   },
   autovacuum : function(rowref) {
@@ -1025,7 +1026,8 @@ var paramDespatch = {
     } else {
       meta.pgvers.forEach(function(t){
         if (Math.trunc(setval) == Math.trunc(t)){
-          if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s). Please upgrade ASAP"; 
+          console.log(setval);
+          if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s). <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Check the risk</a>"; 
            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b>";
            console.log(sver_ver["warn"]);
