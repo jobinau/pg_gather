@@ -563,7 +563,8 @@ checkusers();
 checksess();
 checkstmnts();
 checkchkpntbgwrtr();
-checkiostat()
+checkiostat();
+checkreplstat();
 checkfindings();
 });
 
@@ -573,6 +574,12 @@ window.onload = function() {
   document.getElementById("sections").style="display:table";
   document.getElementById("busy").style="display:none";
 };
+
+//common function to set the titles for the table on mouseover. This will be called from each section
+function setTitles(tr,tiltes){
+  for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
+}
+
 
 //Check the data collection of pg_gather
 function checkgather(){
@@ -941,12 +948,14 @@ var paramDespatch = {
   max_standby_archive_delay: function(rowref){
     val=rowref.cells[1];
     let param = params.find(p => p.param === "max_standby_archive_delay");
-    if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime") }
+    if (val.innerText > 300000){  val.classList.add("lime"); param["suggest"] = "30000"; val.title="max_standby_archive_delay is too high. could result in replication deylay";}
+    else if (val.innerText < 30000){ val.classList.add("warn"); param["suggest"] = "30000"; val.title="max_standby_archive_delay is low. could result in query cancellation";}
   },
   max_standby_streaming_delay: function(rowref){
     val=rowref.cells[1];
     let param = params.find(p => p.param === "max_standby_streaming_delay");
-    if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime");}
+    if (val.innerText > 300000){ param["suggest"] = "30000"; val.classList.add("lime"); val.title="max_standby_streaming_delay is too high. could result in replication deylay";}
+    else if (val.innerText < 30000){ val.classList.add("warn"); param["suggest"] = "30000"; val.title="max_standby_streaming_delay is low. could result in query cancellation";}
   },
   max_wal_size: function(rowref){
     val=rowref.cells[1];
@@ -1514,8 +1523,6 @@ if(tab.rows.length < 2)
  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found" //if there is nothing in the table, remove the table
 else{
  trs=tab.rows;
- setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
- "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
  for (let tr of trs){
  sql=tr.cells[1];
  hwbool=0;
@@ -1535,12 +1542,11 @@ else{
  });
  if (hwbool > 0) hwsql++;
 }
+setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
+"Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
 if (hwsql > 0) strfind += "<li><b>"+ hwsql +" High impact SQL statements found.</b> Please refer <a href=#tblstmnt>Top Statements</a> section for details. Consider optimizing them</li>";
 }}
 
-function setTitles(tr,tiltes){
-  for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
-}
 
 //Checkpointer and bgwriter info
 function checkchkpntbgwrtr(){
@@ -1597,11 +1603,14 @@ if (tab.rows.length > 1){
 
 
 //Check Replication status
+function checkreplstat(){
 tab=document.getElementById("tblreplstat")
 tab.caption.innerHTML="<span>Replication</span>"
+let strReps = 0;
 if (tab.rows.length > 1){
   for(var i=1;i<tab.rows.length;i++){
     row=tab.rows[i];
+    if (row.cells[3].innerText == "streaming") strReps++;
     [4,5,6,7,16,17].forEach(function(num){ cell=row.cells[num]; cell.title=bytesToSize(Number(cell.innerText),1024); 
      if(cell.innerText > 104857600){
       cell.classList.add("warn");
@@ -1618,8 +1627,16 @@ if (tab.rows.length > 1){
       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
     }
   }
+  let param = params.find(p => p.param === "hot_standby_feedback");
+  console.log(param["val"]);
+  console.log(strReps);
+  if (strReps > 0 && param["val"] == "off" ){ strfind += "<li>Streaming replication(s) found. However, <b>hot_standby_feedback is off</b>. Expect query cancellation at standby</li>"; 
+    param["suggest"] = "on";
+    //evalParam("hot_standby_feedback");
+  }
 }else{
   tab.tBodies[0].innerHTML="No Replication data found"
+}
 }
 
 

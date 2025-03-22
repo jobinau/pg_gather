@@ -543,13 +543,17 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo checksess();
 \echo checkstmnts();
 \echo checkchkpntbgwrtr();
-\echo checkiostat()
+\echo checkiostat();
+\echo checkreplstat();
 \echo checkfindings();
 \echo });
 \echo window.onload = function() {
 \echo   document.getElementById("sections").style="display:table";
 \echo   document.getElementById("busy").style="display:none";
 \echo };
+\echo function setTitles(tr,tiltes){
+\echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
+\echo }
 \echo function checkgather(){
 \echo   const trs=document.getElementById("tblgather").rows
 \echo   let days,xmax=0;
@@ -672,6 +676,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
 \echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
 \echo  }
+\echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo   var el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
@@ -887,12 +892,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   max_standby_archive_delay: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "max_standby_archive_delay");
-\echo     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime") }
+\echo     if (val.innerText > 300000){  val.classList.add("lime"); param["suggest"] = "30000"; val.title="max_standby_archive_delay is too high. could result in replication deylay";}
+\echo     else if (val.innerText < 30000){ val.classList.add("warn"); param["suggest"] = "30000"; val.title="max_standby_archive_delay is low. could result in query cancellation";}
 \echo   },
 \echo   max_standby_streaming_delay: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "max_standby_streaming_delay");
-\echo     if (val.innerText > 30000){ param["suggest"] = "30000"; val.classList.add("lime");}
+\echo     if (val.innerText > 300000){ param["suggest"] = "30000"; val.classList.add("lime"); val.title="max_standby_streaming_delay is too high. could result in replication deylay";}
+\echo     else if (val.innerText < 30000){ val.classList.add("warn"); param["suggest"] = "30000"; val.title="max_standby_streaming_delay is low. could result in query cancellation";}
 \echo   },
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
@@ -1072,6 +1079,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
+\echo   let bloatTabTot = 0;
 \echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","Live Rows/Tuples","Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
 \echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","","","","Number of Vacuums per day","","Size of TOAST and its index",
 \echo    "Age of TOAST","Bigger of Table age and TOAST age","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
@@ -1083,6 +1091,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if( TabIndSize > 2*TotTabSize && TotTabSize > 2000000 ){ TabInd.classList.add("warn"); TabInd.title="Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize)
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
+\echo     if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
 \echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
 \echo     if (tr.cells[15].innerText > 10000) { 
 \echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
@@ -1100,6 +1109,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      }
 \echo   }
 \echo const endTime = new Date().getTime();
+\echo obj.tabs.bloatTabNum = bloatTabTot;
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
 \echo }
 \echo function checkdbs(){
@@ -1380,8 +1390,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  tab.tBodies[0].innerHTML="No pg_stat_statements or pg_stat_monitor info found"
 \echo else{
 \echo  trs=tab.rows;
-\echo  setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
-\echo  "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
 \echo  for (let tr of trs){
 \echo  sql=tr.cells[1];
 \echo  hwbool=0;
@@ -1401,11 +1409,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  });
 \echo  if (hwbool > 0) hwsql++;
 \echo }
+\echo setTitles(trs[0],["Weighted Dense Ranking. 1 has the highest impact","SQL Statement","SQL workload / Total workload %","Number of execution of the statement",
+\echo "Avg. execution time of the statement (ms)","Average Reads (Blocks)","Cache Hit %","Avg. Dirtied Pages","Avg. Written Pages","Avg. Temp Pages Read","Avg. Temp Pages Written"]);
 \echo if (hwsql > 0) strfind += "<li><b>"+ hwsql +" High impact SQL statements found.</b> Please refer <a href=#tblstmnt>Top Statements</a> section for details. Consider optimizing them</li>";
 \echo }}
-\echo function setTitles(tr,tiltes){
-\echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
-\echo }
 \echo function checkchkpntbgwrtr(){
 \echo tab=document.getElementById("tblchkpnt")
 \echo tab.caption.innerHTML=''''<span>BGWriter & Checkpointer</span>''''
@@ -1456,11 +1463,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo if (tab.rows.length > 1){
 \echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 \echo }
+\echo function checkreplstat(){
 \echo tab=document.getElementById("tblreplstat")
 \echo tab.caption.innerHTML="<span>Replication</span>"
+\echo let strReps = 0;
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i];
+\echo     if (row.cells[3].innerText == "streaming") strReps++;
 \echo     [4,5,6,7,16,17].forEach(function(num){ cell=row.cells[num]; cell.title=bytesToSize(Number(cell.innerText),1024); 
 \echo      if(cell.innerText > 104857600){
 \echo       cell.classList.add("warn");
@@ -1475,8 +1485,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
 \echo     }
 \echo   }
+\echo   let param = params.find(p => p.param === "hot_standby_feedback");
+\echo   console.log(param["val"]);
+\echo   console.log(strReps);
+\echo   if (strReps > 0 && param["val"] == "off" ){ strfind += "<li>Streaming replication(s) found. However, <b>hot_standby_feedback is off</b>. Expect query cancellation at standby</li>"; 
+\echo     param["suggest"] = "on";
+\echo   }
 \echo }else{
 \echo   tab.tBodies[0].innerHTML="No Replication data found"
+\echo }
 \echo }
 \echo document.onkeyup = function(e) {
 \echo   if (e.altKey && e.which === 73) document.getElementById("topics").scrollIntoView({behavior: "smooth"});
