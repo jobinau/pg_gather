@@ -1609,6 +1609,7 @@ function checkreplstat(){
 tab=document.getElementById("tblreplstat")
 tab.caption.innerHTML="<span>Replication</span>"
 let strReps = 0;
+let param = params.find(p => p.param === "hot_standby_feedback");
 if (tab.rows.length > 1){
   for(var i=1;i<tab.rows.length;i++){
     row=tab.rows[i];
@@ -1629,15 +1630,12 @@ if (tab.rows.length > 1){
       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
     }
   }
-  let param = params.find(p => p.param === "hot_standby_feedback");
-  console.log(param["val"]);
-  console.log(strReps);
-  if (strReps > 0 && param["val"] == "off" ){ strfind += "<li>Streaming replication(s) found. However, <b>hot_standby_feedback is off</b>. Expect query cancellation at standby</li>"; 
+  if (strReps > 0  && param["val"] == "off" ){ strfind += "<li>Streaming replication(s) found. However, <b>hot_standby_feedback is off</b>. High chance of query cancellation at standby</li>"; 
     param["suggest"] = "on";
-    //evalParam("hot_standby_feedback");
   }
 }else{
   tab.tBodies[0].innerHTML="No Replication data found"
+  if (!obj.primary && param["val"] == "off" ) strfind += "<li><b>hot_standby_feedback is off</b>. High chance of query cancellation at standby</li></li>";
 }
 }
 
