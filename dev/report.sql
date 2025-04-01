@@ -758,10 +758,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function DurationtoSeconds(duration){
 \echo     let days=0,dayIdx
-\echo     dayIdx=duration.indexOf("days")
+\echo     dayIdx=duration.indexOf("day")
 \echo     if(dayIdx>0){
 \echo       days=parseInt(duration.substring(0,dayIdx))
-\echo       duration=duration.substring(dayIdx+5)
+\echo       if(duration[dayIdx+4] == "s") dayIdx=dayIdx+5
+\echo       else dayIdx=dayIdx+4
+\echo       duration=duration.substring(dayIdx)
 \echo     }
 \echo     const [hours, minutes, seconds] = duration.split(":");
 \echo     return days * 24 * 60 * 60 +(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
@@ -905,12 +907,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   max_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
 \echo     let param = params.find(p => p.param === "max_wal_size");
+\echo     if ( obj.sumry != null){
+\echo     let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
 \echo     if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
 \echo       param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 + "GB'" ; 
 \echo     }
-\echo     else if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" 
+\echo     }
+\echo     if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" 
 \echo       param["suggest"] = "8192";
 \echo     }
 \echo     else val.classList.add("lime");
@@ -918,12 +922,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   min_wal_size: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024*1024,1024);
-\echo     let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
 \echo     let param = params.find(p => p.param === "min_wal_size");
+\echo     if ( obj.sumry != null){
+\echo     let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
 \echo     if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
 \echo       param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 / 2 + "GB'" ; 
 \echo     }
-\echo     else if(val.innerText < 2048) { val.classList.add("warn"); val.title += ",Too low for production use" 
+\echo     }
+\echo     if(val.innerText < 2048) { val.classList.add("warn"); val.title += ",Too low for production use" 
 \echo       param["suggest"] = "'2GB'";
 \echo     }
 \echo     else val.classList.add("lime");

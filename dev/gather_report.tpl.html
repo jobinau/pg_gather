@@ -812,10 +812,12 @@ function updateJson(jsonString, key, value) {
 //Convert time format seperated by colon (:) to seconds for comparision
 function DurationtoSeconds(duration){
     let days=0,dayIdx
-    dayIdx=duration.indexOf("days")
+    dayIdx=duration.indexOf("day")
     if(dayIdx>0){
       days=parseInt(duration.substring(0,dayIdx))
-      duration=duration.substring(dayIdx+5)
+      if(duration[dayIdx+4] == "s") dayIdx=dayIdx+5
+      else dayIdx=dayIdx+4
+      duration=duration.substring(dayIdx)
     }
     const [hours, minutes, seconds] = duration.split(":");
     return days * 24 * 60 * 60 +(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
@@ -961,12 +963,14 @@ var paramDespatch = {
   max_wal_size: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024*1024,1024);
-    let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
     let param = params.find(p => p.param === "max_wal_size");
+    if ( obj.sumry != null){
+    let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
     if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
       param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 + "GB'" ;  //convert the value to GB and round to 10GB
     }
-    else if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" 
+    }
+    if(val.innerText < 8192) { val.classList.add("warn"); val.title += ",Too low for production use" 
       param["suggest"] = "8192";
     }
     else val.classList.add("lime");
@@ -974,12 +978,14 @@ var paramDespatch = {
   min_wal_size: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024*1024,1024);
-    let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
     let param = params.find(p => p.param === "min_wal_size");
+    if ( obj.sumry != null){
+    let maxwal = obj.sumry.f2  > obj.sumry.f3  ? obj.sumry.f2  : obj.sumry.f3;
     if(val.innerText < maxwal/1048576) { val.classList.add("warn"); val.title += ",Too low compared to WAL generation rate" 
       param["suggest"] = "'"+ Math.ceil( maxwal/ 1073741824  / 10) * 10 / 2 + "GB'" ;  //convert the value to GB and round to 10GB (half of max_wal_size)
     }
-    else if(val.innerText < 2048) { val.classList.add("warn"); val.title += ",Too low for production use" 
+    }
+    if(val.innerText < 2048) { val.classList.add("warn"); val.title += ",Too low for production use" 
       param["suggest"] = "'2GB'";
     }
     else val.classList.add("lime");
