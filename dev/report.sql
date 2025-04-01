@@ -507,7 +507,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo ver="29";
 \echo obj={};
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={pgvers:["13.19","14.16","15.11","16.7","17.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={pgvers:["13.20","14.17","15.12","16.8","17.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 \echo mgrver="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
@@ -971,10 +971,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       meta.pgvers.forEach(function(t){
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
 \echo           console.log(setval);
-\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s). <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Check the risk</a>"; 
+\echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
 \echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
-\echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b>";
-\echo            console.log(sver_ver["warn"]);
+\echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";
 \echo           }
 \echo         }
 \echo       })  
@@ -1469,6 +1468,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab=document.getElementById("tblreplstat")
 \echo tab.caption.innerHTML="<span>Replication</span>"
 \echo let strReps = 0;
+\echo let param = params.find(p => p.param === "hot_standby_feedback");
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i];
@@ -1487,14 +1487,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
 \echo     }
 \echo   }
-\echo   let param = params.find(p => p.param === "hot_standby_feedback");
-\echo   console.log(param["val"]);
-\echo   console.log(strReps);
-\echo   if (strReps > 0 && param["val"] == "off" ){ strfind += "<li>Streaming replication(s) found. However, <b>hot_standby_feedback is off</b>. Expect query cancellation at standby</li>"; 
+\echo   if (strReps > 0  && param["val"] == "off" ){ strfind += "<li>Streaming replication(s) found. However, <b>hot_standby_feedback is off</b>. High chance of query cancellation at standby</li>"; 
 \echo     param["suggest"] = "on";
 \echo   }
 \echo }else{
 \echo   tab.tBodies[0].innerHTML="No Replication data found"
+\echo   if (!obj.primary && param["val"] == "off" ) strfind += "<li><b>hot_standby_feedback is off</b>. High chance of query cancellation at standby</li></li>";
 \echo }
 \echo }
 \echo document.onkeyup = function(e) {

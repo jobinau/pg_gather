@@ -510,7 +510,7 @@ ver="29";
 obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
-meta={pgvers:["13.19","14.16","15.11","16.7","17.3"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+meta={pgvers:["13.20","14.17","15.12","16.8","17.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
 mgrver="";
 //walcomprz="";
 datadir=""; //data directory is needed for understanding the tablespaces.
@@ -1027,10 +1027,9 @@ var paramDespatch = {
       meta.pgvers.forEach(function(t){
         if (Math.trunc(setval) == Math.trunc(t)){
           console.log(setval);
-          if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s). <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Check the risk</a>"; 
+          if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
-           if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b>";
-           console.log(sver_ver["warn"]);
+           if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";
           }
         }
       })  
