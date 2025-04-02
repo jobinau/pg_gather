@@ -644,10 +644,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if(obj.clsr){
 \echo   strfind += "<li>PostgreSQL is in Standby mode or in Recovery</li>";
 \echo  }else{
-\echo   if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
-\echo   if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='"+ docurl +"missingstats.html'>Learn Details</a></li>";
-\echo   if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
-\echo   if (obj.arcfail != null) {
+\echo    if ( obj.tabs.f2 > 0 ) strfind += "<li> <b>No vacuum info for " + obj.tabs.f2 + "</b> tables/objects </li>";
+\echo    if (obj.arcfail != null) {
 \echo    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
 \echo    if (obj.arcfail.f1 > 300) strfind += "<li>No WAL archiving happened in last "+ Math.round(obj.arcfail.f1/60) +" minutes. <b>Archiving could be failing</b>; please check PG logs</li>";
 \echo    if (obj.arcfail.f2 && obj.arcfail.f2 > 0) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b>. Last archived WAL is : <b>"+ obj.arcfail.f3 +"</b> at "+ obj.arcfail.f4 +"</li>";
@@ -661,10 +659,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      strfind += "<li>Current WAL generation rate is <b>" + bytesToSize(obj.sumry.f2) + " / hour</b>"; 
 \echo      if (obj.sumry.f3 !== null ) strfind += ", Long term average WAL generation rate is <b>" + bytesToSize(obj.sumry.f3) + "/hour</b></li>"; 
 \echo      else strfind += "</li>" }
-\echo   if (obj.ns !== null){
-\echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
-\echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
-\echo   }
 \echo   if ( obj.clas.f3 > 50000 ) strfind += "<li>Currently <b>OID of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + "</b>. indicating the usage of temporary tables / High DDL activity </li>";
 \echo   if (obj.meta.f1 > 15728640){
 \echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
@@ -674,6 +668,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     strfind += "<li>Found additional <b>" + obj.tbsp.length + " tablespaces ("+ result +")</b> . <a href='"+ docurl +"tablespace.html'> Details<a></li>"
 \echo   }
 \echo  } 
+\echo  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='"+ docurl +"missingstats.html'>Learn Details</a></li>";
+\echo  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
+\echo  if (obj.ns !== null){
+\echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
+\echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
+\echo   }
 \echo  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
 \echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
 \echo  }
