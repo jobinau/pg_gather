@@ -20,8 +20,16 @@ High BufferMapping can indicate that big working-set-of-data by each session whi
 ## BufferPin
 An open cursor or frequent HOT updates could be holding BufferPins on Buffer pages. Buffer pinning can prevent VACUUM FREEZE operation on those pages.
 
+## BuffileWrite
+This waitevent occurs when PostgreSQL needs to write data to temporary files on disk as part of SQL execution. 
+This typically happens when operations require more memory than the work_mem parameter allows, causing the system to spill data to disk.
+From SQL tuning perspective,  We need to check whether large amount of data is pulled into memory for sort and join operations. Good filtering conditions are important.
+
+For Further reading: [IO:BufFileRead and IO:BufFileWrite](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/apg-waits.iobuffile.html)
+
 ## BufFileRead
-Reading from buffered Temporary Files, All sorts of temporary files including the one used for sort and hashjoins, parallel execution, And files used by single sessions (refer: buffile.c)
+This waitevent happens when temporary files generated for SQL execution are read back to memory. Generally this happens after BuffileWrite.
+PostgreSQL is Reading from buffered Temporary Files. All sorts of temporary files including the one used for sort and hashjoins, parallel execution, And files used by single sessions (refer: buffile.c) can be responsible for this. Query tuning effort is suggestable.
 
 ## ClientRead
 Waiting to read/hear from the client/application. Two reasons generally cause high values for this wait-event
@@ -30,7 +38,6 @@ The communication channel between the database and the application/client may ha
    The network related waits within the trasactions are generally accounted as "ClientRead"
 ### 2. Application response: 
 The application side might be taking too long to respond to the database. For example, a transaction in progress might not be sending a COMMIT or ROLLBACK fast enough after sending the DML to the database server. 
-
 This "ClientRead" wait-event combined with "idle-in-transaction" can cause contention in the server. 
 
 ## Net/Delay*
@@ -55,9 +62,72 @@ Time spend in the computation. Divide the wait event count by 2000 to get approx
 ## DataFileRead
 The page required is not there in the shared buffers and waiting to fetch it. High percentage of waits can indicate poor cacheing.
 
+## DataFilePrefetch
+This wait event indicates:  
+1. PostgreSQL is performing read-ahead operations to prefetch data blocks from disk into shared buffers before they're actually needed
+2. The system is waiting for these asynchronous I/O operations to finish
+3. It's part of PostgreSQL's optimization to reduce I/O wait times for subsequent queries
+### When It Occurs
+This wait typically happens during:  
+1. Large sequential scans
+2. Index scans that will need many blocks
+3. Operations where PostgreSQL predicts future block needs
+### Performance Implications
+Some DataFilePrefetch waits are normal and indicate the prefetch system is working,However, Excessive waits might suggest:
+1. Slow storage subsystem
+2. Need to tune shared_buffers or maintenance_work_mem
+3. High concurrent I/O load
+
 ## transactionid
-Session waiting for other session to complete the transaction. Session is blocked.
+Session waiting for other session to complete the transaction. (Session is blocked). The transactionid wait event in PostgreSQL occurs when a backend process is blocked while waiting for a specific transaction to complete. This is one of the more serious wait events that can significantly impact database performance.
 For example, Updating the same rows of a table from multiple sessions can lead to this situation.
+This waitevent indicates that:
+1. One transaction is waiting for another transaction to finish (commit or abort)
+2. There is direct transaction ID dependency between sessions
+3. This typically involves row-level locking scenarios where MVCC (Multi-Version Concurrency Control) can't resolve the conflict
+
+### Common Causes
+1. Lock Contention: When Transaction A holds locks that Transaction B needs  
+    Example: Long-running UPDATE blocking another UPDATE/DELETE on same rows
+2. Foreign Key Operations: When checking referential integrity during updates/deletes
+3. Prepared Transactions: Waiting for a prepared transaction (2PC) to commit/rollback
+4. Serializable Isolation Level: In SERIALIZABLE isolation, waiting for a potentially conflicting transaction to complete
+5. VACUUM Operations: When VACUUM is blocked by long-running transactions
+
+#### Performance Implications
+1. More severe than tuple waits as it involves entire transactions rather than individual rows
+2. Can lead to transaction chains where multiple sessions wait in sequence
+
+Often indicates:
+1. Long-running transactions holding locks
+2. Application logic issues (transactions staying open too long)
+3. Insufficient vacuuming leading to transaction ID wraparound prevention
+
+
+## tuple
+This wait event indicates that a session is:
+1. Waiting to read or modify a specific row in a table
+2. Blocked by another transaction that has locked that row
+3. Typically involved in row-level locking scenarios
+
+### Common Scenarios
+The "tuple" wait event appears in these situations:
+1. Row Lock Contention: When one transaction has locked a row (with SELECT FOR UPDATE, UPDATE, DELETE, etc.) and another transaction tries to access the same row.
+2. Foreign Key Checks: When checking referential integrity during updates/deletes.
+3. Serializable Isolation Level: In serializable transactions detecting potential serialization anomalies.
+
+### Performance Implications
+Frequent "tuple" waits indicate row-level lock contention in your application. This is different from table-level locks (which show as "relation" waits). While some tuple waits are normal, excessive waits suggest:
+1. Long-running transactions holding locks
+2. Hot rows that many transactions try to modify
+3. Inefficient application logic causing unnecessary lock retention
+
+### Suggessions
+1. Shorten transaction duration (especially those modifying data)
+2. Re-evaluate indexes and use appropriate indexes to reduce lock scope. Be very careful about this.
+3. Review isolation levels - consider READ COMMITTED instead of SERIALIZABLE
+4. Implement application-level retry logic for contended rows
+5. Use SELECT FOR UPDATE SKIP LOCKED if appropriate for your use case
 
 ## WALInsertLock
 Consider increasing the `wal_buffers`. Upto 64MB max.
