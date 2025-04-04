@@ -836,7 +836,7 @@ var paramDespatch = {
     if(val.innerText != "on") { 
       val.classList.add("warn"); val.title="Autovacuum must be on" ;
       let param = params.find(p => p.param === "autovacuum");
-      strfind += "<li><b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"autovacuum.html'>Details</a></li>";
+      param["warn"] = "<b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"params/autovacuum.html'>Details</a>";
       param["suggest"] = "on";
     }
   },

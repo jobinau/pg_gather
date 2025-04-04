@@ -6,7 +6,7 @@ Without Hugepages, memory management and accounting become significantly more co
 Failure to implement this feature may result in severe performance issues - occational drop in performance, stalls, connection failures and system instability.  
 
 Detailed discussion of the importance of hugepages is beyond the scope of this summary info. Following blog post is highly recommend for further reading :
-### [Why Linux HugePages are Super Important for Database Servers: A Case with PostgreSQL](https://www.percona.com/blog/why-linux-hugepages-are-super-important-for-database-servers-a-case-with-postgresql/)
+**[Why Linux HugePages are Super Important for Database Servers: A Case with PostgreSQL](https://www.percona.com/blog/why-linux-hugepages-are-super-important-for-database-servers-a-case-with-postgresql/)**
 
 ## Warning about Missleading Benchmarks
 Synthentic benchmarks often consideres only speed, without considering other stability / reliablity aspect of the database system on the long run. Many of the synthetic benchmarks may not be able to demonstrate any considerable speed difference after enabling Hugepages.
