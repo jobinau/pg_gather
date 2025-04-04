@@ -401,11 +401,6 @@ SELECT CASE WHEN last_archived_time IS NOT NULL
   FROM pg_gather), ' ') || '</b> behind </li>' ELSE '</li>' END
 ELSE NULL END
 FROM W;
-WITH W AS (select count(*) FILTER (WHERE ct.relkind = 'r') as val, count(*) FILTER (WHERE ct.relkind = 't' ) tval FROM pg_get_index i JOIN pg_get_class ct ON i.indrelid = ct.reloid)
-SELECT CASE WHEN val > 10000
-  THEN '<li>There are <b>'||val||' Table indexes!</b>  and <b>' || tval || ' Toast Indexes</b> in this database, Only biggest 10000 will be listed in this report under <a href= "#indexes" >Index Info</a>. Please use query No. 11. from the analysis_quries.sql for full details </li>'
-  ELSE NULL END
-FROM W;
 WITH W AS (
  select string_agg(name ||'='||setting,',') as val FROM pg_get_confs WHERE 
  name in ('block_size','max_identifier_length','max_function_args','max_index_keys','segment_size','wal_block_size') AND 
@@ -782,7 +777,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   autovacuum : function(rowref) {
 \echo     val=rowref.cells[1];
-\echo     if(val.innerText != "on") { val.classList.add("warn"); val.title="Autovacuum must be on" }
+\echo     if(val.innerText != "on") { 
+\echo       val.classList.add("warn"); val.title="Autovacuum must be on" ;
+\echo       let param = params.find(p => p.param === "autovacuum");
+\echo       strfind += "<li><b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"autovacuum.html'>Details</a></li>";
+\echo       param["suggest"] = "on";
+\echo     }
 \echo   },
 \echo   autovacuum_max_workers : function(rowref) {
 \echo     val=rowref.cells[1];
@@ -1011,7 +1011,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if (val.innerText.length > 0 ){
 \echo       const elements = val.innerText.split(",");
 \echo       if (elements.length > 2) { val.classList.add("warn"); val.title="Too many extension libraries loaded. It could affect the performance" }
-\echo       if (elements.includes("repmgr")) strfind += "<li><b>Use of repmgr is found.</b> Please consider a more reliable HA framework</li>" 
+\echo       if (elements.includes("repmgr")) strfind += "<li><b>Use of repmgr is found.</b> Please consider a more reliable HA framework <a href='"+ docurl +"ha.html'>Details</a></li>" 
 \echo     }
 \echo   },
 \echo   statement_timeout : function(rowref){
