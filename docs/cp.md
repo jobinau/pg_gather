@@ -27,9 +27,9 @@ some of the `cp` implementations (GNU cp) return a value of 0 even if a copy is 
 
 ## Some of the relevant PostgreSQL community discussions
 Following discussions could reveal the expert's view on the subject
-1. https://www.postgresql.org/message-id/flat/E1QXiEl-00068A-1S%40gemulon.postgresql.org
-2. https://www.postgresql.org/message-id/flat/53E5603B.5040102%40agliodbs.com
+1. [https://www.postgresql.org/message-id/flat/E1QXiEl-00068A-1S%40gemulon.postgresql.org](https://www.postgresql.org/message-id/flat/E1QXiEl-00068A-1S%40gemulon.postgresql.org)
+2. [https://www.postgresql.org/message-id/flat/53E5603B.5040102%40agliodbs.com](https://www.postgresql.org/message-id/flat/53E5603B.5040102%40agliodbs.com)
 
 ## Recommendations
-1. PostgreSQL supports `archive_library` from PostgreSQL 15 onwards and a simple sample library: `basic_archive` is provided as part of contrib modules   Please refer : https://www.postgresql.org/docs/current/basic-archive.html . So the regular cp / rsync commands are no longer needed.
-2. An advanced backup tool is recommended which can safely execute WAL archiving; for example, pgBackRest can do WAL archiving in Asynchronous and Parallel mode. Please refer: https://www.percona.com/blog/how-pgbackrest-is-addressing-slow-postgresql-wal-archiving-using-asynchronous-feature/
+1. PostgreSQL supports `archive_library` from PostgreSQL 15 onwards and a simple sample library: `basic_archive` is provided as part of contrib modules   Please refer : [https://www.postgresql.org/docs/current/basic-archive.html](https://www.postgresql.org/docs/current/basic-archive.html) . So the regular cp / rsync commands are no longer needed.
+2. An advanced backup tool is recommended which can safely execute WAL archiving; for example, pgBackRest can do WAL archiving in Asynchronous and Parallel mode. Please refer: [https://www.percona.com/blog/how-pgbackrest-is-addressing-slow-postgresql-wal-archiving-using-asynchronous-feature/](https://www.percona.com/blog/how-pgbackrest-is-addressing-slow-postgresql-wal-archiving-using-asynchronous-feature/)

@@ -499,7 +499,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo </div> <!--End of "sections"-->
 \echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
 \echo <script type="text/javascript">
-\echo ver="29";
+\echo ver="30";
 \echo obj={};
 \echo docurl="https://jobinau.github.io/pg_gather/";
 \echo meta={pgvers:["13.20","14.17","15.12","16.8","17.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
@@ -780,7 +780,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if(val.innerText != "on") { 
 \echo       val.classList.add("warn"); val.title="Autovacuum must be on" ;
 \echo       let param = params.find(p => p.param === "autovacuum");
-\echo       strfind += "<li><b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"autovacuum.html'>Details</a></li>";
+\echo       param["warn"] = "<b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"params/autovacuum.html'>Details</a>";
 \echo       param["suggest"] = "on";
 \echo     }
 \echo   },
