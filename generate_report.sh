@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-DOCKER_IMAGE=postgres:14   #Take one of the commonly used PG version above 13
+DOCKER_IMAGE=postgres:17   #Take one of the commonly used PG version above 16
 
 if [ -z "${1}" ]; then
     echo "USEAGE : generate_report.sh path/to/output.tsv [/path/to/report.html] [leave the docker container running? (y/n)]"
