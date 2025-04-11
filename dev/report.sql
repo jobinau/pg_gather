@@ -185,10 +185,11 @@ WHERE p.relkind != 'I'
 GROUP BY 1,2;
 
 \pset tableattr 'id="IndInfo"'
-SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
+SELECT n.nsname "Schema",ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
   FROM pg_get_index i 
   JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+  LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
 ORDER BY size DESC LIMIT 10000;
 
 \pset tableattr 'id="params"'
@@ -502,7 +503,27 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo ver="30";
 \echo obj={};
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={pgvers:["13.20","14.17","15.12","16.8","17.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={"pgvers":["13.20","14.17","15.12","16.8","17.4"],"commonExtn":["plpgsql","pg_stat_statements"],"riskyExtn":["citus","tds_fdw"]};
+\echo async function fetchJsonWithTimeout(url, timeout) {
+\echo     const controller = new AbortController();
+\echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
+\echo     try {
+\echo         const response = await fetch(url, { signal: controller.signal });
+\echo         clearTimeout(timeoutId);
+\echo         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
+\echo         else return await response.json();
+\echo     } catch (error) {
+\echo         clearTimeout(timeoutId);
+\echo         if (error.name === "AbortError")  throw new Error("Request timed out");
+\echo         else throw error;
+\echo     }
+\echo }
+\echo fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
+\echo     meta = data;
+\echo     console.log("Data received:", data)
+\echo }).catch(error => {
+\echo     console.error("Error fetching JSON:", error);
+\echo });
 \echo mgrver="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
@@ -664,7 +685,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo  } 
 \echo  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='"+ docurl +"missingstats.html'>Learn Details</a></li>";
-\echo  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
+\echo  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the <a href=#tabInfo >Tables</a> section. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
 \echo  if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
 \echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
@@ -1030,6 +1051,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   track_io_timing: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     if (val.innerText == "off"){
+\echo       val.classList.add("warn"); val.title="There is no good reason for track_io_timing to be off on any modern hardware. It is recommended to be on";
 \echo       let param = params.find(p => p.param === "track_io_timing");
 \echo       param["suggest"] = "on";
 \echo     }
@@ -1336,16 +1358,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab.caption.innerHTML="<span>Indexes</span> in '" + obj.dbts.f1 + "' DB" 
 \echo trs=tab.rows;
 \echo for (let tr of trs) {
-\echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
-\echo   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
-\echo   if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
-\echo   if(tr.cells[6].innerText > 262144 && tr.cells[6].innerText/tr.cells[4].innerText > 50 ) {
-\echo     if (tr.cells[4].innerText > 0 ){
-\echo      tr.cells[6].title="Each Index scan had to fetch " + Math.round(tr.cells[6].innerText/tr.cells[4].innerText) + " pages on average. Expensive Index";
-\echo     }else tr.cells[6].title="Unused indexes. But causing fetches without any benefit"; 
-\echo     tr.cells[6].classList.add("warn");
-\echo     if (tr.cells[7].innerText < 50 ){tr.cells[7].classList.add("warn");tr.cells[7].title="Poor Cache Hit";}
-\echo     else if (tr.cells[7].innerText < 80 ) {tr.cells[7].classList.add("lime");tr.cells[7].title="Indexes with less cache hit can cause considerable I/O"; }
+\echo   if(tr.cells[5].innerText == 0) {tr.cells[5].classList.add("warn"); tr.cells[5].title="Unused Index"}
+\echo   tr.cells[6].title=bytesToSize(Number(tr.cells[6].innerText));
+\echo   if(tr.cells[6].innerText > 2000000000) tr.cells[6].classList.add("lime");
+\echo   if(tr.cells[7].innerText > 262144 && tr.cells[7].innerText/tr.cells[5].innerText > 50 ) {
+\echo     if (tr.cells[5].innerText > 0 ){
+\echo      tr.cells[7].title="Each Index scan had to fetch " + Math.round(tr.cells[7].innerText/tr.cells[5].innerText) + " pages on average. Expensive Index";
+\echo     }else tr.cells[7].title="Unused indexes. But causing fetches without any benefit"; 
+\echo     tr.cells[7].classList.add("warn");
+\echo     if (tr.cells[8].innerText < 50 ){tr.cells[8].classList.add("warn");tr.cells[8].title="Poor Cache Hit";}
+\echo     else if (tr.cells[8].innerText < 80 ) {tr.cells[8].classList.add("lime");tr.cells[8].title="Indexes with less cache hit can cause considerable I/O"; }
 \echo   }
 \echo }
 \echo }
