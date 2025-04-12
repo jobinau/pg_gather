@@ -3,8 +3,8 @@
 \echo <html><meta charset="utf-8" />
 \echo <style>
 \echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
-\echo table, th, td { border: 1px solid #5F9EAF; border-spacing: 0; padding: 4px 4px 4px 4px;} 
-\echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:0 ; }
+\echo table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px } 
+\echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;}
 \echo tr:nth-child(even) {background-color: #eef8ff} 
 \echo a:hover,tr:hover { background-color: #EBFFDA}
 \echo /* h2 { scroll-margin-left: 2em;} keep the scroll left
@@ -387,11 +387,6 @@ GROUP BY 1;
 \echo <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
 \pset format aligned
 \pset tuples_only on
-WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
-SELECT CASE WHEN val > 0 
-  THEN '<li><b>'||val||' idle-in-transaction</b> session(s). Sessions in idle-in-transaction can cause poor concurrency </li>' 
-  ELSE NULL END 
-FROM W;
 WITH W AS (select last_failed_time,last_archived_time,last_archived_wal from pg_archiver_stat where last_archived_time < last_failed_time)
 SELECT CASE WHEN last_archived_time IS NOT NULL
   THEN '<li>WAL archiving is failing since <b>'||last_archived_time||' (duration:'|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> '  ||
@@ -623,6 +618,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
 \echo   document.getElementById("tableConten").classList.add("high");
 \echo  }
+\echo  if (obj.sess.f2 > 0) strfind += "<li><b>Found " + obj.sess.f2 + " session(s) in idle-in-transaction state</b>. This can cause poor concurrency. Details in <a href=#tblsess>Sessions</a> section. Consider improving the application code and design</li>";
 \echo  if (obj.cn.f1 > 0){
 \echo     strfind +="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
 \echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
