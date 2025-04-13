@@ -277,7 +277,7 @@ FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
 \pset tableattr 'id="tableConten" name="waits" style="clear: left"'
 \C 'WaitEvents'
-SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
+SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
 GROUP BY 1 ORDER BY count(*) DESC;
 
@@ -385,39 +385,10 @@ GROUP BY 1;
 %>
 <ol id="finditem" style="padding:2em;position:relative">
 <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
-<% \pset format aligned
-\pset tuples_only on
-WITH W AS (select last_failed_time,last_archived_time,last_archived_wal from pg_archiver_stat where last_archived_time < last_failed_time)
-SELECT CASE WHEN last_archived_time IS NOT NULL
-  THEN '<li>WAL archiving is failing since <b>'||last_archived_time||' (duration:'|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> '  ||
-  CASE WHEN length(last_archived_wal)=24 THEN COALESCE(
-  (SELECT ' With estimated size <b>' ||
-  pg_size_pretty(((('x'||lpad(split_part(current_wal::TEXT,'/', 1),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,9,8))::bit(32)::bigint) * 255 * 16^6 + 
-  ('x'||lpad(split_part(current_wal::TEXT,'/', 2),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,17,8))::bit(32)::bigint*16^6 )::bigint)
-  FROM pg_gather), ' ') || '</b> behind </li>' ELSE '</li>' END
-ELSE NULL END
-FROM W;
-WITH W AS (
- select string_agg(name ||'='||setting,',') as val FROM pg_get_confs WHERE 
- name in ('block_size','max_identifier_length','max_function_args','max_index_keys','segment_size','wal_block_size') AND 
- (name,setting) NOT IN (('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'))
- OR (name = 'wal_segment_size' AND unit ='8kB' and setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' and setting != '16777216')  
-)
-SELECT CASE WHEN LENGTH(val) > 1
-  THEN '<li>Detected Non-Standard Compile/Initialization time parameter changes <b>'||val||' </b>. Custom Compilation is prone to bugs, and it is beyond supportability</li>'
-  ELSE NULL END
-FROM W;
-WITH W AS (
-SELECT count(*) cnt FROM pg_get_confs WHERE source IS NOT NULL )
-SELECT CASE WHEN cnt < 1
-  THEN '<li>Couldn''t get parameter values. Partial gather or corrupt Parameter file(s)</li>'
-  ELSE NULL END
-FROM W;
-SELECT '<li>Parameter '||error ||': '||name||' = '||setting||' in '||sourcefile||'</li>' FROM pg_get_file_confs WHERE error IS NOT NULL;
-%>
 </ol>
 <div id="analdata" hidden>
 <% \pset format unaligned
+\pset tuples_only on
 SELECT to_jsonb(r) FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
@@ -455,7 +426,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )
   , last_archived_wal, last_archived_time::text || ' (' || CASE WHEN EXTRACT(EPOCH FROM(collect_ts - last_archived_time)) < 0 THEN 'Right Now'::text ELSE (collect_ts - last_archived_time)::text END  || ')'))
   FROM  pg_gather,  pg_archiver_stat) AS arcfail,
-  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'),any_value(setting) FILTER (WHERE name = 'block_size'))) FROM pg_get_confs) AS params,
+  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'),any_value(setting) FILTER (WHERE name = 'block_size'),
+  json_agg(row(name ,setting)) FILTER
+   (WHERE name in ('block_size','max_identifier_length','max_function_args','max_index_keys','segment_size','wal_block_size') AND 
+   (name,setting) NOT IN (('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'))
+   OR (name = 'wal_segment_size' AND unit ='8kB' AND setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' AND setting != '16777216')),
+   count(*) FILTER (WHERE source IS NOT NULL)
+  )) FROM pg_get_confs ) AS params,
+  (SELECT json_agg(row(error,  name,  setting, sourcefile)) FROM pg_get_file_confs WHERE error IS NOT NULL) AS errparams,
   (WITH g AS (SELECT collect_ts,pg_start_ts,reload_ts,to_timestamp ( systemid >> 32 ) init_ts from pg_gather),
     r AS (SELECT LEAST(min(last_vac),min(last_anlyze)) known_ts FROM pg_get_rel)
   SELECT CASE WHEN (g.init_ts IS NULL OR g.reload_ts - g.init_ts > '80 minutes'::interval) AND ( r.known_ts > g.reload_ts OR r.known_ts IS NULL) AND g.collect_ts - g.reload_ts < '10 days'::interval 
@@ -566,7 +544,7 @@ obj.victims.forEach(function(victim){
 });
 }
 checkgather();
-checkpars();
+if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
 checktabs();
 checkindex();
 checkdbs();
@@ -666,6 +644,13 @@ function checkfindings(){
  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
  if (obj.clas.f2 > 0) strfind += "<li><b>"+ obj.clas.f2 +" Unlogged tables found.</b> These tables and associated indexes are ephemeral. <a href='"+ docurl +"unloggedtables.html'>Details</a></li>";
  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
+ if (obj.params.f5 != null && obj.params.f5.length > 0) strfind += "<li><b>Non-standard compile/Initialization time parameters detected : " + obj.params.f5.map(function(item) { return item.f1 + ": " + item.f2;}).join(", ") + "</b>. Custom Compilation is prone to bugs, and problems which are difficult to find</li>";
+ if (obj.params.f6 == null || obj.params.f6 ==0 ) strfind += "<li><b>No Parameter values found. The data collection could be partial or corrupt Parameter file(s).</b></li>";
+ if (obj.errparams !== null && obj.errparams.length > 0) {
+   strfind += "<li> <b>Parameter file errors detected :<ul>";
+   obj.errparams.forEach(function(t,idx){ strfind += "<li>" + t.f1 + " : " + t.f2 + " = "+ t.f3 +" in file " + t.f4 +"</li>" });
+   strfind += "</ul></b></li>";
+ }
  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
  if (obj.nokey.f1 > 0) strfind += "<li><b>"+ obj.nokey.f1 +" Tables without Primary Key</b> and <b>"+ obj.nokey.f2 +" Tables without niether Primary key nor Unique keys</b> found. Please refer <a href='"+ docurl +"pkuk.html'>Details</a></li>";
  if (obj.netdlay.f1 > 10) {
@@ -1161,7 +1146,7 @@ function checkpars(){
   trs=tab.rows
   if (document.getElementById("params").rows.length > 1)
     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]);  //Despatcher function takes name of parameter and row of HTML table as parameters
-  else  strfind += "<li><b>Partial Data Collection</b></li>"
+  else { strfind += "<li><b>INCOMPLETE DATA COLLECTION. PLEASE RUN gather.sql SCRIPT USING AN ACCOUNT WITH THE REQUIRED PERMISSIONS AND WAIT FOR COMPLETION</b></li>"; return 1; }
  }
 
 //Cells with value greater than autovacuum_freeze_max_age
