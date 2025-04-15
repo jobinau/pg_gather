@@ -520,6 +520,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   });
 \echo });
 \echo }
+\echo console.log("Checks started");
 \echo checkgather();
 \echo if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return}; 
 \echo checktabs();
@@ -974,11 +975,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let sver_ver = params.find(p => p.param === "server_version");
 \echo     if ( mgrver < Math.trunc(meta.pgvers[0])){
 \echo       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-\echo       sver_ver["warn"] = "Running <b>Obsolete (End-of-Life) and Unsupported PostgreSQL Version: " + mgrver + "</b>. Please upgrade urgently";
+\echo       sver_ver["warn"] = "<b>Obsolete (End-of-Life) and Unsupported Version: PostgreSQL " + setval + ". IMPORTANT: Security vulnerabilities and bugs in obsolete versions won't be fixed.</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+ meta.pgvers.pop() + ">Understand the risk</a> ";
 \echo     } else {
 \echo       meta.pgvers.forEach(function(t){
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
-\echo           console.log(setval);
 \echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
 \echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
 \echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";

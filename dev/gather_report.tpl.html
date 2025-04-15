@@ -1033,11 +1033,10 @@ var paramDespatch = {
     let sver_ver = params.find(p => p.param === "server_version");
     if ( mgrver < Math.trunc(meta.pgvers[0])){
       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-      sver_ver["warn"] = "Running <b>Obsolete (End-of-Life) and Unsupported PostgreSQL Version: " + mgrver + "</b>. Please upgrade urgently";
+      sver_ver["warn"] = "<b>Obsolete (End-of-Life) and Unsupported Version: PostgreSQL " + setval + ". IMPORTANT: Security vulnerabilities and bugs in obsolete versions won't be fixed.</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+ meta.pgvers.pop() + ">Understand the risk</a> ";
     } else {
       meta.pgvers.forEach(function(t){
         if (Math.trunc(setval) == Math.trunc(t)){
-          console.log(setval);
           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";
