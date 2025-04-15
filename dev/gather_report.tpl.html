@@ -485,7 +485,7 @@ async function fetchJsonWithTimeout(url, timeout) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
         clearTimeout(timeoutId);
         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
         else return await response.json();
@@ -495,13 +495,6 @@ async function fetchJsonWithTimeout(url, timeout) {
         else throw error;
     }
 }
-
-fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
-    meta = data;
-    console.log("Data received:", data)
-}).catch(error => {
-    console.error("Error fetching JSON:", error);
-});
 
 mgrver="";
 //walcomprz="";
@@ -523,6 +516,40 @@ let blkvictims = []
 //Parameter array with each parameter ("param") current value ("val"), recomendations.
 let params = []
 
+//another function passed into this functio will be called after the rendering is complete
+function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
+
+//function to check the parameters and display the findings, called from DOMContentLoaded event listner below.
+async function doAllChecks(){
+  const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
+    meta = data;
+    console.log("Data received:", data);})
+    .catch(error => { console.error("Error fetching JSON:", error); });
+
+  console.log("Starting all checks");
+  afterRenderingComplete(() => {  console.log("This runs after the current rendering is complete."); 
+  document.getElementById("sections").style="display:table";
+  document.getElementById("busy").style="display:none";
+
+  });
+  checkgather();
+  if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
+  checktabs();
+  checkindex();
+  checkdbs();
+  checkdbtime();
+  checkextn();
+  checkhba();
+  checkconns();
+  checkusers();
+  checksess();
+  checkstmnts();
+  checkchkpntbgwrtr();
+  checkiostat();
+  checkreplstat();
+  checkfindings();
+  console.log("All checks completed");
+}
 
 //When the DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
@@ -543,30 +570,10 @@ obj.victims.forEach(function(victim){
   });
 });
 }
-checkgather();
-if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
-checktabs();
-checkindex();
-checkdbs();
-checkdbtime();
-checkextn();
-checkhba();
-checkconns();
-checkusers();
-checksess();
-checkstmnts();
-checkchkpntbgwrtr();
-checkiostat();
-checkreplstat();
-checkfindings();
+doAllChecks();
 });
 
-window.onload = function() {
-// can also use window.addEventListener('load', (event) => {
-//  ["tabInfo","IndInfo","params","sections"].forEach(function(t) {document.getElementById(t).style="display:table";})
-  document.getElementById("sections").style="display:table";
-  document.getElementById("busy").style="display:none";
-};
+//window.onload = function() { };
 
 //common function to set the titles for the table on mouseover. This will be called from each section
 function setTitles(tr,tiltes){

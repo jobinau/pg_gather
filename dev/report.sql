@@ -481,7 +481,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
 \echo     try {
-\echo         const response = await fetch(url, { signal: controller.signal });
+\echo         const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
 \echo         clearTimeout(timeoutId);
 \echo         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
 \echo         else return await response.json();
@@ -491,12 +491,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         else throw error;
 \echo     }
 \echo }
-\echo fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
-\echo     meta = data;
-\echo     console.log("Data received:", data)
-\echo }).catch(error => {
-\echo     console.error("Error fetching JSON:", error);
-\echo });
 \echo mgrver="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
@@ -508,6 +502,35 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo let blokers = []
 \echo let blkvictims = []
 \echo let params = []
+\echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
+\echo async function doAllChecks(){
+\echo   const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
+\echo     meta = data;
+\echo     console.log("Data received:", data);})
+\echo     .catch(error => { console.error("Error fetching JSON:", error); });
+\echo   console.log("Starting all checks");
+\echo   afterRenderingComplete(() => {  console.log("This runs after the current rendering is complete."); 
+\echo   document.getElementById("sections").style="display:table";
+\echo   document.getElementById("busy").style="display:none";
+\echo   });
+\echo   checkgather();
+\echo   if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return}; 
+\echo   checktabs();
+\echo   checkindex();
+\echo   checkdbs();
+\echo   checkdbtime();
+\echo   checkextn();
+\echo   checkhba();
+\echo   checkconns();
+\echo   checkusers();
+\echo   checksess();
+\echo   checkstmnts();
+\echo   checkchkpntbgwrtr();
+\echo   checkiostat();
+\echo   checkreplstat();
+\echo   checkfindings();
+\echo   console.log("All checks completed");
+\echo }
 \echo document.addEventListener("DOMContentLoaded", () => {
 \echo obj=JSON.parse( document.getElementById("analdata").innerText);
 \echo if (obj.victims !== null){
@@ -520,28 +543,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   });
 \echo });
 \echo }
-\echo console.log("Checks started");
-\echo checkgather();
-\echo if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return}; 
-\echo checktabs();
-\echo checkindex();
-\echo checkdbs();
-\echo checkdbtime();
-\echo checkextn();
-\echo checkhba();
-\echo checkconns();
-\echo checkusers();
-\echo checksess();
-\echo checkstmnts();
-\echo checkchkpntbgwrtr();
-\echo checkiostat();
-\echo checkreplstat();
-\echo checkfindings();
+\echo doAllChecks();
 \echo });
-\echo window.onload = function() {
-\echo   document.getElementById("sections").style="display:table";
-\echo   document.getElementById("busy").style="display:none";
-\echo };
 \echo function setTitles(tr,tiltes){
 \echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
 \echo }
