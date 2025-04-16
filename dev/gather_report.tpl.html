@@ -15,9 +15,9 @@ ol { width: fit-content;}
 .lime { font-weight:bold;background-color: #FFD}
 .lineblk {float: left; margin:2em }
 .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
-#bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 100;}
+#bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
-#dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
+#dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -386,10 +386,15 @@ GROUP BY 1;
 <ol id="finditem" style="padding:2em;position:relative">
 <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
 </ol>
-<div id="analdata" hidden>
-<% \pset format unaligned
+</div> <!--End of "sections"-->
+<footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
+<script>
+// Complete analysis data from pg_gather data as a JSON object "obj"
+// A SQL query within <script> block might be confusing. But see the markers <% and %> for the pre-processing.
+<% 
+\pset format unaligned
 \pset tuples_only on
-SELECT to_jsonb(r) FROM
+SELECT 'obj='||to_jsonb(r)::text FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
   (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
@@ -469,14 +474,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 %>
-</div>
-</div> <!--End of "sections"-->
-<footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
-<script type="text/javascript">
+
 //pg_gather version
 ver="30";
 //Global object to hold json values passed from the SQL analysis
-obj={};
+//obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
 meta={"pgvers":["13.20","14.17","15.12","16.8","17.4"],"commonExtn":["plpgsql","pg_stat_statements"],"riskyExtn":["citus","tds_fdw"]};
@@ -553,7 +555,7 @@ async function doAllChecks(){
 
 //When the DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-obj=JSON.parse( document.getElementById("analdata").innerText);
+//obj=JSON.parse( document.getElementById("analdata").innerText);
 // New code for preparting victims and blockers
 if (obj.victims !== null){
 //each victim will have associated blockers like : victim1 : blocker1, blocker2 

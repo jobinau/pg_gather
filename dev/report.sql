@@ -15,9 +15,9 @@
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:2em }
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
-\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 100;}
+\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
+\echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -386,10 +386,13 @@ GROUP BY 1;
 \echo <ol id="finditem" style="padding:2em;position:relative">
 \echo <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
 \echo </ol>
-\echo <div id="analdata" hidden>
+\echo </div> <!--End of "sections"-->
+\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
+\echo <script>
+
 \pset format unaligned
 \pset tuples_only on
-SELECT to_jsonb(r) FROM
+SELECT 'obj='||to_jsonb(r)::text FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
   (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
@@ -469,12 +472,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
-\echo </div>
-\echo </div> <!--End of "sections"-->
-\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
-\echo <script type="text/javascript">
 \echo ver="30";
-\echo obj={};
 \echo docurl="https://jobinau.github.io/pg_gather/";
 \echo meta={"pgvers":["13.20","14.17","15.12","16.8","17.4"],"commonExtn":["plpgsql","pg_stat_statements"],"riskyExtn":["citus","tds_fdw"]};
 \echo async function fetchJsonWithTimeout(url, timeout) {
@@ -532,7 +530,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   console.log("All checks completed");
 \echo }
 \echo document.addEventListener("DOMContentLoaded", () => {
-\echo obj=JSON.parse( document.getElementById("analdata").innerText);
 \echo if (obj.victims !== null){
 \echo obj.victims.forEach(function(victim){
 \echo   blkvictims.push(victim.f1);
