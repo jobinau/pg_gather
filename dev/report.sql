@@ -512,20 +512,20 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   document.getElementById("busy").style="display:none";
 \echo   });
 \echo   checkgather();
+\echo   checkdbs();
+\echo   checkconns();
+\echo   checkusers();
+\echo   checkdbtime();
+\echo   checksess();
+\echo   checkiostat();
+\echo   checkreplstat();
 \echo   if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return}; 
 \echo   checktabs();
 \echo   checkindex();
-\echo   checkdbs();
-\echo   checkdbtime();
 \echo   checkextn();
 \echo   checkhba();
-\echo   checkconns();
-\echo   checkusers();
-\echo   checksess();
 \echo   checkstmnts();
 \echo   checkchkpntbgwrtr();
-\echo   checkiostat();
-\echo   checkreplstat();
 \echo   checkfindings();
 \echo   console.log("All checks completed");
 \echo }
@@ -677,10 +677,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  }
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
-\echo   var el=document.createElement("tfoot");
-\echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
-\echo   dbs=document.getElementById("dbs");
-\echo   dbs.appendChild(el);
 \echo }
 \echo function checkconns(){
 \echo   tab=document.getElementById("tblcs");
@@ -1078,10 +1074,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   trs=tab.rows
 \echo   if (document.getElementById("params").rows.length > 1)
 \echo     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]); 
-\echo   else { strfind += "<li><b>INCOMPLETE DATA COLLECTION. PLEASE RUN gather.sql SCRIPT USING AN ACCOUNT WITH THE REQUIRED PERMISSIONS AND WAIT FOR COMPLETION</b></li>"; return 1; }
+\echo   else { strfind += "<li><b>PARTIAL DATA COLLECTION. MAKE SURE TO RUN gather.sql SCRIPT USING AN ACCOUNT WITH THE REQUIRED PERMISSIONS AND WAIT FOR COMPLETION</b></li>"; return 1; }
 \echo  }
 \echo function aged(cell){
-\echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
+\echo  if(cell.innerHTML > autovacuum_freeze_max_age && cell.innerHTML > 200000000 ){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
 \echo }
 \echo function checktabs(){
 \echo   const startTime =new Date().getTime();
@@ -1156,6 +1152,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (aborts.length >0) 
 \echo    strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
 \echo   if (strtmp != "") strfind += "<li>High temp file generation : <b>" + strtmp + "</b></li>"; 
+\echo   var el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
+\echo   dbs=document.getElementById("dbs");
+\echo   dbs.appendChild(el);
 \echo }
 \echo function checkextn(){
 \echo   const tab=document.getElementById("tblextn");
@@ -1478,6 +1478,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab.caption.innerHTML="<span>Replication</span>"
 \echo let strReps = 0;
 \echo let param = params.find(p => p.param === "hot_standby_feedback");
+\echo if (typeof param === "undefined") param = {};
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i];

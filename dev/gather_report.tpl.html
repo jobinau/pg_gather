@@ -535,20 +535,20 @@ async function doAllChecks(){
 
   });
   checkgather();
+  checkdbs();
+  checkconns();
+  checkusers();
+  checkdbtime();
+  checksess();
+  checkiostat();
+  checkreplstat();
   if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
   checktabs();
   checkindex();
-  checkdbs();
-  checkdbtime();
   checkextn();
   checkhba();
-  checkconns();
-  checkusers();
-  checksess();
   checkstmnts();
   checkchkpntbgwrtr();
-  checkiostat();
-  checkreplstat();
   checkfindings();
   console.log("All checks completed");
 }
@@ -724,11 +724,6 @@ function checkfindings(){
   //update the findings section
   document.getElementById("finditem").innerHTML += strfind;
 
-  //Add footer to database details table at the top
-  var el=document.createElement("tfoot");
-  el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
-  dbs=document.getElementById("dbs");
-  dbs.appendChild(el);
 }
 
 function checkconns(){
@@ -1154,12 +1149,12 @@ function checkpars(){
   trs=tab.rows
   if (document.getElementById("params").rows.length > 1)
     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]);  //Despatcher function takes name of parameter and row of HTML table as parameters
-  else { strfind += "<li><b>INCOMPLETE DATA COLLECTION. PLEASE RUN gather.sql SCRIPT USING AN ACCOUNT WITH THE REQUIRED PERMISSIONS AND WAIT FOR COMPLETION</b></li>"; return 1; }
+  else { strfind += "<li><b>PARTIAL DATA COLLECTION. MAKE SURE TO RUN gather.sql SCRIPT USING AN ACCOUNT WITH THE REQUIRED PERMISSIONS AND WAIT FOR COMPLETION</b></li>"; return 1; }
  }
 
 //Cells with value greater than autovacuum_freeze_max_age
 function aged(cell){
- if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
+ if(cell.innerHTML > autovacuum_freeze_max_age && cell.innerHTML > 200000000 ){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
 }
 
 //Check Table Level info
@@ -1249,6 +1244,13 @@ function checkdbs(){
   if (aborts.length >0)  //Mention the aborts in findings.  future append aborts array to json  : obj.aborts=aborts;
    strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
   if (strtmp != "") strfind += "<li>High temp file generation : <b>" + strtmp + "</b></li>"; 
+
+  //Add footer to database details table at the top
+  var el=document.createElement("tfoot");
+  el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
+  dbs=document.getElementById("dbs");
+  dbs.appendChild(el);
+
 }
 
 function checkextn(){
@@ -1629,6 +1631,7 @@ tab=document.getElementById("tblreplstat")
 tab.caption.innerHTML="<span>Replication</span>"
 let strReps = 0;
 let param = params.find(p => p.param === "hot_standby_feedback");
+if (typeof param === "undefined") param = {};
 if (tab.rows.length > 1){
   for(var i=1;i<tab.rows.length;i++){
     row=tab.rows[i];
