@@ -14,11 +14,11 @@ ol { width: fit-content;}
 .high { border: 5px solid red;font-weight:bold}
 .lime { font-weight:bold;background-color: #FFD}
 .lineblk {float: left; margin:2em }
-.thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
+.thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue;position: relative;}}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
-#dtls { margin-left: -10px }
+#dtls { margin-left: -0.2em; left:100%; top: 50%; width: max-content; color: black;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1440,18 +1440,18 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
-  tr.cells[2].appendChild(el);
+  tr.cells[0].appendChild(el);
 })));
 
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
-  navigator.clipboard.writeText(td.parentNode.cells[2].children[0].innerText);
+  navigator.clipboard.writeText(td.parentNode.cells[0].children[0].innerText);
   flash("Details copied to clipboard");
 })));
 
 //On mouseout, remove the div element.
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
    //if (mouseOnPopup == false) td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent; //old way of removing popup, replaced 26/4/2025, can be removed later
-   td.parentNode.cells[2].children[0].remove(); //new way of removing popup, 26/4/2025
+   td.parentNode.cells[0].children[0].remove(); //new way of removing popup, 26/4/2025
 })));
 
 //special pop-up for sections menu
