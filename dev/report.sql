@@ -18,6 +18,7 @@
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
+\echo #dtls { margin-left: -10px }
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1321,7 +1322,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   flash("Details copied to clipboard");
 \echo })));
 \echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
-\echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
+\echo    td.parentNode.cells[2].children[0].remove();
 \echo })));
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }

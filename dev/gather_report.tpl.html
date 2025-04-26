@@ -18,6 +18,7 @@ ol { width: fit-content;}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
+#dtls { margin-left: -10px }
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1420,13 +1421,20 @@ if(tr.cells[1].innerText.length > 2){
 } else return "No connections"
 }
 
-//Every HTML Table with hidden columns
+//Insert popup div element to every HTML Table with hidden columns
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
   tr=td.parentNode;
   tab=tr.closest("table");
   var el=document.createElement("div");
   el.setAttribute("id", "dtls");
   el.setAttribute("align","left");
+// EXPERIMENTAL
+//  el.addEventListener("mouseover", function(event) {
+//        console.log("Mouse ENTERED dynamic element:", event.target.id);
+//    });
+//  el.addEventListener("mouseout", function(event) {
+//        console.log("Mouse LEFT dynamic element:", event.target.id);
+//    });
   if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
   if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
@@ -1440,9 +1448,10 @@ document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEven
   flash("Details copied to clipboard");
 })));
 
-//On mouseout, remove the div element. "fistchild" don't have the div element
+//On mouseout, remove the div element.
 document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
-  td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
+   //if (mouseOnPopup == false) td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent; //old way of removing popup, replaced 26/4/2025, can be removed later
+   td.parentNode.cells[2].children[0].remove(); //new way of removing popup, 26/4/2025
 })));
 
 //special pop-up for sections menu

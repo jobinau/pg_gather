@@ -78,6 +78,21 @@ Some DataFilePrefetch waits are normal and indicate the prefetch system is worki
 2. Need to tune shared_buffers or maintenance_work_mem
 3. High concurrent I/O load
 
+## LockManager
+The LockManager wait event indicates that a process is waiting to access the lock manager's shared memory structure. This structure holds all the locks in the database and is protected by a lightweight lock (LWLock). When multiple sessions try to acquire locks simultaneously, they must access this shared structure, and contention can arise
+
+### Causes
+1. High Concurrency: A large number of concurrent sessions trying to acquire locks simultaneously can overwhelm the lock manager. This is especially problematic if the number of concurrent (Active and Idle-in-Transaction) sessions exceeds the number of CPU cores.
+2. Complex Queries and Table Partitions: Queries that involve multiple partitions or indexes can acquire many locks. For example, querying a heavily partitioned table without proper partition pruning can result in numerous non-fast-path lock
+3. Connection Storms: Applications or connection pool software that create additional connections when the database is slow can exacerbate the problem
+
+### Resolution
+1. Optimize Queries: Ensure that queries are optimized to minimize the number of locks required. This includes using partition pruning and avoiding unnecessary joins
+2. Manage Transactions: Reduce the scope of transactions to decrease the number of locks acquired
+3. Connection Pooling: Use connection pooling to limit the number of concurrent connections connections hitting the database - Connection queueing.
+4. Index Management: Remove unnecessary indexes to reduce locking overhead
+5. Hardware Scaling: Scale up the hardware resources, such as increasing the number of CPU cores
+
 ## transactionid
 Session waiting for other session to complete the transaction. (Session is blocked). The transactionid wait event in PostgreSQL occurs when a backend process is blocked while waiting for a specific transaction to complete. This is one of the more serious wait events that can significantly impact database performance.
 For example, Updating the same rows of a table from multiple sessions can lead to this situation.
