@@ -16,9 +16,9 @@
 \echo .lineblk {float: left; margin:2em }
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue;position: relative;}}
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
-\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
+\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
-\echo #dtls { margin-left: -0.2em; left:100%; top: 50%; width: max-content; color: black;}
+\echo #dtls { margin-left: -0.2em; left:100%; top: 10%; width: max-content; color: black;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1304,25 +1304,37 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str
 \echo } else return "No connections"
 \echo }
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
+\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseenter", (() => {
 \echo   tr=td.parentNode;
 \echo   tab=tr.closest("table");
 \echo   var el=document.createElement("div");
 \echo   el.setAttribute("id", "dtls");
 \echo   el.setAttribute("align","left");
+\echo   el.addEventListener("mouseenter", () => {
+\echo       console.log("Mouse ENTERED popup");
+\echo     });
+\echo   el.addEventListener("mouseleave", (event) => {
+\echo       if (!td.contains(event.relatedTarget)) {
+\echo         el.remove();
+\echo       }
+\echo     });
 \echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
 \echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
 \echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
 \echo   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
 \echo   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
-\echo   tr.cells[0].appendChild(el);
+\echo   td.appendChild(el);
 \echo })));
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
-\echo   navigator.clipboard.writeText(td.parentNode.cells[0].children[0].innerText);
-\echo   flash("Details copied to clipboard");
-\echo })));
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
-\echo    td.parentNode.cells[0].children[0].remove();
+\echo document.querySelectorAll(".thidden").forEach(container => {
+\echo   container.addEventListener("dblclick", function(event) {
+\echo     if (event.target.matches("tr td:first-child")) {
+\echo       navigator.clipboard.writeText(event.target.children[0].innerText);
+\echo       flash("Details copied to clipboard");
+\echo     }
+\echo   });
+\echo });
+\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseleave", (() => {
+\echo    td.children[0]?.remove();
 \echo })));
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
