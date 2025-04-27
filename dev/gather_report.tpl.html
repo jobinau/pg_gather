@@ -7,10 +7,8 @@ table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px }
 th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;}
 tr:nth-child(even) {background-color: #eef8ff} 
 c { display: block }
-c:hover { background-color: #DFD; color: #700}
+c:hover { background-color: #DFD; color: #600; text-shadow: 0.5px 0 0 currentColor, -0.5px 0 0 currentColor;}
 a:hover,tr:hover { background-color: #EBFFDA}
-/* h2 { scroll-margin-left: 2em;} keep the scroll left
-caption { font-size: larger } */
 ol { width: fit-content;}
 .warn { font-weight:bold; background-color: #FBA }
 .high { border: 5px solid red;font-weight:bold}
@@ -538,6 +536,7 @@ async function doAllChecks(){
 
   });
   checkgather();
+  checkpars();
   checkdbs();
   checkconns();
   checkusers();
@@ -545,7 +544,7 @@ async function doAllChecks(){
   checksess();
   checkiostat();
   checkreplstat();
-  if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
+  //if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
   checktabs();
   checkindex();
   checkextn();
@@ -720,8 +719,10 @@ function checkfindings(){
    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
   }
- if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
-    strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
+ const sharedBuffers = params.find(p => p.param === "shared_buffers"); 
+ const hugePages = params.find(p => p.param === "huge_pages");
+ if ( sharedBuffers?.val > 2097152 && hugePages?.val !=  "on" ){
+    strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(sharedBuffers.val*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
  }
  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
   //update the findings section
@@ -1230,7 +1231,7 @@ function checkdbs(){
       tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
       let str = " temp file generation per day!. It can cause I/O performance issues." 
       let param = params.find(p => p.param === "log_temp_files");
-      if ( param["val"] == -1 ) { 
+      if ( param && param["val"] == -1 ) { 
         param["suggest"] = "'100MB'"; 
         str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
       }else{
@@ -1424,29 +1425,49 @@ if(tr.cells[1].innerText.length > 2){
 }
 
 //Insert popup div element to every HTML Table with hidden columns
-document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseenter", (() => {
-  tr=td.parentNode;
-  //console.log( tr.innerText );
-  tab=tr.closest("table");
-  var el=document.createElement("div");
-  el.setAttribute("id", "dtls");
-  el.setAttribute("align","left");
-// EXPERIMENTAL
-  el.addEventListener("mouseenter", () => {
-      console.log("Mouse ENTERED popup");
-    });
-  el.addEventListener("mouseleave", (event) => {
-      if (!td.contains(event.relatedTarget)) { // Check if the mouse is moving back to the parent
-        el.remove(); // Remove the child element when mouse leaves child, But not going back to parent
-      } //else { console.log("Mouse LEFT popup (going back to parent)"); }
-    });
-  if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
-  if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
-  if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
-  if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
-  if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
-  td.appendChild(el);
-})));
+// document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseenter", (() => {
+//   tr=td.parentNode;
+//   tab=tr.closest("table");
+//   var el=document.createElement("div");
+//   el.setAttribute("id", "dtls");
+//   el.setAttribute("align","left");
+//  // el.addEventListener("mouseenter", () => {
+//  //     console.log("Mouse ENTERED popup");
+//  //   });
+//   el.addEventListener("mouseleave", (event) => {
+//       if (!td.contains(event.relatedTarget)) { // Check if the mouse is moving back to the parent
+//         el.remove(); // Remove the child element when mouse leaves child, But not going back to parent
+//       } //else { console.log("Mouse LEFT popup (going back to parent)"); }
+//     });
+//   if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
+//   if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
+//   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
+//   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
+//   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
+//   td.appendChild(el);
+// })));
+
+document.querySelectorAll(".thidden").forEach(table => {
+  table.addEventListener("mouseenter", (e) => {
+    if (e.target.matches("tr td:first-child")){
+      const td = e.target;
+      const tr = td.parentNode;
+      const tab = tr.closest("table");
+      var el = document.createElement("div");
+      el.setAttribute("id", "dtls");
+      el.setAttribute("align", "left");
+      el.addEventListener("mouseleave", (event) => {
+      if (!td.contains(event.relatedTarget)) el.remove(); // Check if the mouse is moving back to the parent, Remove the child element if it is leaving, but not going back to parent
+     });
+      el.innerHTML = tab.id === "dbs" ? dbsdtls(tr) :
+                     tab.id === "tabInfo" ? tabdtls(tr) :
+                     tab.id === "tblsess" ? sessdtls(tr) :
+                     tab.id === "tblusr" ? userdtls(tr) :
+                     tab.id === "tblcs" ? dbcons(tr) : "";
+      td.appendChild(el); 
+    }
+  }, true); // `true` for capture phase (better performance)
+});
 
 // document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
 //   navigator.clipboard.writeText(td.parentNode.cells[0].children[0].innerText);
@@ -1462,15 +1483,16 @@ document.querySelectorAll(".thidden").forEach(container => {
   });
 });
 
-// document.querySelectorAll(".thidden").forEach(container => {
-//   container.addEventListener("mouseout", function(event) {
-//     if (event.target.matches("tr td:first-child")) event.target.children[0]?.remove();
-//   });
-// });
+document.querySelectorAll(".thidden").forEach(table => {
+    table.addEventListener("mouseleave", (e) => {
+        if (e.target.matches("tr td:first-child")) e.target.children[0]?.remove();
+    }, true); // `true` for capture phase (better performance)
+});
 
-document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseleave", (() => {
-   td.children[0]?.remove(); //new way of removing popup, 26/4/2025
-})));
+//Evergreen solution if above is not working, use this
+// document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseleave", (() => {
+//    td.children[0]?.remove(); //new way of removing popup, 26/4/2025
+// })));
 
 //special pop-up for sections menu
 let elem=document.getElementById("bottommenu")

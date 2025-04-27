@@ -7,10 +7,8 @@
 \echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;}
 \echo tr:nth-child(even) {background-color: #eef8ff} 
 \echo c { display: block }
-\echo c:hover { background-color: #DFD; color: #700}
+\echo c:hover { background-color: #DFD; color: #600; text-shadow: 0.5px 0 0 currentColor, -0.5px 0 0 currentColor;}
 \echo a:hover,tr:hover { background-color: #EBFFDA}
-\echo /* h2 { scroll-margin-left: 2em;} keep the scroll left
-\echo caption { font-size: larger } */
 \echo ol { width: fit-content;}
 \echo .warn { font-weight:bold; background-color: #FBA }
 \echo .high { border: 5px solid red;font-weight:bold}
@@ -515,6 +513,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   document.getElementById("busy").style="display:none";
 \echo   });
 \echo   checkgather();
+\echo   checkpars();
 \echo   checkdbs();
 \echo   checkconns();
 \echo   checkusers();
@@ -522,7 +521,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   checksess();
 \echo   checkiostat();
 \echo   checkreplstat();
-\echo   if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return}; 
 \echo   checktabs();
 \echo   checkindex();
 \echo   checkextn();
@@ -675,7 +673,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
 \echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
 \echo   }
-\echo  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
+\echo  const sharedBuffers = params.find(p => p.param === "shared_buffers"); 
+\echo  const hugePages = params.find(p => p.param === "huge_pages");
+\echo  if ( sharedBuffers?.val > 2097152 && hugePages?.val !=  "on" ){
 \echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
 \echo  }
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
@@ -1138,7 +1138,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
 \echo       let str = " temp file generation per day!. It can cause I/O performance issues." 
 \echo       let param = params.find(p => p.param === "log_temp_files");
-\echo       if ( param["val"] == -1 ) { 
+\echo       if ( param && param["val"] == -1 ) { 
 \echo         param["suggest"] = "'100MB'"; 
 \echo         str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
 \echo       }else{
@@ -1306,27 +1306,27 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str
 \echo } else return "No connections"
 \echo }
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseenter", (() => {
-\echo   tr=td.parentNode;
-\echo   tab=tr.closest("table");
-\echo   var el=document.createElement("div");
-\echo   el.setAttribute("id", "dtls");
-\echo   el.setAttribute("align","left");
-\echo   el.addEventListener("mouseenter", () => {
-\echo       console.log("Mouse ENTERED popup");
-\echo     });
-\echo   el.addEventListener("mouseleave", (event) => {
-\echo       if (!td.contains(event.relatedTarget)) {
-\echo         el.remove();
-\echo       }
-\echo     });
-\echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
-\echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
-\echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
-\echo   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
-\echo   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
-\echo   td.appendChild(el);
-\echo })));
+\echo document.querySelectorAll(".thidden").forEach(table => {
+\echo   table.addEventListener("mouseenter", (e) => {
+\echo     if (e.target.matches("tr td:first-child")){
+\echo       const td = e.target;
+\echo       const tr = td.parentNode;
+\echo       const tab = tr.closest("table");
+\echo       var el = document.createElement("div");
+\echo       el.setAttribute("id", "dtls");
+\echo       el.setAttribute("align", "left");
+\echo       el.addEventListener("mouseleave", (event) => {
+\echo       if (!td.contains(event.relatedTarget)) el.remove();
+\echo      });
+\echo       el.innerHTML = tab.id === "dbs" ? dbsdtls(tr) :
+\echo                      tab.id === "tabInfo" ? tabdtls(tr) :
+\echo                      tab.id === "tblsess" ? sessdtls(tr) :
+\echo                      tab.id === "tblusr" ? userdtls(tr) :
+\echo                      tab.id === "tblcs" ? dbcons(tr) : "";
+\echo       td.appendChild(el); 
+\echo     }
+\echo   }, true);
+\echo });
 \echo document.querySelectorAll(".thidden").forEach(container => {
 \echo   container.addEventListener("dblclick", function(event) {
 \echo     if (event.target.matches("tr td:first-child")) {
@@ -1335,9 +1335,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     }
 \echo   });
 \echo });
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseleave", (() => {
-\echo    td.children[0]?.remove();
-\echo })));
+\echo document.querySelectorAll(".thidden").forEach(table => {
+\echo     table.addEventListener("mouseleave", (e) => {
+\echo         if (e.target.matches("tr td:first-child")) e.target.children[0]?.remove();
+\echo     }, true);
+\echo });
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
 \echo elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
