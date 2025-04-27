@@ -6,6 +6,8 @@
 table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px } 
 th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;}
 tr:nth-child(even) {background-color: #eef8ff} 
+c { display: block }
+c:hover { background-color: #DFD; color: #700}
 a:hover,tr:hover { background-color: #EBFFDA}
 /* h2 { scroll-margin-left: 2em;} keep the scroll left
 caption { font-size: larger } */
@@ -18,7 +20,7 @@ ol { width: fit-content;}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
-#dtls { margin-left: -0.2em; left:100%; top: 10%; width: max-content; color: black;}
+#dtls { margin-left: -0.2em; left:100%; top: 8%; width: max-content; color: black;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1343,8 +1345,8 @@ function dbsdtls(th){
   let o=JSON.parse(th.cells[1].innerText);
   let str="";
   if(th.cells[0].classList.contains("lime")) str = "<br/>(pg_gather connected)";
-  return "<b>" + th.cells[0].innerText + "</b>" + str + "<br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " 
-   + o.f3 + "<br/>Stats Reset : " + o.f4 + "<br/>DB oid(dbid) :" + o.f5 + "<br/>Multi Txn Id Age :" + o.f6  ;
+  return "<b>" + th.cells[0].innerText + "</b>" + str + "<c> Inserts per day : " + o.f1 + "</c><c>Updates per day : " + o.f2 + "</c><c>Deletes per day : " 
+   + o.f3 + "</c><c>Stats Reset : " + o.f4 + "</c><c>DB oid(dbid) :" + o.f5 + "</c><c>Multi Txn Id Age :" + o.f6 + "</c>" ;
 }
 
 //Pop-up for Tables.
@@ -1356,35 +1358,35 @@ function tabdtls(th){
   let str=""
   // f1 = r.relid ; f2 = r.n_tup_ins ; f3= r.n_tup_upd ; f4= r.n_tup_del ; f5 = r.n_tup_hot_upd ; f6 = isum.totind ; f7 = isum.ind0scan ; f8 = isum.pk, f9 = isum.uk,
   // f10 = inhp.relname ; f11 = inhp.relkind ; f12 = c.relfilenode ; f13 = c.reltablespace, f14 = c.reloptions
-  if (o.f11 == "r") str += "<br/>Inheritance Partition of : " + o.f10;
-  if (o.f11 == "p") str += "<br/>Native Partition of : " + o.f10;
-  if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
-  if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;
-  if (o.f8 > 0) str += "<br/>Primary key: Exists";
-  else str += "<br/>No Primary key ";
-  if (o.f9-o.f8 > 0) str += "<br/>Unique keys (than PK): " + (o.f9-o.f8);
+  if (o.f11 == "r") str += "<c>Inheritance Partition of : " + o.f10 + "</c>";
+  if (o.f11 == "p") str += "<c>Native Partition of : " + o.f10 + "</c>";
+  if (o.f6 !== null) str += "<c>Total Indexes: " + o.f6 + "</c>";
+  if (o.f7 !== null) str += "<c>Unused Indexes: " + o.f7 + "</c>";
+  if (o.f8 > 0) str += "<c>Primary key: Exists</c>";
+  else str += "<c>No Primary key</c>";
+  if (o.f9-o.f8 > 0) str += "<c>Unique keys (than PK): " + (o.f9-o.f8) + "</c>";
   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
-  if (vac > 0) str +="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
-  str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
-  str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
-  str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
-  str += "<br/>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4);
-  str += "<br>Rel.filename : " + o.f12;
-  if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
+  if (vac > 0) str +="<c>Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1) + "</c>";
+  str += "<c>Inserts / day : " + Math.round(o.f2/obj.dbts.f4) + "</c>";
+  str += "<c>Updates / day : " + Math.round(o.f3/obj.dbts.f4) + "</c>";
+  str += "<c>Deletes / day : " + Math.round(o.f4/obj.dbts.f4) + "</c>";
+  str += "<c>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4) + "</c>";
+  str += "<c>Rel.filename : " + o.f12 + "</c>";
+  if (o.f13 < 16384) str += "<c>Tablespace : pg_default </c>"; 
   else{
     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f13).toString()); 
-    str += "<br>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
+    str += "<c>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
   }
-  if (o.f14 !== null ) str += "<br>Current Settings : " + o.f14;
+  if (o.f14 !== null ) str += "<c>Current Settings : " + o.f14 + "</c>";
   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-  if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3));  //Refer FILLFACTOR in sqlstatement.md
+  if (o.f3 > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3)); + "</c>" //Refer FILLFACTOR in sqlstatement.md
   if (vac/obj.dbts.f4 > 50) { 
     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48);  //(UPDATEs per day + DELETEs per day) / 48
     if (threshold < 500) threshold = 500;
-    str += "<br/>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
+    str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
   }}
-  return "<b>" + th.cells[0].innerText + "</b><br/>OID : " + o.f1 + "</b><br/>Schema : " + ns.nsname + str;
+  return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o.f1 + "</c><c>Schema : " + ns.nsname + "</c>" + str;
 }
 
 //Pop-up for Session details

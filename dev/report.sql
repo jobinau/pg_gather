@@ -6,6 +6,8 @@
 \echo table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px } 
 \echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;}
 \echo tr:nth-child(even) {background-color: #eef8ff} 
+\echo c { display: block }
+\echo c:hover { background-color: #DFD; color: #700}
 \echo a:hover,tr:hover { background-color: #EBFFDA}
 \echo /* h2 { scroll-margin-left: 2em;} keep the scroll left
 \echo caption { font-size: larger } */
@@ -18,7 +20,7 @@
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 1}
-\echo #dtls { margin-left: -0.2em; left:100%; top: 10%; width: max-content; color: black;}
+\echo #dtls { margin-left: -0.2em; left:100%; top: 8%; width: max-content; color: black;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1237,43 +1239,43 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let o=JSON.parse(th.cells[1].innerText);
 \echo   let str="";
 \echo   if(th.cells[0].classList.contains("lime")) str = "<br/>(pg_gather connected)";
-\echo   return "<b>" + th.cells[0].innerText + "</b>" + str + "<br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " 
-\echo    + o.f3 + "<br/>Stats Reset : " + o.f4 + "<br/>DB oid(dbid) :" + o.f5 + "<br/>Multi Txn Id Age :" + o.f6  ;
+\echo   return "<b>" + th.cells[0].innerText + "</b>" + str + "<c> Inserts per day : " + o.f1 + "</c><c>Updates per day : " + o.f2 + "</c><c>Deletes per day : " 
+\echo    + o.f3 + "</c><c>Stats Reset : " + o.f4 + "</c><c>DB oid(dbid) :" + o.f5 + "</c><c>Multi Txn Id Age :" + o.f6 + "</c>" ;
 \echo }
 \echo function tabdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText);
 \echo   let vac=th.cells[13].innerText;
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
-\echo   if (o.f11 == "r") str += "<br/>Inheritance Partition of : " + o.f10;
-\echo   if (o.f11 == "p") str += "<br/>Native Partition of : " + o.f10;
-\echo   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
-\echo   if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;
-\echo   if (o.f8 > 0) str += "<br/>Primary key: Exists";
-\echo   else str += "<br/>No Primary key ";
-\echo   if (o.f9-o.f8 > 0) str += "<br/>Unique keys (than PK): " + (o.f9-o.f8);
+\echo   if (o.f11 == "r") str += "<c>Inheritance Partition of : " + o.f10 + "</c>";
+\echo   if (o.f11 == "p") str += "<c>Native Partition of : " + o.f10 + "</c>";
+\echo   if (o.f6 !== null) str += "<c>Total Indexes: " + o.f6 + "</c>";
+\echo   if (o.f7 !== null) str += "<c>Unused Indexes: " + o.f7 + "</c>";
+\echo   if (o.f8 > 0) str += "<c>Primary key: Exists</c>";
+\echo   else str += "<c>No Primary key</c>";
+\echo   if (o.f9-o.f8 > 0) str += "<c>Unique keys (than PK): " + (o.f9-o.f8) + "</c>";
 \echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
-\echo   if (vac > 0) str +="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
-\echo   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
-\echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
-\echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   str += "<br/>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4);
-\echo   str += "<br>Rel.filename : " + o.f12;
-\echo   if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
+\echo   if (vac > 0) str +="<c>Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1) + "</c>";
+\echo   str += "<c>Inserts / day : " + Math.round(o.f2/obj.dbts.f4) + "</c>";
+\echo   str += "<c>Updates / day : " + Math.round(o.f3/obj.dbts.f4) + "</c>";
+\echo   str += "<c>Deletes / day : " + Math.round(o.f4/obj.dbts.f4) + "</c>";
+\echo   str += "<c>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4) + "</c>";
+\echo   str += "<c>Rel.filename : " + o.f12 + "</c>";
+\echo   if (o.f13 < 16384) str += "<c>Tablespace : pg_default </c>"; 
 \echo   else{
 \echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f13).toString()); 
-\echo     str += "<br>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
+\echo     str += "<c>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
 \echo   }
-\echo   if (o.f14 !== null ) str += "<br>Current Settings : " + o.f14;
+\echo   if (o.f14 !== null ) str += "<c>Current Settings : " + o.f14 + "</c>";
 \echo   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3)); 
+\echo   if (o.f3 > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3)); + "</c>"
 \echo   if (vac/obj.dbts.f4 > 50) { 
 \echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48); 
 \echo     if (threshold < 500) threshold = 500;
-\echo     str += "<br/>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
+\echo     str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
 \echo   }}
-\echo   return "<b>" + th.cells[0].innerText + "</b><br/>OID : " + o.f1 + "</b><br/>Schema : " + ns.nsname + str;
+\echo   return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o.f1 + "</c><c>Schema : " + ns.nsname + "</c>" + str;
 \echo }
 \echo function sessdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
