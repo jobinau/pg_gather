@@ -3,19 +3,19 @@
 \echo <html><meta charset="utf-8" />
 \echo <style>
 \echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
-\echo table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px } 
+\echo table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px;position: relative; } 
 \echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;z-index: 1}
 \echo tr:nth-child(even) {background-color: #eef8ff} 
 \echo c { display: block }
-\echo c:hover { background-color: #DFD; color: #600; text-shadow: 0.5px 0 0 currentColor, -0.5px 0 0 currentColor;}
+\echo c:hover,li:hover { background-color: #DFD; text-shadow: #800 0.5px 0 0.5px; }
 \echo a:hover,tr:hover { background-color: #EBFFDA}
 \echo ol { width: fit-content;}
 \echo .warn { font-weight:bold; background-color: #FBA }
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:2em }
-\echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue;position: relative;}}
-\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
+\echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
+\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
 \echo #dtls { margin-left: -0.2em; left:100%; top: 4%; width: max-content; color: black;}
@@ -522,6 +522,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   checkiostat();
 \echo   checkreplstat();
 \echo   checktabs();
+\echo   checktabPart();
 \echo   checkindex();
 \echo   checkextn();
 \echo   checkhba();
@@ -1120,6 +1121,18 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo const endTime = new Date().getTime();
 \echo obj.tabs.bloatTabNum = bloatTabTot;
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
+\echo }
+\echo function checktabPart(){
+\echo   const tab=document.getElementById("tabPart");
+\echo   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB" 
+\echo   const trs=tab.rows
+\echo   const len=trs.length;
+\echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
+\echo   for(var i=1;i<len;i++){
+\echo     tr=trs[i];
+\echo     if (tr.cells[2].innerText > 16 ) { tr.cells[2].classList.add("lime"); tr.cells[2].title = "Ensure proper partition pruning in SQL statements"; }
+\echo     else if (tr.cells[3].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[3].classList.add("warn"); tr.cells[2].title = "Average per partition size is :" + bytesToSize(tr.cells[3].innerText/tr.cells[3].innerText) ; }
+\echo   }
 \echo }
 \echo function checkdbs(){
 \echo   const trs=document.getElementById("dbs").rows

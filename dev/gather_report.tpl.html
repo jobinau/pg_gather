@@ -3,19 +3,19 @@
 <html><meta charset="utf-8" />
 <style>
 #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
-table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px } 
+table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px;position: relative; } 
 th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;z-index: 1}
 tr:nth-child(even) {background-color: #eef8ff} 
 c { display: block }
-c:hover { background-color: #DFD; color: #600; text-shadow: 0.5px 0 0 currentColor, -0.5px 0 0 currentColor;}
+c:hover,li:hover { background-color: #DFD; text-shadow: #800 0.5px 0 0.5px; }
 a:hover,tr:hover { background-color: #EBFFDA}
 ol { width: fit-content;}
 .warn { font-weight:bold; background-color: #FBA }
 .high { border: 5px solid red;font-weight:bold}
 .lime { font-weight:bold;background-color: #FFD}
 .lineblk {float: left; margin:2em }
-.thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue;position: relative;}}
-#bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 2}
+.thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
+#bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
 #dtls { margin-left: -0.2em; left:100%; top: 4%; width: max-content; color: black;}
@@ -546,6 +546,7 @@ async function doAllChecks(){
   checkreplstat();
   //if (checkpars() == 1) { document.getElementById("finditem").innerHTML += strfind; return};  //Exit if there is any error in parameter collection
   checktabs();
+  checktabPart();
   checkindex();
   checkextn();
   checkhba();
@@ -1208,6 +1209,19 @@ function checktabs(){
 const endTime = new Date().getTime();
 obj.tabs.bloatTabNum = bloatTabTot;
 console.log("time taken for checktabs :" + (endTime - startTime));
+}
+
+function checktabPart(){ //check partitioned tables
+  const tab=document.getElementById("tabPart");
+  tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB" 
+  const trs=tab.rows
+  const len=trs.length;
+  if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
+  for(var i=1;i<len;i++){
+    tr=trs[i];
+    if (tr.cells[2].innerText > 16 ) { tr.cells[2].classList.add("lime"); tr.cells[2].title = "Ensure proper partition pruning in SQL statements"; }
+    else if (tr.cells[3].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[3].classList.add("warn"); tr.cells[2].title = "Average per partition size is :" + bytesToSize(tr.cells[3].innerText/tr.cells[3].innerText) ; }
+  }
 }
 
 //Inspect database level info
