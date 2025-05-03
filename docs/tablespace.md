@@ -4,6 +4,21 @@ In PostgreSQL, each tablespace is a storage/mount point location.
 Historically, Tablespaces were the only option for spreading the I/O load to multiple disk systems, which was the major use of tablespaces.
 However, Advancements in LVM have made it less useful these days. LVMs are capable of striping data across different disk systems, which can give the total I/O bandwidth of all the storages put together.
 
+## Checking the tablespaces
+### From pg_gather data
+```
+ select * from pg_get_tablespace ;
+```
+
+## Directly from the database
+```
+SELECT spcname AS "Name",
+  pg_catalog.pg_get_userbyid(spcowner) AS "Owner",
+  pg_catalog.pg_tablespace_location(oid) AS "Location"
+FROM pg_catalog.pg_tablespace
+ORDER BY 1;
+```
+
 ## Disadvantages of Tablespaces.
 1. DBA will have higher responsibility for monitoring and managing each tablespace and space availability.
  Segregation of storage into multiple mount points can lead to management and monitoring complexities.
