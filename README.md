@@ -1,18 +1,29 @@
-# pg_gather aka pgGather
-![pgGather logo](./docs/pgGather.svg)  
-Scan and collect the minimal amount of data needed to identify potential problems in your PostgreSQL database, and then generate an analysis report using that data. This project provides two SQL scripts for users:  
-  
-* `gather.sql`: Gathers performance and configuration data from PostgreSQL databases.
-* `gather_report.sql`: Analyzes the collected data and generates detailed HTML reports.
-  
-Everything is SQL-only, leveraging the built-in features of psql, the command-line utility of PostgreSQL
+# `pg_gather` also known as pgGather
+![pgGather logo](./docs/pgGather.svg)
 
-**Supported PostgreSQL Versions** :  10, 11, 12, 13, 14, 15, 16 & 17
-**Older versions** : For PostgeSQL 9.6 and older, Please refer the [documentation page](docs/oldversions.md)
+`pg_gather` is an extension designed to collect and analyze test results from PostgreSQL test runs, it is especially useful for:
 
-# Highlights
-1. **Secure by Open :** Simple, Transperent, Fully auditable code.  
+* Gathering results from TAP test frameworks
+* Visualizing test coverage and failure rates
+* Supporting regression or fuzz testing environments
+
+You can use the following scripts:
+  
+* `gather.sql`, which gathers performance and configuration data from PostgreSQL databases.
+* `gather_report.sql`, which analyzes the collected data and generates detailed HTML reports.
+
+!!! note
+    The project is built using psql, the native command-line interface for PostgreSQL, and relies solely on SQL features.
+
+**Supported PostgreSQL Versions**: 10, 11, 12, 13, 14, 15, 16 & 17.
+**Older versions**: For PostgeSQL versions 9.6 or older, refer to the [documentation page](docs/oldversions.md).
+
+## Highlights
+
+1. **Security Through Transparency:** Simple, transparent, with a fully auditable code. 
+
    To ensure full transparency of what is collected, transmitted, and analyzed, we use an SQL-only data collection script and avoid programs with any control structures, thus improving the readability and auditability of the data collection. This is one reason for separating data collection and analysis.
+
 2. **No Executables :** No executables need to be deployed on the database host  
    Using executables in secured environments poses unacceptable risks in many highly secure environments. `pg_gather` requires only the standard PostgreSQL command line utility, `psql`, and no other libraries or executables.
 3. **Authentication agnostic**
