@@ -24,22 +24,28 @@ You can use the following scripts:
 
    `pg_gather` ensures full transparency of what is collected, transmitted, and analyzed. It uses an SQL-only data collection script and avoids programs with any enforced control structures, improving the readability and auditability of the data collection. This is one reason for separating data collection and analysis.
 
-2. **No Executables :** No executables need to be deployed on the database host  
-   Using executables in secured environments poses unacceptable risks in many highly secure environments. `pg_gather` requires only the standard PostgreSQL command line utility, `psql`, and no other libraries or executables.
+2. **No Executables:** No executables need to be deployed on the database host
 
-3. **Authentication agnostic**
+   `pg_gather` does not require any other additional executables or libraries on the database host other than `psql`, this avoids the risk of deploying binaries in secured environments.
+
+3. **Authentication compatibility**
+
    Any authentication mechanism supported by PostgreSQL works for data gathering in `pg_gather`, because it uses the standard `psql` command-line utility.
-4. **Any Operating System**  
-   Linux (32/64-bit), Sun Solaris, Apple macOS, and Microsoft Windows: pg_gather works wherever `psql` is available, ensuring maximum portability. 
-   (Windows users, please see the [Notes section](#notes) below)
+
+4. **Operating System compatibility**
+
+   Linux (32/64-bit), Sun Solaris, Apple macOS, and Microsoft Windows: pg_gather works wherever `psql` is available, ensuring maximum portability.
+   !!! note
+      (Windows users, please see the [Notes section](#notes) below)
+
 5. **Architecture agnostic**
    x86-64 bit, ARM, Sparc, Power, and other architectures. It works anywhere `psql` is available.
 6. **Auditable and optionally maskable data** :  
    `pg_gather` collects data in Tab Separated Values (TSV) format, making it easy to review and audit the information before sharing it for analysis. Additional masking or trimming is also possible with [simple steps](docs/security.md).
-7. **Any cloud/container/k8s** :   
+7. **Any cloud/container/k8s** :
    Works with AWS RDS, Azure, Google Cloud SQL, on-premises databases, and more.  
    (Please see Heroku, AWS Aurora, Docker and K8s specific notes in the [Notes section](#notes) below)
-8. **Zero failure design** :   
+8. **Zero failure design** :
    `pg_gather` can generate a report from available information even if data collection is partial or fails due to permission issues, unavailable tables/views, or other reasons.
 9.  **Low overhead for data collection** :  
    By design, data collection is separate from data analysis. This allows the collected data to be analyzed on an independent system, so that analysis queries do not adversely impact critical systems. In most cases, the overhead of data collection is negligible.
