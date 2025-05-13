@@ -18,14 +18,15 @@ You can use the following scripts:
 **Supported PostgreSQL Versions**: 10, 11, 12, 13, 14, 15, 16 & 17.
 **Older versions**: For PostgeSQL versions 9.6 or older, refer to the [documentation page](docs/oldversions.md).
 
-## Highlights
+## `pg_gather` Highlights
 
-1. **Security Through Transparency:** Simple, transparent, with a fully auditable code. 
+1. **Security Through Transparency:** Simple, transparent, with a fully auditable code.
 
-   To ensure full transparency of what is collected, transmitted, and analyzed, we use an SQL-only data collection script and avoid programs with any control structures, thus improving the readability and auditability of the data collection. This is one reason for separating data collection and analysis.
+   `pg_gather` ensures full transparency of what is collected, transmitted, and analyzed. It uses an SQL-only data collection script and avoids programs with any enforced control structures, improving the readability and auditability of the data collection. This is one reason for separating data collection and analysis.
 
 2. **No Executables :** No executables need to be deployed on the database host  
    Using executables in secured environments poses unacceptable risks in many highly secure environments. `pg_gather` requires only the standard PostgreSQL command line utility, `psql`, and no other libraries or executables.
+
 3. **Authentication agnostic**
    Any authentication mechanism supported by PostgreSQL works for data gathering in `pg_gather`, because it uses the standard `psql` command-line utility.
 4. **Any Operating System**  
