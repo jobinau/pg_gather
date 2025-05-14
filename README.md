@@ -76,93 +76,127 @@ To gather configuration and performance information, run the `gather.sql` script
 psql <connection_parameters_if_any> -X -f gather.sql > out.tsv
 ```
 
-OR ALTERNATIVELY pipe to a compression utilty to get a compressed output as follows:
+OR pipe to a compression utilty to get a compressed output:
 
 ```
 psql <connection_parameters_if_any> -X -f gather.sql | gzip > out.tsv.gz
 ```
 
-This script may take over 20 seconds to run because it contains sleeps/delays. We recommend running the script as a privileged user (such as `superuser` or `rds_superuser`) or as an account with the `pg_monitor` privilege. The output file contains performance and configuration data for analysis.
+This script may take over 20 seconds to run because it contains sleeps and delays. We recommend running the script as a privileged user (such as `superuser` or `rds_superuser`) or as an account with the `pg_monitor` privilege. The output file contains performance and configuration data ready for analysis.
 
-### Notes
+### Additional details
 
-   1. **Heroku** and similar DaaS hostings impose very high restrictions on collecting performance data. Queries on views like `pg_statistics` may produce errors during data collection, but these errors can be ignored.
-   2. **MS Windows** users!, 
-   Client tools like [pgAdmin](https://www.pgadmin.org/) include `psql`, which can be used to run `pg_gather` against local or remote databases.
-   For example:
+* **Heroku** and similar DaaS hostings:
 
-   ```
-     "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.tsv
-   ```
+These impose very high restrictions on collecting performance data. Queries on views like `pg_statistics` may produce errors during data collection, however you can ignore these.
 
-   3. **AWS Aurora** offers a "PostgreSQL-compatible" database. However, it is not a true PostgreSQL database, even though it looks like one. Therefore, you should do the following to the `gather.sql` script to replace any unapplicable lines with "NULL".
+* **MS Windows** users:
 
-   ```
-     sed -i -e 's/^CASE WHEN pg_is_in_recovery().*/NULL/' gather.sql
-   ```
+Client tools like [pgAdmin](https://www.pgadmin.org/) include `psql`, which can be used to run `pg_gather` against local or remote databases.
+For example:
 
-   4. **Docker** containers of PostgreSQL may not include the `curl` or `wget` utilities necessary to download `gather.sql`. Therefore, it is recommended to pipe the contents of the SQL file to `psql` instead.
+```
+"C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.tsv
+```
 
-   ```
-     cat gather.sql | docker exec -i <container> psql -X -f - > out.tsv
-   ```
+* **AWS Aurora** offers a "PostgreSQL-compatible" database. However, it is not a *true* PostgreSQL database. Therefore, do the following to the `gather.sql` script to replace any unapplicable lines with *NULL*.
 
-   5. **Kubernetes**  environments also have similar restrictions as those mentioned for Docker. Therefore, a similar approach is suggested.
+```
+sed -i -e 's/^CASE WHEN pg_is_in_recovery().*/NULL/' gather.sql
+```
 
-   ```
-     cat gather.sql | kubectl exec -i <PGpod> -- psql -X -f - > out.tsv
-   ```
+* **Docker** containers of PostgreSQL may not include the `curl` or `wget` utilities necessary to download `gather.sql`. Therefore, it is recommended to pipe the contents of the SQL file to `psql` instead.
+
+```
+cat gather.sql | docker exec -i <container> psql -X -f - > out.tsv
+```
+
+* **Kubernetes**  environments have similar restrictions as those mentioned above. Therefore, a similar approach is recommended.
+
+```
+cat gather.sql | kubectl exec -i <PGpod> -- psql -X -f - > out.tsv
+```
 
 ### Gathering data continuosly
 
-There could be requirements for collecting data continuously and repatedly. `pg_gather` has a special lightweight mode for continuous data gathering, which is automatically enabled when it connects to the "template1" database. Please refer to detailed [documentation specific to continuous and repated data collection](docs/continuous_collection.md)
+In cases where the collection of data needs to be performed continously and repeatedly, `pg_gather` has a special lightweight mode for continuous data gathering. It is automatically enabled when it connects to the "template1" database.
+
+!!! note
+    For more information, see [Continuous Data collection](docs/continuous_collection.md).
 
 ## 2. Data Analysis
 
 ### 2.1 Importing collected data
 
-The collected data can be imported to a PostgreSQL Instance. This creates required schema objects in the `public` schema of the database. 
-**CAUTION :** Avoid importing the data into critical environments/databases. A temporary PostgreSQL instance is preferable.
+You can import the collected data to a PostgreSQL instance, which creates the required schema objects in the `public` schema of the database.
+
+!!! warning
+    Avoid importing the data into critical environments/databases. A temporary PostgreSQL instance is preferable.
+
 ```
  psql -f gather_schema.sql -f out.tsv
 ```
-Deprecated usage of `sed` : sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.tsv | psql -f gather_schema.sql -
-## 2.2 Generating Report
-An analysis report in HTML format can be generated from the imported data as follows.
+
+The following is a deprecated usage of `sed`:
+
+```
+sed -e '/^Pager/d; /^Tuples/d; /^Output/d; /^SELECT pg_sleep/d; /^PREPARE/d; /^\s*$/d' out.tsv | psql -f gather_schema.sql -
+```
+
+### 2.2 Generating a report
+
+You can generate an HTML format analysis report from the imported data by using the following command:
+
 ```
 psql -X -f gather_report.sql > GatherReport.html
 ```
-You may use your favourite web browser to read the report.
 
-NOTE: PostgreSQL version 13 or above is required to generate the analysis report.
+!!! note
+     Generating the analysis report requires PostgreSQL version 13 or higher. You can view the report in any modern web browser.
 
+## 2.3 Alternative Approach: Dockerized report generation
 
+The steps for data analysis mentioned above require a PostgreSQL instance to import the data into. An alternative solution to this is to use the `generate_report.sh` script, which spins up a PostgreSQL Docker container and automates the entire process.
 
-# ANNEXTURE 1 : Using PostgreSQL container and wrapper script
-The steps for data analysis mentioned above seem simple (single command), but they require a PostgreSQL instance to import the data into. An alternative is to use the `generate_report.sh` script, which can spin up a PostgreSQL Docker container and automate the entire process. To use this script, you must place it in a directory containing the `gather_schema.sql` and `gather_report.sql` files.
+To use this script, place it in the same directory containing the `gather_schema.sql` and `gather_report.sql` files.
 
-The script will spin up a Docker container, import the output of `gather.sql` (out.tsv) and then it generates an HTML report. This script expects at least a single argument: path to the `out.tsv`. 
+Once executed, the script:
 
-There are two more additional positional arguments: 
-* Desired report name with path. 
-* A flag to specify whether to keep the docker container. This flag allows to usage of the container and data for further analysis.
+1. Creates a PostgreSQL container.
+2. Imports the output from `gather.sql` (i.e., `out.tsv`).
+3. Generates an HTML report.
 
-Example 1: Import data and generate an HTML file
+The script expects at least a single argument:
+
+* the path to the `out.tsv` file.
+
+It also accepts two optional positional arguments:
+
+* Desired report name with path
+* A flag to specify whether to keep the docker container. This flag permits the usage of the container and data for further analysis
+
+**Example 1**: Import data and generate an HTML file
+
 ```
 $ ./generate_report.sh /tmp/out.tsv
 ...
 Container 61fbc6d15c626b484bdf70352e94bbdb821971de1e00c6de774ca5cd460e8db3 deleted
 Finished generating report in /tmp/out.txt.html
 ```
-Example 2: Import data, keep the container intact and generate the report in the specified location
+
+**Example 2**: Import data, keep the container intact and generate the report in the specified location
+
 ```
 $ ./generate_report.sh /tmp/out.tsv /tmp/custom-name.html y
 ...
 Container df7b228a5a6a49586e5424e5fe7a2065d8be78e0ae3aa5cddd8658ee27f4790c left around
 Finished generating report in /tmp/custom-name.html
 ```
-# Advanced configurations
-## Timezone 
+
+## Advanced configurations
+
+### Timezone
+
 By default, the `pg_gather` report uses the same timezone of the server from which the data is collected, because it considers the `log_timezone` parameter for generating the report. This default timezone setting helps to compare the PostgreSQL log entries with the `pg_gather` report.
 However, this may not be the right timezone for few users, especially when cloud hostings are used. The `pg_gather` allows the user to have a custom timezone by setting the environment variable `PG_GATHER_TIMEZONE` to override the default. For example,
 ```
