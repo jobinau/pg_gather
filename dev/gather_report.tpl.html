@@ -176,14 +176,22 @@ LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numsca
    count(indexrelid) FILTER (WHERE indisunique) uk, indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
-\pset tableattr 'id="tabPart"'
-SELECT p.relname "Partitioned Table", CASE p.relkind WHEN 'p' THEN 'Native' WHEN 'r' THEN 'Inheritance' ELSE p.relkind END "Partitioning Type",
-count(c.reloid) "Partitions", sum(r.tot_tab_size) "Tot.Tab size", sum(r.tab_ind_size) "Tab+Ind size"
-FROM pg_get_class c JOIN pg_get_inherits i ON c.reloid = i.inhrelid
-JOIN pg_get_class p ON i.inhparent = p.reloid
-LEFT JOIN pg_get_rel r ON c.reloid = r.relid 
-WHERE p.relkind != 'I'
-GROUP BY 1,2;
+\pset tableattr 'id="tabPart" class="thidden"'
+WITH ptables AS ( SELECT p.relname , p.relkind, i.inhparent, i.inhrelid
+FROM pg_get_class p LEFT JOIN pg_get_inherits i ON i.inhparent = p.reloid
+WHERE p.relkind in ('p','r'))
+SELECT  p.relname "Partitioned Table", CONCAT(any_value(c.relname) FILTER (WHERE dpart = 't'),',',any_value(r.n_live_tup) FILTER (WHERE dpart='t')) "Default Partition Name, Count",
+ 'Native-Declarative' "Partitioning Type",  count(r.relid) "Partitions", sum(r.tot_tab_size) "tot_tab_size" , sum(r.tab_ind_size) "tab_ind_size",
+  round(max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100 ,1) "Fetch Prune %" 
+FROM ptables p LEFT JOIN pg_get_rel r ON p.inhrelid = r.relid 
+ LEFT JOIN pg_get_class c ON p.inhrelid = c.reloid
+WHERE p.relkind = 'p' GROUP BY 1
+UNION ALL
+SELECT  p.relname ,',', 'Inheritance' , count(r.relid) "Partitions", sum(r.tot_tab_size) ,
+  sum(r.tab_ind_size), max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100
+FROM ptables p JOIN pg_get_rel r ON p.inhrelid = r.relid
+ JOIN pg_get_class c ON p.inhrelid = c.reloid
+WHERE p.relkind = 'r' GROUP BY 1;
 
 \pset tableattr 'id="IndInfo"'
 SELECT n.nsname "Schema",ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
@@ -1213,14 +1221,16 @@ console.log("time taken for checktabs :" + (endTime - startTime));
 
 function checktabPart(){ //check partitioned tables
   const tab=document.getElementById("tabPart");
+  if (tab.rows.length < 2){ tab.tBodies[0].innerHTML="No Partitioned tables found."; return;}
   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB" 
   const trs=tab.rows
   const len=trs.length;
   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
   for(var i=1;i<len;i++){
     tr=trs[i];
-    if (tr.cells[2].innerText > 16 ) { tr.cells[2].classList.add("lime"); tr.cells[2].title = "Ensure proper partition pruning in SQL statements"; }
-    else if (tr.cells[3].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[3].classList.add("warn"); tr.cells[2].title = "Average per partition size is :" + bytesToSize(tr.cells[3].innerText/tr.cells[3].innerText) ; }
+    if (tr.cells[3].innerText > 16 ) { tr.cells[3].classList.add("lime"); tr.cells[3].title = "Ensure proper partition pruning in SQL statements"; 
+    } else if (tr.cells[3].innerText == 0 ) { tr.cells[3].classList.add("warn"); tr.cells[3].title = "No Partitions found"; }
+    if (tr.cells[4].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[4].classList.add("warn"); tr.cells[2].title = "Average per partition size is :" + bytesToSize(tr.cells[3].innerText/tr.cells[3].innerText) ; }
   }
 }
 
@@ -1357,12 +1367,15 @@ document.querySelectorAll("th").forEach(th => th.addEventListener("click", (() =
 
 /////############## Pop-up details box######################
 //Pop-up at DB info
-function dbsdtls(th){
+function dbsdtls(e){
+  if (e.target.matches("tr td:first-child")){
+  th = e.target.parentNode;
   let o=JSON.parse(th.cells[1].innerText);
   let str="";
   if(th.cells[0].classList.contains("lime")) str = "<br/>(pg_gather connected)";
   return "<b>" + th.cells[0].innerText + "</b>" + str + "<c> Inserts per day : " + o.f1 + "</c><c>Updates per day : " + o.f2 + "</c><c>Deletes per day : " 
    + o.f3 + "</c><c>Stats Reset : " + o.f4 + "</c><c>DB oid(dbid) :" + o.f5 + "</c><c>Multi Txn Id Age :" + o.f6 + "</c>" ;
+  }
 }
 
 //Pop-up for Tables.
@@ -1462,23 +1475,37 @@ if(tr.cells[1].innerText.length > 2){
 //   td.appendChild(el);
 // })));
 
+function tabPartdtls(e){
+  console.log("Inside tabPartdtls");
+  tab = e.currentTarget;
+
+  if (e.target.matches("tr td:first-child")){
+  }
+}
+
+
 document.querySelectorAll(".thidden").forEach(table => {
   table.addEventListener("mouseenter", (e) => {
-    if (e.target.matches("tr td:first-child")){
-      const td = e.target;
+    let str = ""
+    const td = e.target;
+    if (typeof window[e.currentTarget.id + "dtls"] === "function") { //if there is a function with the name of table id + dtls
+     str = window[e.currentTarget.id + "dtls"](e);   //pass the event to the function and get the processed string
+    } else if (e.target.matches("tr td:first-child")){
       const tr = td.parentNode;
       const tab = tr.closest("table");
+      str = tab.id === "tabInfo" ? tabdtls(tr) :
+                     tab.id === "tblsess" ? sessdtls(tr) :
+                     tab.id === "tblusr" ? userdtls(tr) :
+                     tab.id === "tblcs" ? dbcons(tr) : "";;
+    }  
+    if ( str ) {
       var el = document.createElement("div");
       el.setAttribute("id", "dtls");
       el.setAttribute("align", "left");
       el.addEventListener("mouseleave", (event) => {
       if (!td.contains(event.relatedTarget)) el.remove(); // Check if the mouse is moving back to the parent, Remove the child element if it is leaving, but not going back to parent
-     });
-      el.innerHTML = tab.id === "dbs" ? dbsdtls(tr) :
-                     tab.id === "tabInfo" ? tabdtls(tr) :
-                     tab.id === "tblsess" ? sessdtls(tr) :
-                     tab.id === "tblusr" ? userdtls(tr) :
-                     tab.id === "tblcs" ? dbcons(tr) : "";
+      })
+      el.innerHTML= str;
       td.appendChild(el); 
     }
   }, true); // `true` for capture phase (better performance)
