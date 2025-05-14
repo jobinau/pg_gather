@@ -198,7 +198,8 @@ CREATE UNLOGGED TABLE pg_get_rel (
     last_vac timestamp with time zone,
     last_anlyze timestamp with time zone,
     vac_nos bigint,
-    lastuse timestamp with time zone
+    lastuse timestamp with time zone,
+    dpart char COLLATE "C"
 );
 
 
