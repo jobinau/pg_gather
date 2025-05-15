@@ -36,8 +36,9 @@ You can use the following scripts:
 4. **Operating System compatibility**
 
    `pg_gather` ensures portability and compatibility among the following OS's: Linux (32/64-bit), Sun Solaris, Apple macOS, and Microsoft Windows.
+
    !!! note
-      For Windows users, see the [Notes section](#notes) below.
+      For Windows users, see [additional details](#additional-details).
 
 5. **Architecture compatibility**
 
@@ -52,7 +53,7 @@ You can use the following scripts:
    `pg_gather` works seamlessly with AWS RDS, Azure Database for PostgreSQL, Google Cloud SQL, on-premises PostgreSQL, and more.
 
    !!! note
-      For details about Heroku, AWS Aurora, Docker and Kubernetes support see the [Notes section](#notes).
+      For details about Heroku, AWS Aurora, Docker and Kubernetes support see [additional details](#additional-details).
 
 8. **Resilient by design**
 
@@ -197,16 +198,33 @@ Finished generating report in /tmp/custom-name.html
 
 ### Timezone
 
-By default, the `pg_gather` report uses the same timezone of the server from which the data is collected, because it considers the `log_timezone` parameter for generating the report. This default timezone setting helps to compare the PostgreSQL log entries with the `pg_gather` report.
-However, this may not be the right timezone for few users, especially when cloud hostings are used. The `pg_gather` allows the user to have a custom timezone by setting the environment variable `PG_GATHER_TIMEZONE` to override the default. For example,
+By default, the `pg_gather` report uses the same timezone of the server from which the data is collected as it takes into account the `log_timezone` parameter for generating the report. This default timezone setting helps to compare the PostgreSQL log entries with the `pg_gather` report.
+
+However, this may not be the correct timezone for you, especially when cloud hostings are used. You can create a custom timezone by:
+
+* setting the environment variable `PG_GATHER_TIMEZONE` to override the default. 
+
+For example:
+
 ```
 export PG_GATHER_TIMEZONE='UTC'
 ```
-Please use the timezone name or abbreviation available from `pg_timezone_names`
-# Demo
-## Data collection
+
+!!! note
+    Please use the timezone name or abbreviation available from `pg_timezone_names`
+
+## Using pg_gather, a visual guide
+
+To learn more about using `pg_gather`, see the video guides below.
+
+### Data collection
+
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/4EK7BoV6oOg/0.jpg)](https://youtu.be/4EK7BoV6oOg)
-## Simple Report Generation (1min): 
+
+### Simple Report Generation
+
 [![Import data and Generate report using PG](https://img.youtube.com/vi/Y8gq1dwfzQU/0.jpg)](https://youtu.be/Y8gq1dwfzQU)
-## Report generation using postgresql docker container made easy (3min): 
+
+### Report generation using postgresql docker container made easy
+
 [![Import data and Generate report using PG docker container: made simple](https://img.youtube.com/vi/amPQRzz5D8Y/0.jpg)](https://youtu.be/amPQRzz5D8Y)
