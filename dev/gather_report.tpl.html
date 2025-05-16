@@ -15,6 +15,7 @@ ol { width: fit-content;}
 .lime { font-weight:bold;background-color: #FFD}
 .lineblk {float: left; margin:2em }
 .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
+.bar {display:inline-block; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;}  /* bar for graph */
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
@@ -103,7 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
     <option value="cow">COW (like: zfs/btrfs)</option>
    </select>
  </label>
- <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you're unsure, seek expert guidance.</p>
+ <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you are unsure, seek expert guidance.</p>
 </fieldset>
   <div id="paramtune" style="padding:2em;position:relative;width: fit-content;">
    <h3 style="font: italic 1.2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Recommendations:</h3>
@@ -741,7 +742,7 @@ function checkfindings(){
 
 function checkconns(){
   tab=document.getElementById("tblcs");
-  tab.caption.innerHTML=''<span>DB Connections</span>'';
+  tab.caption.innerHTML="<span>DB Connections</span>";
   const trs=tab.rows
   let nonssl=0;
   for (var i=1;i<trs.length;i++){
@@ -1427,7 +1428,7 @@ function sessdtls(th){
   if (o.f4 != null) str += "Communication :" + o.f4 + "<br/>";
   if (o.f5 != null) str += "Workers :" + o.f5 + "<br/>";
   //o.f6 is injected from checksess() into JSON. "f6" is hard coded.
-  if (typeof o.f6 != "undefined") str += ''<div class="warn">'' + o.f6 + "<div>";
+  if (typeof o.f6 != "undefined") str += "<div class=warn>" + o.f6 + "<div>";  //This may need to change to proper add element
   if (str.length < 1) str+="Independent/Background process";
   return str;
 }
@@ -1476,10 +1477,22 @@ if(tr.cells[1].innerText.length > 2){
 // })));
 
 function tabPartdtls(e){
-  console.log("Inside tabPartdtls");
-  tab = e.currentTarget;
+
+//  tab = e.currentTarget;
+//  a="1, [1, 2, 3], [4, 5, 6], [7, 8, 9]";
+//  a="[" + a + "]";
 
   if (e.target.matches("tr td:first-child")){
+  console.log("Inside tabPartdtls element");
+  th = e.target.parentNode;
+  //a = a.replace(/(\w+)/g, '"$1"');
+  let str="[" + th.cells[1].innerText + "]"
+  // str = str.replace('(\w+)/g', '"$1"');
+  console.log("o is : " + o);
+  let o=JSON.parse(o);
+  console.log("o0 is : " + oj[0]);
+  console.log("o1 is : " + oj[1]);
+  //  console.log("o is : " + o);
   }
 }
 
@@ -1585,7 +1598,7 @@ if (trs.length > 1){
   maxevnt=Number(trs[1].cells[1].innerText);
   for (let tr of trs) {
    evnts=tr.cells[1];
-   if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">'';
+   if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
   }
   //Add footer to table with available info.
@@ -1600,7 +1613,7 @@ if (trs.length > 1){
 //Session information.
 function checksess(){
 tab=document.getElementById("tblsess")
-tab.caption.innerHTML=''<span>Sessions</span>''
+tab.caption.innerHTML="<span>Sessions</span>"
 trs=tab.rows;
 for (let tr of trs){
  //column references
@@ -1660,7 +1673,7 @@ if (hwsql > 0) strfind += "<li><b>"+ hwsql +" High impact SQL statements found.<
 //Checkpointer and bgwriter info
 function checkchkpntbgwrtr(){
 tab=document.getElementById("tblchkpnt")
-tab.caption.innerHTML=''<span>BGWriter & Checkpointer</span>''
+tab.caption.innerHTML="<span>BGWriter & Checkpointer</span>"
 trs=tab.rows;
 setTitles(trs[0],["Forced Checkpoint; Checkpoint triggered by xlog/wal; Need to adjust the max_wal_size","Average Minutes between Checkpoints","Average Write time of a checkpoint",
 "Average Disk sync time of a checkpoint","","","","","","","","Dirty buffers cleaned by Checkpointer","Dirty buffers cleaned by BGWriter","Dirty buffers cleaned by Session backends",
@@ -1705,7 +1718,7 @@ if (trs.length > 1){
 
 function checkiostat(){
 tab=document.getElementById("tbliostat")
-tab.caption.innerHTML=''<span>IO Statistics</span>''
+tab.caption.innerHTML="<span>IO Statistics</span>"
 if (tab.rows.length > 1){
 }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 }

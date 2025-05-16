@@ -15,9 +15,11 @@ function psql_echo_escape() {
     } else if (ch == "\"" && in_double_quotes == 1) {
       in_double_quotes = 0
       printf("%s", "\"")
-    } else if (ch == "'" && in_double_quotes == 0) {
-      printf("%s", "''")
-    } else {
+    } 
+    #else if (ch == "'" && in_double_quotes == 0) {
+    #  printf("%s", "''")
+    #}  
+    else {
       printf("%s", chars[i])
     }
   }

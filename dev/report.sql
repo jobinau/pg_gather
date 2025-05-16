@@ -15,6 +15,7 @@
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:2em }
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
+\echo .bar {display:inline-block; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;}  /* bar for graph */
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
@@ -103,7 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <option value="cow">COW (like: zfs/btrfs)</option>
 \echo    </select>
 \echo  </label>
-\echo  <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you''re unsure, seek expert guidance.</p>
+\echo  <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you are unsure, seek expert guidance.</p>
 \echo </fieldset>
 \echo   <div id="paramtune" style="padding:2em;position:relative;width: fit-content;">
 \echo    <h3 style="font: italic 1.2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Recommendations:</h3>
@@ -692,7 +693,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function checkconns(){
 \echo   tab=document.getElementById("tblcs");
-\echo   tab.caption.innerHTML=''''<span>DB Connections</span>'''';
+\echo   tab.caption.innerHTML="<span>DB Connections</span>";
 \echo   const trs=tab.rows
 \echo   let nonssl=0;
 \echo   for (var i=1;i<trs.length;i++){
@@ -1310,7 +1311,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
 \echo   if (o.f4 != null) str += "Communication :" + o.f4 + "<br/>";
 \echo   if (o.f5 != null) str += "Workers :" + o.f5 + "<br/>";
-\echo   if (typeof o.f6 != "undefined") str += ''''<div class="warn">'''' + o.f6 + "<div>";
+\echo   if (typeof o.f6 != "undefined") str += "<div class=warn>" + o.f6 + "<div>"; 
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
 \echo }
@@ -1333,9 +1334,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo } else return "No connections"
 \echo }
 \echo function tabPartdtls(e){
-\echo   console.log("Inside tabPartdtls");
-\echo   tab = e.currentTarget;
 \echo   if (e.target.matches("tr td:first-child")){
+\echo   console.log("Inside tabPartdtls element");
+\echo   th = e.target.parentNode;
+\echo   let str="[" + th.cells[1].innerText + "]"
+\echo   console.log("o is : " + o);
+\echo   let o=JSON.parse(o);
+\echo   console.log("o0 is : " + oj[0]);
+\echo   console.log("o1 is : " + oj[1]);
 \echo   }
 \echo }
 \echo document.querySelectorAll(".thidden").forEach(table => {
@@ -1415,7 +1421,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   maxevnt=Number(trs[1].cells[1].innerText);
 \echo   for (let tr of trs) {
 \echo    evnts=tr.cells[1];
-\echo    if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">'''';
+\echo    if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
 \echo    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
 \echo   }
 \echo   el=document.createElement("tfoot");
@@ -1427,7 +1433,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function checksess(){
 \echo tab=document.getElementById("tblsess")
-\echo tab.caption.innerHTML=''''<span>Sessions</span>''''
+\echo tab.caption.innerHTML="<span>Sessions</span>"
 \echo trs=tab.rows;
 \echo for (let tr of trs){
 \echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
@@ -1479,7 +1485,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }}
 \echo function checkchkpntbgwrtr(){
 \echo tab=document.getElementById("tblchkpnt")
-\echo tab.caption.innerHTML=''''<span>BGWriter & Checkpointer</span>''''
+\echo tab.caption.innerHTML="<span>BGWriter & Checkpointer</span>"
 \echo trs=tab.rows;
 \echo setTitles(trs[0],["Forced Checkpoint; Checkpoint triggered by xlog/wal; Need to adjust the max_wal_size","Average Minutes between Checkpoints","Average Write time of a checkpoint",
 \echo "Average Disk sync time of a checkpoint","","","","","","","","Dirty buffers cleaned by Checkpointer","Dirty buffers cleaned by BGWriter","Dirty buffers cleaned by Session backends",
@@ -1523,7 +1529,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }}
 \echo function checkiostat(){
 \echo tab=document.getElementById("tbliostat")
-\echo tab.caption.innerHTML=''''<span>IO Statistics</span>''''
+\echo tab.caption.innerHTML="<span>IO Statistics</span>"
 \echo if (tab.rows.length > 1){
 \echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 \echo }
