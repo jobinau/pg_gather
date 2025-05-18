@@ -2,7 +2,7 @@
 \echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <style>
-\echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
+\echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; white-space: nowrap; span {font: italic bold 1.7em Georgia, serif}}}
 \echo table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px;position: relative; } 
 \echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;z-index: 1}
 \echo tr:nth-child(even) {background-color: #eef8ff} 
@@ -1133,8 +1133,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function checktabPart(){
 \echo   const tab=document.getElementById("tabPart");
+\echo   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB";
 \echo   if (tab.rows.length < 2){ tab.tBodies[0].innerHTML="No Partitioned tables found."; return;}
-\echo   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB" 
 \echo   const trs=tab.rows
 \echo   const len=trs.length;
 \echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
@@ -1335,13 +1335,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function tabPartdtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
-\echo   console.log("Inside tabPartdtls element");
 \echo   th = e.target.parentNode;
-\echo   let str="[" + th.cells[1].innerText + "]"
-\echo   console.log("o is : " + o);
-\echo   let o=JSON.parse(o);
-\echo   console.log("o0 is : " + oj[0]);
-\echo   console.log("o1 is : " + oj[1]);
+\echo   let o=th.cells[1].innerText.split(",");
+\echo   let str = "";
+\echo   if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
+\echo   else if(th.cells[3].innerText > 0) str+="<c class=warn>No Default Partition Found<c>";
+\echo   if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
+\echo   return str;
 \echo   }
 \echo }
 \echo document.querySelectorAll(".thidden").forEach(table => {

@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html><meta charset="utf-8" />
 <style>
-#finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
+#finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; white-space: nowrap; span {font: italic bold 1.7em Georgia, serif}}}
 table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px;position: relative; } 
 th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;z-index: 1}
 tr:nth-child(even) {background-color: #eef8ff} 
@@ -1222,8 +1222,8 @@ console.log("time taken for checktabs :" + (endTime - startTime));
 
 function checktabPart(){ //check partitioned tables
   const tab=document.getElementById("tabPart");
+  tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB";
   if (tab.rows.length < 2){ tab.tBodies[0].innerHTML="No Partitioned tables found."; return;}
-  tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB" 
   const trs=tab.rows
   const len=trs.length;
   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
@@ -1483,16 +1483,15 @@ function tabPartdtls(e){
 //  a="[" + a + "]";
 
   if (e.target.matches("tr td:first-child")){
-  console.log("Inside tabPartdtls element");
   th = e.target.parentNode;
-  //a = a.replace(/(\w+)/g, '"$1"');
-  let str="[" + th.cells[1].innerText + "]"
-  // str = str.replace('(\w+)/g', '"$1"');
-  console.log("o is : " + o);
-  let o=JSON.parse(o);
-  console.log("o0 is : " + oj[0]);
-  console.log("o1 is : " + oj[1]);
-  //  console.log("o is : " + o);
+  //let str= th.cells[1].innerText;
+  //str = str.replace('/(\\w+)/g', '''"$1"''');  //Results in js: str = str.replace(/(\w+)/g, '"$1"');
+  let o=th.cells[1].innerText.split(",");
+  let str = "";
+  if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
+  else if(th.cells[3].innerText > 0) str+="<c class=warn>No Default Partition Found<c>";
+  if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
+  return str;
   }
 }
 
