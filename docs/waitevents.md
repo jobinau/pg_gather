@@ -173,3 +173,17 @@ Have a high bandwith, low latency storage for pg_wal directory
 Avoid `wal_level = logical` unless it is essentail.
 Improve the connection pooling there by reduce the connections.
 Automatic vacuum after Bulk data loading can cause this. So add a supplimentory `VACUUM (FREEZE,ANALYZE) TBL` also on the table bulk data loading is performed.
+
+## ReorderBufferWrite
+`logical_decoding_work_mem` is filled and writing the buffer's contents to storage.
+This can result in lag in logical replication.
+
+### Causes
+* **Very Large/Bulk Transactions:** single transaction modifying large number of rows.
+ Reorder buffer won't be able to hold large number of transactions until they commit due to it size.
+* **Long-Running Transactions:** Buffer need to hold the details until the transaction commits, even though other transactions commits in between.
+* **High/Spike concurrent changes** if rate of change is higher than logical decoding can process, it can lead to spill file generation.
+* **Insufficient `logical_decoding_work_mem`**
+
+### Additional References
+1. [Blog by Robins](https://www.thatguyfromdelhi.com/2025/05/taming-reorderbufferwrite-boost-logical.html)
