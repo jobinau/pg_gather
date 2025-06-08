@@ -4,11 +4,11 @@ The acutal backup is perfomed by either of the underlying tools. So all limitati
 
 # Known Limitations of rsync
 1. **CRITICAL : Unreliable Static File List**  
-  `rsync` builds a list of files at the beginning of the synchronization process and does not update this list during the run. If new files are added to the source after the file list is created, these new files will not be copied. Similarly, if files are deleted after the list is created, rsync will warn that it could not copy those files.  
-  In a live database, files are added and removed at anytime. So there is risk of database backup taken using `rsync` is not restorable.
-  Inremental backups has higher risk.
-2. **CRITICAL : Inconsistancies and File corruption risk**
-  `rsync` is not desinged for filesystem which is undergoing changes. It does not create a snapshot of the filesystem either. it is difficult to determine the exact point in time when the data was copied. This can lead to inconsistencies if files are modified during the synchronization process. It is risky to use on a filesystem which is undergoing changes. Curruptions are reported.
+  `rsync` builds a list of files at the beginning of the synchronisation process, and this list is not updated during the run. If new files are added to the source after the file list is created, these new files will not be copied. Similarly, if files are deleted after the list is created, `rsync` will warn that it could not copy those files. In a live database, files are added and removed at any time. So, there is a risk that the database backup taken using rsync will not be restorable.  
+  Incremental backups have a higher risk. 
+  
+2. **CRITICAL : Inconsistancies and File corruption risk**  
+  `rsync` is not designed for a filesystem which is undergoing changes. It does not create a snapshot of the filesystem either. it is difficult to determine the exact point in time when the data was copied. This can lead to inconsistencies if files are modified during the synchronisation process. It is risky to use on a filesystem which is undergoing changes. Corruptions are reported.
 3. **No Differential Backups**  
   No differential backups possible. 
 4. **No Delta restore**  
