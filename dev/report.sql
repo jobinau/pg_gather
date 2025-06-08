@@ -66,7 +66,7 @@ SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr )
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),datid,mxidage))
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -160,7 +160,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,isum.pk,isum.uk,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace,c.reloptions)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -1261,48 +1261,47 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo })));
 \echo function dbsdtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
-\echo   th = e.target.parentNode;
-\echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   let str="";
-\echo   if(th.cells[0].classList.contains("lime")) str = "<br/>(pg_gather connected)";
-\echo   return "<b>" + th.cells[0].innerText + "</b>" + str + "<c> Inserts per day : " + o.f1 + "</c><c>Updates per day : " + o.f2 + "</c><c>Deletes per day : " 
-\echo    + o.f3 + "</c><c>Stats Reset : " + o.f4 + "</c><c>DB oid(dbid) :" + o.f5 + "</c><c>Multi Txn Id Age :" + o.f6 + "</c>" ;
+\echo   th = e.target.parentNode;  
+\echo   let o=th.cells[1].innerText.split(",");
+\echo   let str= th.cells[0].classList.contains("lime")?" (pg_gather connected)<br/>":"" 
+\echo   return "<b>" + th.cells[0].innerText + "</b>" + str + 
+\echo    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
+\echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" ;
 \echo   }
 \echo }
 \echo function tabdtls(th){
-\echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   let vac=th.cells[13].innerText;
+\echo   let o=th.cells[1].innerText.split(",");
+\echo   let vac=th.cells[13].innerText; 
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
-\echo   if (o.f11 == "r") str += "<c>Inheritance Partition of : " + o.f10 + "</c>";
-\echo   if (o.f11 == "p") str += "<c>Native Partition of : " + o.f10 + "</c>";
-\echo   if (o.f6 !== null) str += "<c>Total Indexes: " + o.f6 + "</c>";
-\echo   if (o.f7 !== null) str += "<c>Unused Indexes: " + o.f7 + "</c>";
-\echo   if (o.f8 > 0) str += "<c>Primary key: Exists</c>";
-\echo   else str += "<c>No Primary key</c>";
-\echo   if (o.f9-o.f8 > 0) str += "<c>Unique keys (than PK): " + (o.f9-o.f8) + "</c>";
-\echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
-\echo   if (vac > 0) str +="<c>Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1) + "</c>";
-\echo   str += "<c>Inserts / day : " + Math.round(o.f2/obj.dbts.f4) + "</c>";
-\echo   str += "<c>Updates / day : " + Math.round(o.f3/obj.dbts.f4) + "</c>";
-\echo   str += "<c>Deletes / day : " + Math.round(o.f4/obj.dbts.f4) + "</c>";
-\echo   str += "<c>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4) + "</c>";
-\echo   str += "<c>Rel.filename : " + o.f12 + "</c>";
-\echo   if (o.f13 < 16384) str += "<c>Tablespace : pg_default </c>"; 
+\echo   if (o[10] == "r") str += "<c>Inheritance Partition of : " + o[9] + "</c>";
+\echo   if (o[10] == "p") str += "<c>Native Partition of : " + o[9] + "</c>";
+\echo   if (o[5] !== null) str += "<c>Total Indexes: " + o[5] + "</c>";
+\echo   if (o[6] !== null) str += "<c>Unused Indexes: " + o[6] + "</c>";
+\echo   str += (o[7] > 0) ? "<c>Primary key: Exists</c>" : "<c>No Primary key</c>"; 
+\echo   if (o[8]-o[7] > 0) str += "<c>Unique keys (than PK): " + (o[8]-o[7]) + "</c>";
+\echo   let days=(obj.dbts.f4 < 1) ? 1 : obj.dbts.f4;
+\echo   if (vac > 0) str +="<c>Vacuums / day : " + Number(vac/days).toFixed(1) + "</c>";
+\echo   str += "<c>Inserts / day : " + Math.round(o[1]/days) + "</c>";
+\echo   str += "<c>Updates / day : " + Math.round(o[2]/days) + "</c>";
+\echo   str += "<c>Deletes / day : " + Math.round(o[3]/days) + "</c>";
+\echo   str += "<c>HOT.updates / day : " + Math.round(o[4]/days) + "</c>";
+\echo   str += "<c>Rel.filename : " + o[11] + "</c>";
+\echo   if (o[12] < 16384) str += "<c>Tablespace : pg_default </c>"; 
 \echo   else{
-\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f13).toString()); 
-\echo     str += "<c>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
+\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[12]).toString()); 
+\echo     str += "<c>Tablespace : " + o[12] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
 \echo   }
-\echo   if (o.f14 !== null ) str += "<c>Current Settings : " + o.f14 + "</c>";
-\echo   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
+\echo   if (o[13] !== null ) str += "<c>Current Settings : " + o[13] + "</c>";
+\echo   if(o[2] > 0 || vac/days > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-\echo   if (o.f3 > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3)); + "</c>"
-\echo   if (vac/obj.dbts.f4 > 50) { 
-\echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48); 
+\echo   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>"
+\echo   if (vac/days > 50) { 
+\echo     let threshold = Math.round((Math.round(o[2]/days) + Math.round(o[3]/days))/48); 
 \echo     if (threshold < 500) threshold = 500;
 \echo     str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
 \echo   }}
-\echo   return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o.f1 + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+\echo   return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
 \echo }
 \echo function sessdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
