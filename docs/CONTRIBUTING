@@ -2,7 +2,7 @@
 
 Two core philosophies:
 1. The data collection should remain lightweight on the environment from where data is collected.
-2. Collect only very specific information, which is essential for analysis. 
+2. Collect only very specific information, which is essential for analysis.
 
 ## Key guidelines for Pull Requests:
 1. Data collection (gather.sql) needs to remain minimalistic. We should avoid collecting additional info from the user environments unless it is unavoidable.
