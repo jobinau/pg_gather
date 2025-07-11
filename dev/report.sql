@@ -507,6 +507,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo totCPU=4; 
 \echo totMem=8; 
 \echo wrkld="";
+\echo flsys= "";
 \echo let blokers = []
 \echo let blkvictims = []
 \echo let params = []
@@ -714,6 +715,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   totMem = document.getElementById("mem").value;
 \echo   totCPU = document.getElementById("cpus").value;
 \echo   wrkld = document.getElementById("wrkld").value;
+\echo   flsys = document.getElementById("flsys").value;
 \echo   checkpars();
 \echo   let reccomandations = document.getElementById("paramtune").children[1];
 \echo   let reccos = "";
@@ -1059,6 +1061,34 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       }
 \echo     }
 \echo   },
+\echo   wal_init_zero: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_init_zero");
+\echo     if (flsys == "cow" && val.innerText == "on") { 
+\echo       val.classList.add("warn"); val.title="wal_init_zero is not recommended for Copy-on-Write filesystems (like ZFS, BTRFS, etc).";
+\echo       param["suggest"] = "off";
+\echo     } else if (flsys == "rglr" && val.innerText == "off") { 
+\echo       val.classList.add("warn"); val.title="wal_init_zero is recommended for regular filesystems (like ext4, xfs, etc).";
+\echo       param["suggest"] = "on";
+\echo     } else {
+\echo       val.classList.remove("warn");
+\echo       delete param["suggest"]
+\echo     }
+\echo   },
+\echo   wal_recycle: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_recycle");
+\echo     if (flsys == "cow" && val.innerText == "on") { 
+\echo       val.classList.add("warn"); val.title="wal_recycle is not recommended for Copy-on-Write filesystems (like ZFS, BTRFS, etc).";
+\echo       param["suggest"] = "off";
+\echo     } else if (flsys == "rglr" && val.innerText == "off") { 
+\echo       val.classList.add("warn"); val.title="wal_recycle is recommended for regular filesystems (like ext4, xfs, etc).";
+\echo       param["suggest"] = "on";
+\echo     } else {
+\echo       val.classList.remove("warn");
+\echo       delete param["suggest"]
+\echo     }
+\echo   },
 \echo   work_mem: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024,1024) ;
@@ -1075,6 +1105,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo var evalParam = function(param,rowref = null) {
 \echo   if (rowref != null && rowref.id == "") rowref.id=param;  
 \echo   else rowref = document.getElementById(param); 
+\echo   if (rowref == null) return;
 \echo   if (paramDespatch.hasOwnProperty(param)){ 
 \echo     let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText;
 \echo     params.push(paramJson);   
@@ -1349,7 +1380,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     const td = e.target;
 \echo     if (typeof window[e.currentTarget.id + "dtls"] === "function") {
 \echo      str = window[e.currentTarget.id + "dtls"](e);  
-\echo     } else if (e.target.matches("tr td:first-child")){
+\echo     } else if (e.target.matches("tr td:first-child")){   
 \echo       const tr = td.parentNode;
 \echo       const tab = tr.closest("table");
 \echo       str = tab.id === "tabInfo" ? tabdtls(tr) :

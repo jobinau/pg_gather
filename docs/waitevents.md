@@ -93,6 +93,45 @@ The LockManager wait event indicates that a process is waiting to access the loc
 4. Index Management: Remove unnecessary indexes to reduce locking overhead
 5. Hardware Scaling: Scale up the hardware resources, such as increasing the number of CPU cores
 
+## SubtransBuffer
+The wait event occurs when a PostgreSQL backend process (of connection) is waiting to access or modify the subtransaction buffer, typically due to contention or resource limitations. This is part of the system’s transaction management infrastructure
+If some application logic is using subtransactions (nested transactions), Every session need to check the Subtransaction buffer to check the visibility of each tuple. This could considerably slowdown the performance.
+
+### Causes:
+ * Concurrency: Multiple transactions are simultaneously creating or rolling back subtransactions, leading to contention for the subtransaction buffer.
+ * Heavy Use of Subtransactions: Applications that heavily use SAVEPOINT, nested transactions, or exception handling in PL/pgSQL can increase the likelihood of this wait event.
+ * Buffer Management: The subtransaction buffer is managed in shared memory, and contention may arise if the buffer is undersized or if there’s significant activity.
+ * System Load: High system load or I/O contention can indirectly exacerbate waits for internal buffers like pg_subtrans.
+
+### Problem and Fix : 
+If you’re seeing frequent and high SubtransBuffer waits, it’s a sign to investigate application logic and transaction patterns rather than just tuning database parameters
+
+## SubtransSLRU
+This wait event occurs when a backend process is waiting to access or modify the subtransaction SLRU buffer, typically due to contention or I/O delays.
+Subtransaction metadata, including parent transaction IDs and status, is stored in the pg_subtrans SLRU, a disk-based structure that tracks subtransaction relationships.
+SLRU (Simple Least Recently Used) is a caching mechanism in PostgreSQL for managing certain control data structures (like pg_subtrans, pg_clog, or pg_multixact). The SubtransSLRU specifically refers to the buffer used for subtransaction data.
+
+### Causes
+* Heavy Subtransaction Usage: Applications or functions that create many subtransactions (e.g., via nested SAVEPOINT commands or error handling in loops) can overload the subtransaction system.
+* High Concurrency:Many concurrent transactions performing subtransaction operations can lead to contention on the SLRU buffer.
+* I/O Bottlenecks: Slow disk I/O, especially on systems with high transaction rates, can cause delays when the SLRU buffer needs to read or write to disk.
+
+### Problem and Fix:
+From PostgreSQL 16 onwards we can findout the PID of the session causing the subtransaction and overflow using a query as follows:
+```
+SELECT
+    pg_stat_get_backend_pid(bid) AS pid,
+    s.subxact_count,
+    s.subxact_overflowed,
+    pg_stat_get_backend_activity(bid) AS query
+FROM
+    pg_stat_get_backend_idset() AS bid
+JOIN LATERAL pg_stat_get_backend_subxact(bid) AS s ON TRUE
+WHERE s.subxact_count > 0 OR s.subxact_overflowed;
+```
+This wait event is closely related to `SubtransBuffer` wait event, which refers to waits on the in-memory subtransaction buffer in shared memory. In contrast, `SubtransSLRU` involves the disk-based SLRU structure (`pg_subtrans`) used for persistent subtransaction data.
+
+
 ## transactionid
 Session waiting for other session to complete the transaction. (Session is blocked). The transactionid wait event in PostgreSQL occurs when a backend process is blocked while waiting for a specific transaction to complete. This is one of the more serious wait events that can significantly impact database performance.
 For example, Updating the same rows of a table from multiple sessions can lead to this situation.

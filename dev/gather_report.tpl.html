@@ -522,6 +522,7 @@ totdb=0;
 totCPU=4;  //total number of CPUs, Minimum 4 is assumed, unless modified by the user
 totMem=8;  //total memory in GB, Minimum 8GB is assumed, unless modified by the user
 wrkld=""; //workload type (OLTP, OLAP etc.)
+flsys= ""; //filesystem type (rglr vs cow)
 //Prepare the list of blockers and Victims
 let blokers = []
 let blkvictims = []
@@ -766,6 +767,7 @@ function getreccomendation(){
   totMem = document.getElementById("mem").value;
   totCPU = document.getElementById("cpus").value;
   wrkld = document.getElementById("wrkld").value;
+  flsys = document.getElementById("flsys").value;
   checkpars();
   let reccomandations = document.getElementById("paramtune").children[1];
   let reccos = "";
@@ -841,7 +843,7 @@ function DurationtoSeconds(duration){
     return days * 24 * 60 * 60 +(hours) * 60 * 60 + Number(minutes) * 60 + Number(seconds);
 };
 
-//******************* New Parameter Despatch table implimentation v22 *******************/
+//******************* Parameter Despatch table implimentation v22 *******************/
 var paramDespatch = {
   archive_mode : function(rowref){
     val=rowref.cells[1];
@@ -1127,6 +1129,34 @@ var paramDespatch = {
       }
     }
   },
+  wal_init_zero: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "wal_init_zero");
+    if (flsys == "cow" && val.innerText == "on") { 
+      val.classList.add("warn"); val.title="wal_init_zero is not recommended for Copy-on-Write filesystems (like ZFS, BTRFS, etc).";
+      param["suggest"] = "off";
+    } else if (flsys == "rglr" && val.innerText == "off") { 
+      val.classList.add("warn"); val.title="wal_init_zero is recommended for regular filesystems (like ext4, xfs, etc).";
+      param["suggest"] = "on";
+    } else {
+      val.classList.remove("warn");
+      delete param["suggest"]
+    }
+  },
+  wal_recycle: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "wal_recycle");
+    if (flsys == "cow" && val.innerText == "on") { 
+      val.classList.add("warn"); val.title="wal_recycle is not recommended for Copy-on-Write filesystems (like ZFS, BTRFS, etc).";
+      param["suggest"] = "off";
+    } else if (flsys == "rglr" && val.innerText == "off") { 
+      val.classList.add("warn"); val.title="wal_recycle is recommended for regular filesystems (like ext4, xfs, etc).";
+      param["suggest"] = "on";
+    } else {
+      val.classList.remove("warn");
+      delete param["suggest"]
+    }
+  },
   work_mem: function(rowref){
     val=rowref.cells[1];
     val.title=bytesToSize(val.innerText*1024,1024) ;
@@ -1144,10 +1174,10 @@ var paramDespatch = {
 
 // Interface for parameter evaluation, Second paramter is optional and can be called like : evalParam("autovacuum_vacuum_cost_limit"); 
 var evalParam = function(param,rowref = null) {
-  if (rowref != null && rowref.id == "") rowref.id=param;   //if rowref don't have an id, add it, This happens in the first invocation.
-  else rowref = document.getElementById(param);  //No need to check like : if (rowref == null), because subsequent calls to the function is not expecting rowref
-  //OLD code to call default function : var param = paramDespatch.hasOwnProperty(param) ? param : "default"
+  if (rowref != null && rowref.id == "") rowref.id=param;   //Assign the tr element id as the parameter name, This happens in the first invocation.
+  else rowref = document.getElementById(param);  //Subsequent calls to the function is not expecting rowref passed in, Get the tr element by id already assigned to the parameter name
   //if despatcher has the specific paramteter section (only few parameters have)
+  if (rowref == null) return; //If the rowref is null, return without doing anything. This happens when the parameter is not found in the HTML table
   if (paramDespatch.hasOwnProperty(param)){ 
     let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText; //Create a json object with parameter and value
     params.push(paramJson);    //Push the json object o params array
@@ -1502,7 +1532,7 @@ document.querySelectorAll(".thidden").forEach(table => {
     const td = e.target;
     if (typeof window[e.currentTarget.id + "dtls"] === "function") { //if there is a function with the name of table id + dtls
      str = window[e.currentTarget.id + "dtls"](e);   //pass the event to the function and get the processed string
-    } else if (e.target.matches("tr td:first-child")){
+    } else if (e.target.matches("tr td:first-child")){    //TODO : Slowly move all the functions to the above if condition
       const tr = td.parentNode;
       const tab = tr.closest("table");
       str = tab.id === "tabInfo" ? tabdtls(tr) :
