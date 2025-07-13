@@ -486,12 +486,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 %>
 
 //pg_gather version
-ver="30";
+ver="31";
 //Global object to hold json values passed from the SQL analysis
 //obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
-meta={"pgvers":["13.20","14.17","15.12","16.8","17.4"],"commonExtn":["plpgsql","pg_stat_statements"],"riskyExtn":["citus","tds_fdw"]};
+meta={"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw"."pglogical"]};
 
 async function fetchJsonWithTimeout(url, timeout) {
     const controller = new AbortController();
