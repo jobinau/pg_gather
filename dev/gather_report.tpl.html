@@ -1255,13 +1255,14 @@ function checktabPart(){ //check partitioned tables
   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB";
   if (tab.rows.length < 2){ tab.tBodies[0].innerHTML="No Partitioned tables found."; return;}
   const trs=tab.rows
+  setheadtip(trs[0],["Partitioned Table Name","","Type of Partitioning (Declerative vs Inheritance)","No. of Partitions","Total Table Size","Total Index Size","Precentate of fetches coming from a single partition (bigger the better)"]);
   const len=trs.length;
   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
   for(var i=1;i<len;i++){
     tr=trs[i];
     if (tr.cells[3].innerText > 16 ) { tr.cells[3].classList.add("lime"); tr.cells[3].title = "Ensure proper partition pruning in SQL statements"; 
     } else if (tr.cells[3].innerText == 0 ) { tr.cells[3].classList.add("warn"); tr.cells[3].title = "No Partitions found"; }
-    if (tr.cells[4].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[4].classList.add("warn"); tr.cells[2].title = "Average per partition size is :" + bytesToSize(tr.cells[3].innerText/tr.cells[3].innerText) ; }
+    if (tr.cells[4].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[4].classList.add("warn"); tr.cells[4].title = "Average per partition size is :" + bytesToSize(tr.cells[4].innerText/tr.cells[3].innerText) ; }
   }
 }
 
@@ -1508,10 +1509,6 @@ if(tr.cells[1].innerText.length > 2){
 
 function tabPartdtls(e){
 
-//  tab = e.currentTarget;
-//  a="1, [1, 2, 3], [4, 5, 6], [7, 8, 9]";
-//  a="[" + a + "]";
-
   if (e.target.matches("tr td:first-child")){
   th = e.target.parentNode;
   //let str= th.cells[1].innerText;
@@ -1519,7 +1516,7 @@ function tabPartdtls(e){
   let o=th.cells[1].innerText.split(",");
   let str = "";
   if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
-  else if(th.cells[3].innerText > 0) str+="<c class=warn>No Default Partition Found<c>";
+  else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found<c>";
   if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
   return str;
   }

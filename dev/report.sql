@@ -1167,13 +1167,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB";
 \echo   if (tab.rows.length < 2){ tab.tBodies[0].innerHTML="No Partitioned tables found."; return;}
 \echo   const trs=tab.rows
+\echo   setheadtip(trs[0],["Partitioned Table Name","","Type of Partitioning (Declerative vs Inheritance)","No. of Partitions","Total Table Size","Total Index Size","Precentate of fetches coming from a single partition (bigger the better)"]);
 \echo   const len=trs.length;
 \echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if (tr.cells[3].innerText > 16 ) { tr.cells[3].classList.add("lime"); tr.cells[3].title = "Ensure proper partition pruning in SQL statements"; 
 \echo     } else if (tr.cells[3].innerText == 0 ) { tr.cells[3].classList.add("warn"); tr.cells[3].title = "No Partitions found"; }
-\echo     if (tr.cells[4].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[4].classList.add("warn"); tr.cells[2].title = "Average per partition size is :" + bytesToSize(tr.cells[3].innerText/tr.cells[3].innerText) ; }
+\echo     if (tr.cells[4].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[4].classList.add("warn"); tr.cells[4].title = "Average per partition size is :" + bytesToSize(tr.cells[4].innerText/tr.cells[3].innerText) ; }
 \echo   }
 \echo }
 \echo function checkdbs(){
@@ -1369,7 +1370,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let o=th.cells[1].innerText.split(",");
 \echo   let str = "";
 \echo   if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
-\echo   else if(th.cells[3].innerText > 0) str+="<c class=warn>No Default Partition Found<c>";
+\echo   else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found<c>";
 \echo   if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
 \echo   return str;
 \echo   }
