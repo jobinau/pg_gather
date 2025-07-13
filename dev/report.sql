@@ -482,9 +482,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
-\echo ver="30";
+\echo ver="31";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["13.20","14.17","15.12","16.8","17.4"],"commonExtn":["plpgsql","pg_stat_statements"],"riskyExtn":["citus","tds_fdw"]};
+\echo meta={"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo async function fetchJsonWithTimeout(url, timeout) {
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);

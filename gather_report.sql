@@ -2,22 +2,24 @@
 \echo <!DOCTYPE html>
 \echo <html><meta charset="utf-8" />
 \echo <style>
-\echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; span {font: italic bold 1.7em Georgia, serif}}}
-\echo table, th, td { border: 1px solid black; border-collapse: collapse; padding: 2px 4px 2px 4px;} 
-\echo th {background-color: #d2f2ff;cursor: pointer; }
+\echo #finditem,#paramtune,table {box-shadow: 0px 20px 30px -10px grey; margin: 2em; caption {font:large bold; text-align:left; white-space: nowrap; span {font: italic bold 1.7em Georgia, serif}}}
+\echo table, th, td { border: 1px solid #6FAEBF; border-spacing: 0; padding: 4px;position: relative; } 
+\echo th {background-color: #d2f5ff;cursor: pointer; position:sticky; top:1em; border-color: #4F8E9F;z-index: 1}
 \echo tr:nth-child(even) {background-color: #eef8ff} 
+\echo c { display: block }
+\echo c:hover,li:hover { background-color: #DFD; text-shadow: #800 0.5px 0 0.5px; }
 \echo a:hover,tr:hover { background-color: #EBFFDA}
-\echo /* h2 { scroll-margin-left: 2em;} keep the scroll left
-\echo caption { font-size: larger } */
 \echo ol { width: fit-content;}
 \echo .warn { font-weight:bold; background-color: #FBA }
 \echo .high { border: 5px solid red;font-weight:bold}
 \echo .lime { font-weight:bold;background-color: #FFD}
 \echo .lineblk {float: left; margin:2em }
 \echo .thidden tr { td:nth-child(2),th:nth-child(2) {display: none} td:first-child {color:blue}}
-\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 100;}
-\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; }  /*sort indicator*/
-\echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey}
+\echo .bar {display:inline-block; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;}  /* bar for graph */
+\echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
+\echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
+\echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
+\echo #dtls { margin-left: -0.2em; left:100%; top: 4%; width: max-content; color: black;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -64,7 +66,7 @@ SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr )
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",to_jsonb(ROW(tup_inserted/days,tup_updated/days,tup_deleted/days,to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),datid,mxidage))
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -102,7 +104,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <option value="cow">COW (like: zfs/btrfs)</option>
 \echo    </select>
 \echo  </label>
-\echo  <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you''re unsure, seek expert guidance.</p>
+\echo  <p>☛ Please provide the CPU and memory available on the host machine. Choose the most suitable options from the list to receive specific recommendations. If you are unsure, seek expert guidance.</p>
 \echo </fieldset>
 \echo   <div id="paramtune" style="padding:2em;position:relative;width: fit-content;">
 \echo    <h3 style="font: italic 1.2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Recommendations:</h3>
@@ -158,9 +160,9 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-to_jsonb(ROW(r.relid,r.n_tup_ins,r.n_tup_upd,r.n_tup_del,r.n_tup_hot_upd,isum.totind,isum.ind0scan,isum.pk,isum.uk,inhp.relname,inhp.relkind,c.relfilenode,c.reltablespace,c.reloptions)),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
-r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age,to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
+r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
 c.blocks_fetched "Fetch",c.blocks_hit*100/nullif(c.blocks_fetched,0) "C.Hit%",to_char(r.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
 FROM pg_get_rel r
@@ -175,20 +177,29 @@ LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numsca
    count(indexrelid) FILTER (WHERE indisunique) uk, indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
-\pset tableattr 'id="tabPart"'
-SELECT p.relname "Partitioned Table", CASE p.relkind WHEN 'p' THEN 'Native' WHEN 'r' THEN 'Inheritance' ELSE p.relkind END "Partitioning Type",
-count(c.reloid) "Partitions", sum(r.tot_tab_size) "Tot.Tab size", sum(r.tab_ind_size) "Tab+Ind size"
-FROM pg_get_class c JOIN pg_get_inherits i ON c.reloid = i.inhrelid
-JOIN pg_get_class p ON i.inhparent = p.reloid
-LEFT JOIN pg_get_rel r ON c.reloid = r.relid 
-WHERE p.relkind != 'I'
-GROUP BY 1,2;
+\pset tableattr 'id="tabPart" class="thidden"'
+WITH ptables AS ( SELECT p.relname , p.relkind, i.inhparent, i.inhrelid
+FROM pg_get_class p LEFT JOIN pg_get_inherits i ON i.inhparent = p.reloid
+WHERE p.relkind in ('p','r'))
+SELECT  p.relname "Partitioned Table", CONCAT(any_value(c.relname) FILTER (WHERE dpart = 't'),',',any_value(r.n_live_tup) FILTER (WHERE dpart='t')) "Default Partition Name, Count",
+ 'Native-Declarative' "Partitioning Type",  count(r.relid) "Partitions", sum(r.tot_tab_size) "tot_tab_size" , sum(r.tab_ind_size) "tab_ind_size",
+  round(max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100 ,1) "Fetch Prune %" 
+FROM ptables p LEFT JOIN pg_get_rel r ON p.inhrelid = r.relid 
+ LEFT JOIN pg_get_class c ON p.inhrelid = c.reloid
+WHERE p.relkind = 'p' GROUP BY 1
+UNION ALL
+SELECT  p.relname ,',', 'Inheritance' , count(r.relid) "Partitions", sum(r.tot_tab_size) ,
+  sum(r.tab_ind_size), max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100
+FROM ptables p JOIN pg_get_rel r ON p.inhrelid = r.relid
+ JOIN pg_get_class c ON p.inhrelid = c.reloid
+WHERE p.relkind = 'r' GROUP BY 1;
 
 \pset tableattr 'id="IndInfo"'
-SELECT ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
+SELECT n.nsname "Schema",ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
   FROM pg_get_index i 
   JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
   JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+  LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
 ORDER BY size DESC LIMIT 10000;
 
 \pset tableattr 'id="params"'
@@ -276,7 +287,7 @@ FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
 \pset tableattr 'id="tableConten" name="waits" style="clear: left"'
 \C 'WaitEvents'
-SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text FROM pg_pid_wait
+SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
 GROUP BY 1 ORDER BY count(*) DESC;
 
@@ -384,45 +395,14 @@ GROUP BY 1;
 
 \echo <ol id="finditem" style="padding:2em;position:relative">
 \echo <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
-\pset format aligned
-\pset tuples_only on
-WITH W AS (SELECT COUNT(*) AS val FROM pg_get_activity WHERE state='idle in transaction')
-SELECT CASE WHEN val > 0 
-  THEN '<li><b>'||val||' idle-in-transaction</b> session(s). Sessions in idle-in-transaction can cause poor concurrency </li>' 
-  ELSE NULL END 
-FROM W;
-WITH W AS (select last_failed_time,last_archived_time,last_archived_wal from pg_archiver_stat where last_archived_time < last_failed_time)
-SELECT CASE WHEN last_archived_time IS NOT NULL
-  THEN '<li>WAL archiving is failing since <b>'||last_archived_time||' (duration:'|| (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather) - last_archived_time  ||') onwards</b> '  ||
-  CASE WHEN length(last_archived_wal)=24 THEN COALESCE(
-  (SELECT ' With estimated size <b>' ||
-  pg_size_pretty(((('x'||lpad(split_part(current_wal::TEXT,'/', 1),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,9,8))::bit(32)::bigint) * 255 * 16^6 + 
-  ('x'||lpad(split_part(current_wal::TEXT,'/', 2),8,'0'))::bit(32)::bigint - ('x'||substring(last_archived_wal,17,8))::bit(32)::bigint*16^6 )::bigint)
-  FROM pg_gather), ' ') || '</b> behind </li>' ELSE '</li>' END
-ELSE NULL END
-FROM W;
-WITH W AS (
- select string_agg(name ||'='||setting,',') as val FROM pg_get_confs WHERE 
- name in ('block_size','max_identifier_length','max_function_args','max_index_keys','segment_size','wal_block_size') AND 
- (name,setting) NOT IN (('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'))
- OR (name = 'wal_segment_size' AND unit ='8kB' and setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' and setting != '16777216')  
-)
-SELECT CASE WHEN LENGTH(val) > 1
-  THEN '<li>Detected Non-Standard Compile/Initialization time parameter changes <b>'||val||' </b>. Custom Compilation is prone to bugs, and it is beyond supportability</li>'
-  ELSE NULL END
-FROM W;
-WITH W AS (
-SELECT count(*) cnt FROM pg_get_confs WHERE source IS NOT NULL )
-SELECT CASE WHEN cnt < 1
-  THEN '<li>Couldn''t get parameter values. Partial gather or corrupt Parameter file(s)</li>'
-  ELSE NULL END
-FROM W;
-SELECT '<li>Parameter '||error ||': '||name||' = '||setting||' in '||sourcefile||'</li>' FROM pg_get_file_confs WHERE error IS NOT NULL;
-
 \echo </ol>
-\echo <div id="analdata" hidden>
+\echo </div> <!--End of "sections"-->
+\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
+\echo <script>
+
 \pset format unaligned
-SELECT to_jsonb(r) FROM
+\pset tuples_only on
+SELECT 'obj='||to_jsonb(r)::text FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
   (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
@@ -459,7 +439,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )
   , last_archived_wal, last_archived_time::text || ' (' || CASE WHEN EXTRACT(EPOCH FROM(collect_ts - last_archived_time)) < 0 THEN 'Right Now'::text ELSE (collect_ts - last_archived_time)::text END  || ')'))
   FROM  pg_gather,  pg_archiver_stat) AS arcfail,
-  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'),any_value(setting) FILTER (WHERE name = 'block_size'))) FROM pg_get_confs) AS params,
+  (SELECT to_jsonb(ROW(max(setting) FILTER (WHERE name = 'archive_library'), max(setting) FILTER (WHERE name = 'cluster_name'),count(*) FILTER (WHERE source = 'command line'),any_value(setting) FILTER (WHERE name = 'block_size'),
+  json_agg(row(name ,setting)) FILTER
+   (WHERE name in ('block_size','max_identifier_length','max_function_args','max_index_keys','segment_size','wal_block_size') AND 
+   (name,setting) NOT IN (('block_size','8192'),('max_identifier_length','63'),('max_function_args','100'),('max_index_keys','32'),('segment_size','131072'),('wal_block_size','8192'))
+   OR (name = 'wal_segment_size' AND unit ='8kB' AND setting != '2048') OR (name = 'wal_segment_size' AND unit ='B' AND setting != '16777216')),
+   count(*) FILTER (WHERE source IS NOT NULL)
+  )) FROM pg_get_confs ) AS params,
+  (SELECT json_agg(row(error,  name,  setting, sourcefile)) FROM pg_get_file_confs WHERE error IS NOT NULL) AS errparams,
   (WITH g AS (SELECT collect_ts,pg_start_ts,reload_ts,to_timestamp ( systemid >> 32 ) init_ts from pg_gather),
     r AS (SELECT LEAST(min(last_vac),min(last_anlyze)) known_ts FROM pg_get_rel)
   SELECT CASE WHEN (g.init_ts IS NULL OR g.reload_ts - g.init_ts > '80 minutes'::interval) AND ( r.known_ts > g.reload_ts OR r.known_ts IS NULL) AND g.collect_ts - g.reload_ts < '10 days'::interval 
@@ -495,14 +482,23 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
-\echo </div>
-\echo </div> <!--End of "sections"-->
-\echo <footer>End of <a href="https://github.com/jobinau/pg_gather">pgGather</a> Report</footer>
-\echo <script type="text/javascript">
-\echo ver="30";
-\echo obj={};
+\echo ver="31";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={pgvers:["13.20","14.17","15.12","16.8","17.4"],commonExtn:["plpgsql","pg_stat_statements"],riskyExtn:["citus","tds_fdw"]};
+\echo meta={"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo async function fetchJsonWithTimeout(url, timeout) {
+\echo     const controller = new AbortController();
+\echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
+\echo     try {
+\echo         const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
+\echo         clearTimeout(timeoutId);
+\echo         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
+\echo         else return await response.json();
+\echo     } catch (error) {
+\echo         clearTimeout(timeoutId);
+\echo         if (error.name === "AbortError")  throw new Error("Request timed out");
+\echo         else throw error;
+\echo     }
+\echo }
 \echo mgrver="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
@@ -511,11 +507,41 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo totCPU=4; 
 \echo totMem=8; 
 \echo wrkld="";
+\echo flsys= "";
 \echo let blokers = []
 \echo let blkvictims = []
 \echo let params = []
+\echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
+\echo async function doAllChecks(){
+\echo   const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
+\echo     meta = data;
+\echo     console.log("Data received:", data);})
+\echo     .catch(error => { console.error("Error fetching JSON:", error); });
+\echo   console.log("Starting all checks");
+\echo   afterRenderingComplete(() => {  console.log("This runs after the current rendering is complete."); 
+\echo   document.getElementById("sections").style="display:table";
+\echo   document.getElementById("busy").style="display:none";
+\echo   });
+\echo   checkgather();
+\echo   checkpars();
+\echo   checkdbs();
+\echo   checkconns();
+\echo   checkusers();
+\echo   checkdbtime();
+\echo   checksess();
+\echo   checkiostat();
+\echo   checkreplstat();
+\echo   checktabs();
+\echo   checktabPart();
+\echo   checkindex();
+\echo   checkextn();
+\echo   checkhba();
+\echo   checkstmnts();
+\echo   checkchkpntbgwrtr();
+\echo   checkfindings();
+\echo   console.log("All checks completed");
+\echo }
 \echo document.addEventListener("DOMContentLoaded", () => {
-\echo obj=JSON.parse( document.getElementById("analdata").innerText);
 \echo if (obj.victims !== null){
 \echo obj.victims.forEach(function(victim){
 \echo   blkvictims.push(victim.f1);
@@ -526,27 +552,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   });
 \echo });
 \echo }
-\echo checkgather();
-\echo checkpars();
-\echo checktabs();
-\echo checkindex();
-\echo checkdbs();
-\echo checkdbtime();
-\echo checkextn();
-\echo checkhba();
-\echo checkconns();
-\echo checkusers();
-\echo checksess();
-\echo checkstmnts();
-\echo checkchkpntbgwrtr();
-\echo checkiostat();
-\echo checkreplstat();
-\echo checkfindings();
+\echo doAllChecks();
 \echo });
-\echo window.onload = function() {
-\echo   document.getElementById("sections").style="display:table";
-\echo   document.getElementById("busy").style="display:none";
-\echo };
 \echo function setTitles(tr,tiltes){
 \echo   for(i=0;i<tiltes.length;i++) tr.cells[i].title=tiltes[i];
 \echo }
@@ -602,6 +609,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
 \echo   document.getElementById("tableConten").classList.add("high");
 \echo  }
+\echo  if (obj.sess.f2 > 0) strfind += "<li><b>Found " + obj.sess.f2 + " session(s) in idle-in-transaction state</b>. This can cause poor concurrency. Details in <a href=#tblsess>Sessions</a> section. Consider improving the application code and design</li>";
 \echo  if (obj.cn.f1 > 0){
 \echo     strfind +="<li><b>" + obj.cn.f2 + " / " + obj.cn.f1 + " connections </b> in use are new. "
 \echo     if (obj.cn.f2 > 9 || obj.cn.f2/obj.cn.f1 > 0.7 ){
@@ -615,6 +623,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if (obj.clas.f1 > 0) strfind += "<li><b>"+ obj.clas.f1 +" Natively partitioned tables</b> found. Tables section could contain partitions</li>";
 \echo  if (obj.clas.f2 > 0) strfind += "<li><b>"+ obj.clas.f2 +" Unlogged tables found.</b> These tables and associated indexes are ephemeral. <a href='"+ docurl +"unloggedtables.html'>Details</a></li>";
 \echo  if (obj.params.f3 > 10) strfind += "<li> Patroni/HA PG cluster :<b>" + obj.params.f2 + "</b></li>"
+\echo  if (obj.params.f5 != null && obj.params.f5.length > 0) strfind += "<li><b>Non-standard compile/Initialization time parameters detected : " + obj.params.f5.map(function(item) { return item.f1 + ": " + item.f2;}).join(", ") + "</b>. Custom Compilation is prone to bugs, and problems which are difficult to find</li>";
+\echo  if (obj.params.f6 == null || obj.params.f6 ==0 ) strfind += "<li><b>No Parameter values found. The data collection could be partial or corrupt Parameter file(s).</b></li>";
+\echo  if (obj.errparams !== null && obj.errparams.length > 0) {
+\echo    strfind += "<li> <b>Parameter file errors detected :<ul>";
+\echo    obj.errparams.forEach(function(t,idx){ strfind += "<li>" + t.f1 + " : " + t.f2 + " = "+ t.f3 +" in file " + t.f4 +"</li>" });
+\echo    strfind += "</ul></b></li>";
+\echo  }
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
 \echo  if (obj.nokey.f1 > 0) strfind += "<li><b>"+ obj.nokey.f1 +" Tables without Primary Key</b> and <b>"+ obj.nokey.f2 +" Tables without niether Primary key nor Unique keys</b> found. Please refer <a href='"+ docurl +"pkuk.html'>Details</a></li>";
 \echo  if (obj.netdlay.f1 > 10) {
@@ -664,24 +679,22 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo  } 
 \echo  if ( obj.tabs.f3 > 0 ) strfind += "<li> <b>No statistics available for " + obj.tabs.f3 + " tables/objects</b>, query planning can go wrong. <a href='"+ docurl +"missingstats.html'>Learn Details</a></li>";
-\echo  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the report. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
+\echo  if ( obj.tabs.f1 > 10000) strfind += "<li> There are <b>" + obj.tabs.f1 + " tables/objects</b> in the database. Only the biggest 10000 will be displayed in the <a href=#tabInfo >Tables</a> section. Avoid too many tables/objects in single database. <a href='"+ docurl +"table_object.html'>Learn Details</a></li>";
 \echo  if (obj.ns !== null){
 \echo    let tempNScnt = obj.ns.filter(n => n.nsname.indexOf("pg_temp") > -1).length + obj.ns.filter(n => n.nsname.indexOf("pg_toast_temp") > -1).length ;
 \echo    strfind += "<li><b>" + (obj.ns.length - tempNScnt).toString()  + " Regular schema(s) and " + tempNScnt + " temporary schema(s)</b> in this database. <a href='"+ docurl +"schema.html'> Details<a></li>";
 \echo   }
-\echo  if ( params.find(p => p.param === "shared_buffers")["val"] > 2097152 && params.find(p => p.param === "huge_pages")["val"] !=  "on" ){
-\echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(params.find(p => p.param === "shared_buffers")["val"]*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
+\echo  const sharedBuffers = params.find(p => p.param === "shared_buffers"); 
+\echo  const hugePages = params.find(p => p.param === "huge_pages");
+\echo  if ( sharedBuffers?.val > 2097152 && hugePages?.val !=  "on" ){
+\echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(sharedBuffers.val*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
 \echo  }
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
-\echo   var el=document.createElement("tfoot");
-\echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
-\echo   dbs=document.getElementById("dbs");
-\echo   dbs.appendChild(el);
 \echo }
 \echo function checkconns(){
 \echo   tab=document.getElementById("tblcs");
-\echo   tab.caption.innerHTML=''''<span>DB Connections</span>'''';
+\echo   tab.caption.innerHTML="<span>DB Connections</span>";
 \echo   const trs=tab.rows
 \echo   let nonssl=0;
 \echo   for (var i=1;i<trs.length;i++){
@@ -702,6 +715,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   totMem = document.getElementById("mem").value;
 \echo   totCPU = document.getElementById("cpus").value;
 \echo   wrkld = document.getElementById("wrkld").value;
+\echo   flsys = document.getElementById("flsys").value;
 \echo   checkpars();
 \echo   let reccomandations = document.getElementById("paramtune").children[1];
 \echo   let reccos = "";
@@ -972,11 +986,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let sver_ver = params.find(p => p.param === "server_version");
 \echo     if ( mgrver < Math.trunc(meta.pgvers[0])){
 \echo       val.classList.add("warn"); val.title="PostgreSQL Version is outdated (EOL) and not supported";
-\echo       sver_ver["warn"] = "Running <b>Obsolete (End-of-Life) and Unsupported PostgreSQL Version: " + mgrver + "</b>. Please upgrade urgently";
+\echo       sver_ver["warn"] = "<b>Obsolete (End-of-Life) and Unsupported Version: PostgreSQL " + setval + ". IMPORTANT: Security vulnerabilities and bugs in obsolete versions won't be fixed.</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+ meta.pgvers.pop() + ">Understand the risk</a> ";
 \echo     } else {
 \echo       meta.pgvers.forEach(function(t){
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
-\echo           console.log(setval);
 \echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
 \echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
 \echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";
@@ -1030,6 +1043,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   track_io_timing: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     if (val.innerText == "off"){
+\echo       val.classList.add("warn"); val.title="There is no good reason for track_io_timing to be off on any modern hardware. It is recommended to be on";
 \echo       let param = params.find(p => p.param === "track_io_timing");
 \echo       param["suggest"] = "on";
 \echo     }
@@ -1045,6 +1059,34 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo           param["suggest"] = "'lz4'";
 \echo         }
 \echo       }
+\echo     }
+\echo   },
+\echo   wal_init_zero: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_init_zero");
+\echo     if (flsys == "cow" && val.innerText == "on") { 
+\echo       val.classList.add("warn"); val.title="wal_init_zero is not recommended for Copy-on-Write filesystems (like ZFS, BTRFS, etc).";
+\echo       param["suggest"] = "off";
+\echo     } else if (flsys == "rglr" && val.innerText == "off") { 
+\echo       val.classList.add("warn"); val.title="wal_init_zero is recommended for regular filesystems (like ext4, xfs, etc).";
+\echo       param["suggest"] = "on";
+\echo     } else {
+\echo       val.classList.remove("warn");
+\echo       delete param["suggest"]
+\echo     }
+\echo   },
+\echo   wal_recycle: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_recycle");
+\echo     if (flsys == "cow" && val.innerText == "on") { 
+\echo       val.classList.add("warn"); val.title="wal_recycle is not recommended for Copy-on-Write filesystems (like ZFS, BTRFS, etc).";
+\echo       param["suggest"] = "off";
+\echo     } else if (flsys == "rglr" && val.innerText == "off") { 
+\echo       val.classList.add("warn"); val.title="wal_recycle is recommended for regular filesystems (like ext4, xfs, etc).";
+\echo       param["suggest"] = "on";
+\echo     } else {
+\echo       val.classList.remove("warn");
+\echo       delete param["suggest"]
 \echo     }
 \echo   },
 \echo   work_mem: function(rowref){
@@ -1063,6 +1105,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo var evalParam = function(param,rowref = null) {
 \echo   if (rowref != null && rowref.id == "") rowref.id=param;  
 \echo   else rowref = document.getElementById(param); 
+\echo   if (rowref == null) return;
 \echo   if (paramDespatch.hasOwnProperty(param)){ 
 \echo     let paramJson = {}; paramJson["param"] = param; paramJson["val"] = rowref.cells[1].innerText;
 \echo     params.push(paramJson);   
@@ -1075,10 +1118,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   trs=tab.rows
 \echo   if (document.getElementById("params").rows.length > 1)
 \echo     for(var i=1;i<trs.length;i++)  evalParam(trs[i].cells[0].innerText,trs[i]); 
-\echo   else  strfind += "<li><b>Partial Data Collection</b></li>"
+\echo   else { strfind += "<li><b>PARTIAL DATA COLLECTION. MAKE SURE TO RUN gather.sql SCRIPT USING AN ACCOUNT WITH THE REQUIRED PERMISSIONS AND WAIT FOR COMPLETION</b></li>"; return 1; }
 \echo  }
 \echo function aged(cell){
-\echo  if(cell.innerHTML > autovacuum_freeze_max_age){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
+\echo  if(cell.innerHTML > autovacuum_freeze_max_age && cell.innerHTML > 200000000 ){ cell.classList.add("warn"); cell.title =  Number(cell.innerText).toLocaleString("en-US"); }
 \echo }
 \echo function checktabs(){
 \echo   const startTime =new Date().getTime();
@@ -1087,10 +1130,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
 \echo   let bloatTabTot = 0;
-\echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","Live Rows/Tuples","Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
-\echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","","","","Number of Vacuums per day","","Size of TOAST and its index",
-\echo    "Age of TOAST","Bigger of Table age and TOAST age","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
-\echo   [10,16,17].forEach(function(num){trs[0].cells[num].title="Age of unfrozen tuple. Indication of the need for VACUUM FREEZE. Current autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
+\echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","No. Live Rows/Tuples","No. Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
+\echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","Age of main relation","","","Number of Vacuums per day","","Size of TOAST and its index",
+\echo    "Age of TOAST","Age of Table & TOAST","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
+\echo   [10,16,17].forEach(function(num){trs[0].cells[num].title+=". (Age of unfrozen tuple. Indication of the need for VACUUM FREEZE). Current autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US")})
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i]; let TotTab=tr.cells[8]; TotTabSize=Number(TotTab.innerHTML); TabInd=tr.cells[9]; TabIndSize=(TabInd.innerHTML);
 \echo     if(TotTabSize > 5000000000 ) { TotTab.classList.add("lime"); TotTab.title = bytesToSize(TotTabSize) + "\nBig Table, Consider Partitioning, Archive+Purge"; 
@@ -1119,12 +1162,27 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo obj.tabs.bloatTabNum = bloatTabTot;
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
 \echo }
+\echo function checktabPart(){
+\echo   const tab=document.getElementById("tabPart");
+\echo   tab.caption.innerHTML="<span>Partitioned Tables</span> in '" + obj.dbts.f1 + "' DB";
+\echo   if (tab.rows.length < 2){ tab.tBodies[0].innerHTML="No Partitioned tables found."; return;}
+\echo   const trs=tab.rows
+\echo   setheadtip(trs[0],["Partitioned Table Name","","Type of Partitioning (Declerative vs Inheritance)","No. of Partitions","Total Table Size","Total Index Size","Precentate of fetches coming from a single partition (bigger the better)"]);
+\echo   const len=trs.length;
+\echo   if (len > 4) strfind += "<li><b>"+ (len-1).toString() +" Partitioned Tables found.</b> Please check the partitioning strategy and its effectiveness. <a href='"+ docurl +"partition.html'>Details</a></li>"
+\echo   for(var i=1;i<len;i++){
+\echo     tr=trs[i];
+\echo     if (tr.cells[3].innerText > 16 ) { tr.cells[3].classList.add("lime"); tr.cells[3].title = "Ensure proper partition pruning in SQL statements"; 
+\echo     } else if (tr.cells[3].innerText == 0 ) { tr.cells[3].classList.add("warn"); tr.cells[3].title = "No Partitions found"; }
+\echo     if (tr.cells[4].innerText/tr.cells[3].innerText > 5368709120) { tr.cells[4].classList.add("warn"); tr.cells[4].title = "Average per partition size is :" + bytesToSize(tr.cells[4].innerText/tr.cells[3].innerText) ; }
+\echo   }
+\echo }
 \echo function checkdbs(){
 \echo   const trs=document.getElementById("dbs").rows
 \echo   const len=trs.length;
 \echo   let aborts=[]; 
 \echo   let strtmp=""; 
-\echo   trs[0].cells[6].title="Average Temp generation Per Day"; trs[0].cells[7].title="Average Temp generation Per Day"; trs[0].cells[9].title="autovacuum_freeze_max_age=" + autovacuum_freeze_max_age.toLocaleString("en-US");
+\echo   setTitles(trs[0],["Database Name","","Avg. No. of commits per day","Avg. No. of Aborts/Rollbacks per day","Avg. DML Operations per day","Cache Hit Ratio (%)","Avg. No. Temp files generated per day","Avg Temp File Size in bytes per day","Database size in bytes","Age of unfrozen tuples in database"]);
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
 \echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
@@ -1136,7 +1194,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
 \echo       let str = " temp file generation per day!. It can cause I/O performance issues." 
 \echo       let param = params.find(p => p.param === "log_temp_files");
-\echo       if ( param["val"] == -1 ) { 
+\echo       if ( param && param["val"] == -1 ) { 
 \echo         param["suggest"] = "'100MB'"; 
 \echo         str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
 \echo       }else{
@@ -1153,6 +1211,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (aborts.length >0) 
 \echo    strfind += "<li>High number of transaction aborts/rollbacks in databases : <b>" + aborts.toString() + "</b>, please inspect PostgreSQL logs for more details</li>" ; 
 \echo   if (strtmp != "") strfind += "<li>High temp file generation : <b>" + strtmp + "</b></li>"; 
+\echo   var el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan='9'>**Averages are Per Day. Total size of "+ (document.getElementById("dbs").tBodies[0].rows.length - 1) +" DBs : "+ bytesToSize(totdb) +"</th>";
+\echo   dbs=document.getElementById("dbs");
+\echo   dbs.appendChild(el);
 \echo }
 \echo function checkextn(){
 \echo   const tab=document.getElementById("tblextn");
@@ -1214,9 +1276,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
-\echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== '''''' && v2 !== '''''' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
-\echo document.querySelectorAll(''''th'''').forEach(th => th.addEventListener(''''click'''', (() => {
-\echo   const table = th.closest(''''table'''');
+\echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
+\echo document.querySelectorAll("th").forEach(th => th.addEventListener("click", (() => {
+\echo   const table = th.closest("table");
 \echo   th.style.cursor = "progress";
 \echo   var el=document.createElement("div");
 \echo   el.setAttribute("id", "cur");
@@ -1225,51 +1287,53 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   th.appendChild(el);
 \echo   setTimeout(() => { el.remove();},1000);
 \echo   setTimeout(function (){
-\echo   Array.from(table.querySelectorAll(''''tr:nth-child(n+2)'''')).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
+\echo   Array.from(table.querySelectorAll("tr:nth-child(n+2)")).sort(comparer(Array.from(th.parentNode.children).indexOf(th), this.asc = !this.asc)).forEach(tr => table.appendChild(tr) );
 \echo   setTimeout(function(){th.style.cursor = "pointer";},10);
 \echo   },50);
 \echo })));
-\echo function dbsdtls(th){
-\echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   let str="";
-\echo   if(th.cells[0].classList.contains("lime")) str = "<br/>(pg_gather connected)";
-\echo   return "<b>" + th.cells[0].innerText + "</b>" + str + "<br/> Inserts per day : " + o.f1 + "<br/>Updates per day : " + o.f2 + "<br/>Deletes per day : " 
-\echo    + o.f3 + "<br/>Stats Reset : " + o.f4 + "<br/>DB oid(dbid) :" + o.f5 + "<br/>Multi Txn Id Age :" + o.f6  ;
+\echo function dbsdtls(e){
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   th = e.target.parentNode;  
+\echo   let o=th.cells[1].innerText.split(",");
+\echo   let str= th.cells[0].classList.contains("lime")?" (pg_gather connected)<br/>":"" 
+\echo   return "<b>" + th.cells[0].innerText + "</b>" + str + 
+\echo    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
+\echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" ;
+\echo   }
 \echo }
 \echo function tabdtls(th){
-\echo   let o=JSON.parse(th.cells[1].innerText);
-\echo   let vac=th.cells[13].innerText;
+\echo   let o=th.cells[1].innerText.split(",");
+\echo   let vac=th.cells[13].innerText; 
 \echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
 \echo   let str=""
-\echo   if (o.f11 == "r") str += "<br/>Inheritance Partition of : " + o.f10;
-\echo   if (o.f11 == "p") str += "<br/>Native Partition of : " + o.f10;
-\echo   if (o.f6 !== null) str += "<br/>Total Indexes: " + o.f6;
-\echo   if (o.f7 !== null) str += "<br/>Unused Indexes: " + o.f7;
-\echo   if (o.f8 > 0) str += "<br/>Primary key: Exists";
-\echo   else str += "<br/>No Primary key ";
-\echo   if (o.f9-o.f8 > 0) str += "<br/>Unique keys (than PK): " + (o.f9-o.f8);
-\echo   if (obj.dbts.f4 < 1) obj.dbts.f4 = 1;
-\echo   if (vac > 0) str +="<br />Vacuums / day : " + Number(vac/obj.dbts.f4).toFixed(1);
-\echo   str += "<br/>Inserts / day : " + Math.round(o.f2/obj.dbts.f4);
-\echo   str += "<br/>Updates / day : " + Math.round(o.f3/obj.dbts.f4);
-\echo   str += "<br/>Deletes / day : " + Math.round(o.f4/obj.dbts.f4);
-\echo   str += "<br/>HOT.updates / day : " + Math.round(o.f5/obj.dbts.f4);
-\echo   str += "<br>Rel.filename : " + o.f12;
-\echo   if (o.f13 < 16384) str += "<br>Tablespace : pg_default"; 
+\echo   if (o[10] == "r") str += "<c>Inheritance Partition of : " + o[9] + "</c>";
+\echo   if (o[10] == "p") str += "<c>Native Partition of : " + o[9] + "</c>";
+\echo   if (o[5] !== null) str += "<c>Total Indexes: " + o[5] + "</c>";
+\echo   if (o[6] !== null) str += "<c>Unused Indexes: " + o[6] + "</c>";
+\echo   str += (o[7] > 0) ? "<c>Primary key: Exists</c>" : "<c>No Primary key</c>"; 
+\echo   if (o[8]-o[7] > 0) str += "<c>Unique keys (than PK): " + (o[8]-o[7]) + "</c>";
+\echo   let days=(obj.dbts.f4 < 1) ? 1 : obj.dbts.f4;
+\echo   if (vac > 0) str +="<c>Vacuums / day : " + Number(vac/days).toFixed(1) + "</c>";
+\echo   str += "<c>Inserts / day : " + Math.round(o[1]/days) + "</c>";
+\echo   str += "<c>Updates / day : " + Math.round(o[2]/days) + "</c>";
+\echo   str += "<c>Deletes / day : " + Math.round(o[3]/days) + "</c>";
+\echo   str += "<c>HOT.updates / day : " + Math.round(o[4]/days) + "</c>";
+\echo   str += "<c>Rel.filename : " + o[11] + "</c>";
+\echo   if (o[12] < 16384) str += "<c>Tablespace : pg_default </c>"; 
 \echo   else{
-\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o.f13).toString()); 
-\echo     str += "<br>Tablespace : " + o.f13 + " (" + tbsp.tsname + " : " + tbsp.location + ")"; 
+\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[12]).toString()); 
+\echo     str += "<c>Tablespace : " + o[12] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
 \echo   }
-\echo   if (o.f14 !== null ) str += "<br>Current Settings : " + o.f14;
-\echo   if(o.f3 > 0 || vac/obj.dbts.f4 > 50){
+\echo   if (o[13] !== null ) str += "<c>Current Settings : " + o[13] + "</c>";
+\echo   if(o[2] > 0 || vac/days > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-\echo   if (o.f3 > 0) str += "<br/>FILLFACTOR :" + Math.round(100 - 20*o.f3/(o.f3+o.f2)+ 20*o.f3*o.f5/((o.f3+o.f2)*o.f3)); 
-\echo   if (vac/obj.dbts.f4 > 50) { 
-\echo     let threshold = Math.round((Math.round(o.f3/obj.dbts.f4) + Math.round(o.f4/obj.dbts.f4))/48); 
+\echo   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>"
+\echo   if (vac/days > 50) { 
+\echo     let threshold = Math.round((Math.round(o[2]/days) + Math.round(o[3]/days))/48); 
 \echo     if (threshold < 500) threshold = 500;
-\echo     str += "<br/>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold
+\echo     str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
 \echo   }}
-\echo   return "<b>" + th.cells[0].innerText + "</b><br/>OID : " + o.f1 + "</b><br/>Schema : " + ns.nsname + str;
+\echo   return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
 \echo }
 \echo function sessdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
@@ -1278,7 +1342,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (o.f3 !== null) str += "Client Host :" + o.f3 + "<br/>";
 \echo   if (o.f4 != null) str += "Communication :" + o.f4 + "<br/>";
 \echo   if (o.f5 != null) str += "Workers :" + o.f5 + "<br/>";
-\echo   if (typeof o.f6 != "undefined") str += ''''<div class="warn">'''' + o.f6 + "<div>";
+\echo   if (typeof o.f6 != "undefined") str += "<div class=warn>" + o.f6 + "<div>"; 
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
 \echo }
@@ -1300,26 +1364,56 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str
 \echo } else return "No connections"
 \echo }
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseover", (() => {
-\echo   tr=td.parentNode;
-\echo   tab=tr.closest("table");
-\echo   var el=document.createElement("div");
-\echo   el.setAttribute("id", "dtls");
-\echo   el.setAttribute("align","left");
-\echo   if(tab.id=="dbs") el.innerHTML=dbsdtls(tr);
-\echo   if(tab.id=="tabInfo") el.innerHTML=tabdtls(tr);
-\echo   if(tab.id=="tblsess") el.innerHTML=sessdtls(tr);
-\echo   if(tab.id=="tblusr") el.innerHTML=userdtls(tr);
-\echo   if(tab.id=="tblcs") el.innerHTML=dbcons(tr);
-\echo   tr.cells[2].appendChild(el);
-\echo })));
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
-\echo   navigator.clipboard.writeText(td.parentNode.cells[2].children[0].innerText);
-\echo   flash("Details copied to clipboard");
-\echo })));
-\echo document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseout", (() => {
-\echo   td.parentNode.cells[2].innerHTML=td.parentNode.cells[2].firstChild.textContent;
-\echo })));
+\echo function tabPartdtls(e){
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   th = e.target.parentNode;
+\echo   let o=th.cells[1].innerText.split(",");
+\echo   let str = "";
+\echo   if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
+\echo   else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found<c>";
+\echo   if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
+\echo   return str;
+\echo   }
+\echo }
+\echo document.querySelectorAll(".thidden").forEach(table => {
+\echo   table.addEventListener("mouseenter", (e) => {
+\echo     let str = ""
+\echo     const td = e.target;
+\echo     if (typeof window[e.currentTarget.id + "dtls"] === "function") {
+\echo      str = window[e.currentTarget.id + "dtls"](e);  
+\echo     } else if (e.target.matches("tr td:first-child")){   
+\echo       const tr = td.parentNode;
+\echo       const tab = tr.closest("table");
+\echo       str = tab.id === "tabInfo" ? tabdtls(tr) :
+\echo                      tab.id === "tblsess" ? sessdtls(tr) :
+\echo                      tab.id === "tblusr" ? userdtls(tr) :
+\echo                      tab.id === "tblcs" ? dbcons(tr) : "";;
+\echo     }  
+\echo     if ( str ) {
+\echo       var el = document.createElement("div");
+\echo       el.setAttribute("id", "dtls");
+\echo       el.setAttribute("align", "left");
+\echo       el.addEventListener("mouseleave", (event) => {
+\echo       if (!td.contains(event.relatedTarget)) el.remove();
+\echo       })
+\echo       el.innerHTML= str;
+\echo       td.appendChild(el); 
+\echo     }
+\echo   }, true);
+\echo });
+\echo document.querySelectorAll(".thidden").forEach(container => {
+\echo   container.addEventListener("dblclick", function(event) {
+\echo     if (event.target.matches("tr td:first-child")) {
+\echo       navigator.clipboard.writeText(event.target.children[0].innerText);
+\echo       flash("Details copied to clipboard");
+\echo     }
+\echo   });
+\echo });
+\echo document.querySelectorAll(".thidden").forEach(table => {
+\echo     table.addEventListener("mouseleave", (e) => {
+\echo         if (e.target.matches("tr td:first-child")) e.target.children[0]?.remove();
+\echo     }, true);
+\echo });
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
 \echo elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
@@ -1336,16 +1430,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab.caption.innerHTML="<span>Indexes</span> in '" + obj.dbts.f1 + "' DB" 
 \echo trs=tab.rows;
 \echo for (let tr of trs) {
-\echo   if(tr.cells[4].innerText == 0) {tr.cells[4].classList.add("warn"); tr.cells[4].title="Unused Index"}
-\echo   tr.cells[5].title=bytesToSize(Number(tr.cells[5].innerText));
-\echo   if(tr.cells[5].innerText > 2000000000) tr.cells[5].classList.add("lime");
-\echo   if(tr.cells[6].innerText > 262144 && tr.cells[6].innerText/tr.cells[4].innerText > 50 ) {
-\echo     if (tr.cells[4].innerText > 0 ){
-\echo      tr.cells[6].title="Each Index scan had to fetch " + Math.round(tr.cells[6].innerText/tr.cells[4].innerText) + " pages on average. Expensive Index";
-\echo     }else tr.cells[6].title="Unused indexes. But causing fetches without any benefit"; 
-\echo     tr.cells[6].classList.add("warn");
-\echo     if (tr.cells[7].innerText < 50 ){tr.cells[7].classList.add("warn");tr.cells[7].title="Poor Cache Hit";}
-\echo     else if (tr.cells[7].innerText < 80 ) {tr.cells[7].classList.add("lime");tr.cells[7].title="Indexes with less cache hit can cause considerable I/O"; }
+\echo   if(tr.cells[5].innerText == 0) {tr.cells[5].classList.add("warn"); tr.cells[5].title="Unused Index"}
+\echo   tr.cells[6].title=bytesToSize(Number(tr.cells[6].innerText));
+\echo   if(tr.cells[6].innerText > 2000000000) tr.cells[6].classList.add("lime");
+\echo   if(tr.cells[7].innerText > 262144 && tr.cells[7].innerText/tr.cells[5].innerText > 50 ) {
+\echo     if (tr.cells[5].innerText > 0 ){
+\echo      tr.cells[7].title="Each Index scan had to fetch " + Math.round(tr.cells[7].innerText/tr.cells[5].innerText) + " pages on average. Expensive Index";
+\echo     }else tr.cells[7].title="Unused indexes. But causing fetches without any benefit"; 
+\echo     tr.cells[7].classList.add("warn");
+\echo     if (tr.cells[8].innerText < 50 ){tr.cells[8].classList.add("warn");tr.cells[8].title="Poor Cache Hit";}
+\echo     else if (tr.cells[8].innerText < 80 ) {tr.cells[8].classList.add("lime");tr.cells[8].title="Indexes with less cache hit can cause considerable I/O"; }
 \echo   }
 \echo }
 \echo }
@@ -1358,7 +1452,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   maxevnt=Number(trs[1].cells[1].innerText);
 \echo   for (let tr of trs) {
 \echo    evnts=tr.cells[1];
-\echo    if (evnts.innerText*1500/maxevnt > 1) evnts.innerHTML += ''''<div style="display:inline-block;width:'+ Number(evnts.innerText)*1500/maxevnt + 'px; border: 7px outset brown; border-width:7px 0; margin:0 5px;box-shadow: 2px 2px grey;">'''';
+\echo    if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
 \echo    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
 \echo   }
 \echo   el=document.createElement("tfoot");
@@ -1370,7 +1464,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function checksess(){
 \echo tab=document.getElementById("tblsess")
-\echo tab.caption.innerHTML=''''<span>Sessions</span>''''
+\echo tab.caption.innerHTML="<span>Sessions</span>"
 \echo trs=tab.rows;
 \echo for (let tr of trs){
 \echo  pid=tr.cells[0]; sql=tr.cells[5]; xidage=tr.cells[8]; stime=tr.cells[10];
@@ -1422,7 +1516,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }}
 \echo function checkchkpntbgwrtr(){
 \echo tab=document.getElementById("tblchkpnt")
-\echo tab.caption.innerHTML=''''<span>BGWriter & Checkpointer</span>''''
+\echo tab.caption.innerHTML="<span>BGWriter & Checkpointer</span>"
 \echo trs=tab.rows;
 \echo setTitles(trs[0],["Forced Checkpoint; Checkpoint triggered by xlog/wal; Need to adjust the max_wal_size","Average Minutes between Checkpoints","Average Write time of a checkpoint",
 \echo "Average Disk sync time of a checkpoint","","","","","","","","Dirty buffers cleaned by Checkpointer","Dirty buffers cleaned by BGWriter","Dirty buffers cleaned by Session backends",
@@ -1466,7 +1560,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }}
 \echo function checkiostat(){
 \echo tab=document.getElementById("tbliostat")
-\echo tab.caption.innerHTML=''''<span>IO Statistics</span>''''
+\echo tab.caption.innerHTML="<span>IO Statistics</span>"
 \echo if (tab.rows.length > 1){
 \echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 \echo }
@@ -1475,6 +1569,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab.caption.innerHTML="<span>Replication</span>"
 \echo let strReps = 0;
 \echo let param = params.find(p => p.param === "hot_standby_feedback");
+\echo if (typeof param === "undefined") param = {};
 \echo if (tab.rows.length > 1){
 \echo   for(var i=1;i<tab.rows.length;i++){
 \echo     row=tab.rows[i];
