@@ -19,7 +19,7 @@ ol { width: fit-content;}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
-#dtls { margin-left: -0.2em; left:100%; top: 4%; width: max-content; color: black;}
+#dtls { left:100%; top: 4%; width: max-content; color: black;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -1526,6 +1526,7 @@ function tabPartdtls(e){
 
 
 document.querySelectorAll(".thidden").forEach(table => {
+  //Event listener for mouseenter
   table.addEventListener("mouseenter", (e) => {
     let str = ""
     const td = e.target;
@@ -1553,27 +1554,27 @@ document.querySelectorAll(".thidden").forEach(table => {
       td.appendChild(el); 
     }
   }, true); // `true` for capture phase (better performance)
+
+  //Event listener for double click to copy details
+  table.addEventListener("dblclick", function(event) {
+    if (event.target.matches("tr td:first-child")) {
+      navigator.clipboard.writeText(event.target.children[0].innerText);
+      flash("Details copied to clipboard");
+    }
+  });
+
+
+  //Event listener for mouseleave to remove the popup on mouse leave
+  table.addEventListener("mouseleave", (e) => {
+        if (e.target.matches("tr td")) e.target.children[0]?.remove();
+  }, true); // `true` for capture phase (better performance)
+
 });
 
 // document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("dblclick", (() => {
 //   navigator.clipboard.writeText(td.parentNode.cells[0].children[0].innerText);
 //   flash("Details copied to clipboard");
 // })));
-
-document.querySelectorAll(".thidden").forEach(container => {
-  container.addEventListener("dblclick", function(event) {
-    if (event.target.matches("tr td:first-child")) {
-      navigator.clipboard.writeText(event.target.children[0].innerText);
-      flash("Details copied to clipboard");
-    }
-  });
-});
-
-document.querySelectorAll(".thidden").forEach(table => {
-    table.addEventListener("mouseleave", (e) => {
-        if (e.target.matches("tr td:first-child")) e.target.children[0]?.remove();
-    }, true); // `true` for capture phase (better performance)
-});
 
 //Evergreen solution if above is not working, use this
 // document.querySelectorAll(".thidden tr td:first-child").forEach(td => td.addEventListener("mouseleave", (() => {
