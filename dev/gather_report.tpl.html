@@ -529,6 +529,8 @@ let blkvictims = []
 //Parameter array with each parameter ("param") current value ("val"), recomendations.
 let params = []
 
+const canvas=document.createElement("canvas"); //canvas for getting the width of text
+const canvascontext=canvas.getContext("2d"); //canvas context for getting the width of text
 //another function passed into this functio will be called after the rendering is complete
 function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 
@@ -1541,6 +1543,9 @@ document.querySelectorAll(".thidden").forEach(table => {
       var el = document.createElement("div");
       el.setAttribute("id", "dtls");
       el.setAttribute("align", "left");
+      computedStyle=window.getComputedStyle(td); //get the style of the current td element and copy it to canvas context for measuring text width
+      canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+      el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
       el.addEventListener("mouseleave", (event) => {
       if (!td.contains(event.relatedTarget)) el.remove(); // Check if the mouse is moving back to the parent, Remove the child element if it is leaving, but not going back to parent
       })
