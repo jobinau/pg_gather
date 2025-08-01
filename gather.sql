@@ -73,8 +73,10 @@ SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \echo '\\.'
 
 --Database level info
-\echo COPY pg_get_db (datid,datname,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age,mxidage,stats_reset) FROM stdin;
+\echo COPY pg_get_db (datid,datname,encoding,collate,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age,mxidage,stats_reset) FROM stdin;
 COPY (SELECT d.oid, d.datname, 
+pg_encoding_to_char(d.encoding) AS encoding, 
+d.datcollate AS collate, 
 pg_stat_get_db_xact_commit(d.oid) AS xact_commit,
 pg_stat_get_db_xact_rollback(d.oid) AS xact_rollback,
 pg_stat_get_db_blocks_fetched(d.oid) AS blks_fetch,
