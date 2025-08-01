@@ -93,8 +93,8 @@ CREATE UNLOGGED TABLE pg_pid_wait(
 CREATE UNLOGGED TABLE pg_get_db (
     datid oid,
     datname text,
-    encoding text,
-    collate text,
+    encod text,
+    colat text,
     xact_commit bigint,
     xact_rollback bigint,
     blks_fetch bigint,
