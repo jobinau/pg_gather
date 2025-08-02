@@ -66,7 +66,7 @@ SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr )
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage)
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -1408,16 +1408,20 @@ function dbsdtls(e){
   let str= th.cells[0].classList.contains("lime")?" (pg_gather connected)<br/>":""  //ternary operator to check if the first cell has class "lime"
   return "<b>" + th.cells[0].innerText + "</b>" + str + 
    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
-   + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" ;
+   + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
+   + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
   }
 }
 
 //Pop-up for Tables.
-function tabdtls(th){
+function tabInfodtls(e){
   //let o=JSON.parse(th.cells[1].innerText);
-  let o=th.cells[1].innerText.split(",");
-  let vac=th.cells[13].innerText; 
-  let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString()); //lookup cells[2] value, the oid of NS in the obj.ns json collection 
+  let td = e.target;
+  let tr = td.parentNode;
+  if (e.target.matches("tr td:first-child")){
+  let o=tr.cells[1].innerText.split(",");
+  let vac=tr.cells[13].innerText; 
+  let ns=obj.ns.find(el => el.nsoid === JSON.parse(tr.cells[2].innerText).toString()); //lookup cells[2] value, the oid of NS in the obj.ns json collection 
   let str=""
   //[0]=r.relid [1]=r.n_tup_ins [2]=r.n_tup_upd [3]=r.n_tup_del [4]=r.n_tup_hot_upd [5]=isum.totind [6]=isum.ind0scan [7]=isum.pk [8]=isum.uk
   //[9]=inhp.relname [10]=inhp.relkind [11]=c.relfilenode [12]=c.reltablespace, [13]=c.reloptions
@@ -1449,7 +1453,22 @@ function tabdtls(th){
     if (threshold < 500) threshold = 500;
     str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
   }}
-  return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+  return "<b>" + tr.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+}else{ // other than first cell
+ let tdSiblings = Array.from(tr.querySelectorAll("td"));
+ let thIndex = tdSiblings.indexOf(td);
+ console.log("thIndex: " + thIndex);
+ switch (thIndex) {
+ case 7: 
+ case 8: 
+ case 9:
+ case 15:
+ case 16:
+   return bytesToSize(tr.cells[thIndex].innerText);
+ default:
+   return "";
+ }
+}
 }
 
 //Pop-up for Session details

@@ -19,7 +19,7 @@
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
-\echo #dtls { margin-left: -0.2em; left:100%; top: 4%; width: max-content; color: black;}
+\echo #dtls { left:100%; top: 4%; width: max-content; color: black;}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -66,7 +66,7 @@ SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr )
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage)
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -511,6 +511,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo let blokers = []
 \echo let blkvictims = []
 \echo let params = []
+\echo const canvas=document.createElement("canvas");
+\echo const canvascontext=canvas.getContext("2d");
 \echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 \echo async function doAllChecks(){
 \echo   const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
@@ -1298,13 +1300,17 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let str= th.cells[0].classList.contains("lime")?" (pg_gather connected)<br/>":"" 
 \echo   return "<b>" + th.cells[0].innerText + "</b>" + str + 
 \echo    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
-\echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" ;
+\echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
+\echo    + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
 \echo   }
 \echo }
-\echo function tabdtls(th){
-\echo   let o=th.cells[1].innerText.split(",");
-\echo   let vac=th.cells[13].innerText; 
-\echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
+\echo function tabInfodtls(e){
+\echo   let td = e.target;
+\echo   let tr = td.parentNode;
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   let o=tr.cells[1].innerText.split(",");
+\echo   let vac=tr.cells[13].innerText; 
+\echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(tr.cells[2].innerText).toString());
 \echo   let str=""
 \echo   if (o[10] == "r") str += "<c>Inheritance Partition of : " + o[9] + "</c>";
 \echo   if (o[10] == "p") str += "<c>Native Partition of : " + o[9] + "</c>";
@@ -1333,7 +1339,22 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if (threshold < 500) threshold = 500;
 \echo     str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
 \echo   }}
-\echo   return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+\echo   return "<b>" + tr.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+\echo }else{
+\echo  let tdSiblings = Array.from(tr.querySelectorAll("td"));
+\echo  let thIndex = tdSiblings.indexOf(td);
+\echo  console.log("thIndex: " + thIndex);
+\echo  switch (thIndex) {
+\echo  case 7: 
+\echo  case 8: 
+\echo  case 9:
+\echo  case 15:
+\echo  case 16:
+\echo    return bytesToSize(tr.cells[thIndex].innerText);
+\echo  default:
+\echo    return "";
+\echo  }
+\echo }
 \echo }
 \echo function sessdtls(th){
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
@@ -1393,6 +1414,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       var el = document.createElement("div");
 \echo       el.setAttribute("id", "dtls");
 \echo       el.setAttribute("align", "left");
+\echo       computedStyle=window.getComputedStyle(td);
+\echo       canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+\echo       el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
 \echo       el.addEventListener("mouseleave", (event) => {
 \echo       if (!td.contains(event.relatedTarget)) el.remove();
 \echo       })
@@ -1400,19 +1424,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       td.appendChild(el); 
 \echo     }
 \echo   }, true);
-\echo });
-\echo document.querySelectorAll(".thidden").forEach(container => {
-\echo   container.addEventListener("dblclick", function(event) {
+\echo   table.addEventListener("dblclick", function(event) {
 \echo     if (event.target.matches("tr td:first-child")) {
 \echo       navigator.clipboard.writeText(event.target.children[0].innerText);
 \echo       flash("Details copied to clipboard");
 \echo     }
 \echo   });
-\echo });
-\echo document.querySelectorAll(".thidden").forEach(table => {
-\echo     table.addEventListener("mouseleave", (e) => {
-\echo         if (e.target.matches("tr td:first-child")) e.target.children[0]?.remove();
-\echo     }, true);
+\echo   table.addEventListener("mouseleave", (e) => {
+\echo         if (e.target.matches("tr td")) e.target.children[0]?.remove();
+\echo   }, true);
 \echo });
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
