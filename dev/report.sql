@@ -759,6 +759,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (i === 0) return bytes + sizes[i];
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 \echo }
+\echo function formatNumber(n) {
+\echo   const ranges = [ {divisor: 1e9, suffix: " Billion"}, {divisor: 1e6, suffix: " Million"}, {divisor: 1e3, suffix: " K"}];
+\echo   const range = ranges.find(r => n >= r.divisor);
+\echo   return range ? (n/range.divisor).toFixed(1) + range.suffix : n.toString();
+\echo };
 \echo function setheadtip(th,tips){
 \echo   for (i in tips) th.cells[i].title = tips[i];
 \echo }
@@ -1343,14 +1348,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }else{
 \echo  let tdSiblings = Array.from(tr.querySelectorAll("td"));
 \echo  let thIndex = tdSiblings.indexOf(td);
-\echo  console.log("thIndex: " + thIndex);
 \echo  switch (thIndex) {
-\echo  case 7: 
-\echo  case 8: 
+\echo  case 7:
+\echo  case 8:
 \echo  case 9:
 \echo  case 15:
-\echo  case 16:
 \echo    return bytesToSize(tr.cells[thIndex].innerText);
+\echo  case 10:
+\echo  case 16:
+\echo  case 17:
+\echo   return formatNumber(tr.cells[thIndex].innerText)
 \echo  default:
 \echo    return "";
 \echo  }
@@ -1400,23 +1407,27 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   table.addEventListener("mouseenter", (e) => {
 \echo     let str = ""
 \echo     const td = e.target;
+\echo     if (td.innerText.trim().length < 1 ) return;
 \echo     if (typeof window[e.currentTarget.id + "dtls"] === "function") {
 \echo      str = window[e.currentTarget.id + "dtls"](e);  
 \echo     } else if (e.target.matches("tr td:first-child")){   
 \echo       const tr = td.parentNode;
 \echo       const tab = tr.closest("table");
-\echo       str = tab.id === "tabInfo" ? tabdtls(tr) :
-\echo                      tab.id === "tblsess" ? sessdtls(tr) :
+\echo       str = tab.id === "tblsess" ? sessdtls(tr) :
 \echo                      tab.id === "tblusr" ? userdtls(tr) :
-\echo                      tab.id === "tblcs" ? dbcons(tr) : "";;
+\echo                      tab.id === "tblcs" ? dbcons(tr) : "";
 \echo     }  
 \echo     if ( str ) {
 \echo       var el = document.createElement("div");
 \echo       el.setAttribute("id", "dtls");
 \echo       el.setAttribute("align", "left");
-\echo       computedStyle=window.getComputedStyle(td);
-\echo       canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
-\echo       el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+\echo       if (td.align != "left") {
+\echo         el.style.cssText += "left: 100%; top: 80%";
+\echo       } else {
+\echo         computedStyle=window.getComputedStyle(td);
+\echo         canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+\echo         el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+\echo       }
 \echo       el.addEventListener("mouseleave", (event) => {
 \echo       if (!td.contains(event.relatedTarget)) el.remove();
 \echo       })

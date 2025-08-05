@@ -818,6 +818,12 @@ function bytesToSize(bytes,divisor = 1000) {
   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 }
 
+function formatNumber(n) {
+  const ranges = [ {divisor: 1e9, suffix: " Billion"}, {divisor: 1e6, suffix: " Million"}, {divisor: 1e3, suffix: " K"}];
+  const range = ranges.find(r => n >= r.divisor);
+  return range ? (n/range.divisor).toFixed(1) + range.suffix : n.toString();
+};
+
 //Set the tooltips for the Table head row.
 function setheadtip(th,tips){
   for (i in tips) th.cells[i].title = tips[i];
@@ -905,7 +911,7 @@ var paramDespatch = {
   default_toast_compression: function(rowref){
     val=rowref.cells[1];
     let param = params.find(p => p.param === "default_toast_compression");
-    if (val.innerText != "lz4") { val.classList.add("warn"); val.title="Better to use pglz for TOAST compression";
+    if (val.innerText != "lz4") { val.classList.add("warn"); val.title="Better to use lz4 for TOAST compression";
       param["suggest"] = "lz4";
      }
   },
@@ -1457,14 +1463,17 @@ function tabInfodtls(e){
 }else{ // other than first cell
  let tdSiblings = Array.from(tr.querySelectorAll("td"));
  let thIndex = tdSiblings.indexOf(td);
- console.log("thIndex: " + thIndex);
+ //console.log("thIndex: " + thIndex);
  switch (thIndex) {
- case 7: 
- case 8: 
- case 9:
- case 15:
- case 16:
+ case 7: //Rel size
+ case 8: //Tot.Tab size
+ case 9: //Tab+Ind size
+ case 15: //Toast + Ind
    return bytesToSize(tr.cells[thIndex].innerText);
+ case 10:
+ case 16:
+ case 17:
+  return formatNumber(tr.cells[thIndex].innerText)
  default:
    return "";
  }
@@ -1549,23 +1558,27 @@ document.querySelectorAll(".thidden").forEach(table => {
   table.addEventListener("mouseenter", (e) => {
     let str = ""
     const td = e.target;
+    if (td.innerText.trim().length < 1 ) return; //if the td is empty, return without doing anything
     if (typeof window[e.currentTarget.id + "dtls"] === "function") { //if there is a function with the name of table id + dtls
      str = window[e.currentTarget.id + "dtls"](e);   //pass the event to the function and get the processed string
     } else if (e.target.matches("tr td:first-child")){    //TODO : Slowly move all the functions to the above if condition
       const tr = td.parentNode;
       const tab = tr.closest("table");
-      str = tab.id === "tabInfo" ? tabdtls(tr) :
-                     tab.id === "tblsess" ? sessdtls(tr) :
+      str = tab.id === "tblsess" ? sessdtls(tr) :
                      tab.id === "tblusr" ? userdtls(tr) :
-                     tab.id === "tblcs" ? dbcons(tr) : "";;
+                     tab.id === "tblcs" ? dbcons(tr) : "";
     }  
-    if ( str ) {
+    if ( str ) { //if the string is not empty, create a popup
       var el = document.createElement("div");
       el.setAttribute("id", "dtls");
       el.setAttribute("align", "left");
-      computedStyle=window.getComputedStyle(td); //get the style of the current td element and copy it to canvas context for measuring text width
-      canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
-      el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+      if (td.align != "left") {
+        el.style.cssText += "left: 100%; top: 80%";
+      } else {
+        computedStyle=window.getComputedStyle(td); //get the style of the current td element and copy it to canvas context for measuring text width
+        canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+        el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+      }
       el.addEventListener("mouseleave", (event) => {
       if (!td.contains(event.relatedTarget)) el.remove(); // Check if the mouse is moving back to the parent, Remove the child element if it is leaving, but not going back to parent
       })
