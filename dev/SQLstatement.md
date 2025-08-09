@@ -266,3 +266,46 @@ FROM pg_replication_stat JOIN M ON TRUE
 100 - 20 *      n_tup_upd               +      20   *    n_tup_upd            *    n_tup_hot_upd
            ---------                                   ------------                --------------
            (n_tup_upd + n_tup_ins)                 (n_tup_upd + n_tup_ins)           n_tup_upd
+
+
+## HBA analysis
+```
+--Create a CTE with name "rules" with only those set of rules where CIDR need to be calcuated
+WITH rules AS (SELECT * FROM pg_get_hba_rules WHERE mask IS NOT NULL AND addr NOT IN ('all','samehost','samenet')),
+--Calculate CIDR mask based on "mask" column
+cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
+ sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) cidr_mask
+FROM rules
+LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
+  ON family(addr::inet) = 4
+LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
+GROUP BY 1),
+--Create a "rule_data" for as table with calculated CIDR mask
+rule_data AS (SELECT hba.seq ,typ ,db ,usr ,addr , cidr_mask , mask,
+CASE WHEN addr IN ('all','samehost','samenet') OR ( mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6'
+ ELSE 'IPv'||family(addr::inet)
+END  "IP" ,method , err, (addr||'/'||cidr_mask)::inet network_block
+FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq)
+SELECT victim.seq "Line",victim.typ "Type",victim.db "Database",victim.usr "User",victim.addr "Address", victim.cidr_mask "CIDR Mask",victim.mask "DDN/Binary Mask" 
+  ,victim."IP" "IP Ver.",victim.Method,victim.err,victim.network_block "Network Block", string_agg(shadower.seq::text,',')
+ FROM rule_data AS victim
+-- Findout rules which are in shadow of the previous rules (For Version 32)
+LEFT JOIN rule_data AS shadower
+ON  shadower.seq < victim.seq
+    AND (
+     (victim.typ = 'local' AND shadower.typ = 'local')
+     OR (victim.typ = 'host' AND shadower.typ = 'host')
+     OR (victim.typ = 'hostssl' AND shadower.typ IN ('host', 'hostssl'))
+     OR (victim.typ = 'hostnossl' AND shadower.typ IN ('host', 'hostnossl'))
+    )
+    AND ( victim.typ = 'local'
+     OR ( victim.network_block IS NOT NULL  AND shadower.network_block IS NOT NULL AND shadower.network_block >>= victim.network_block )
+     OR shadower.addr = 'all'
+    )
+    AND (('replication' = ANY(victim.db) AND 'replication' = ANY(shadower.db) AND  victim.db <@ shadower.db)  OR
+        (NOT ('replication' = ANY(victim.db)) AND ( shadower.db = '{all}'  OR victim.db <@ shadower.db ) ))
+    AND (  shadower.usr = '{all}'  OR victim.usr <@ shadower.usr)
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+ORDER BY 1;
+
+```
