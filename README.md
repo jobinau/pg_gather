@@ -2,11 +2,7 @@
 
 ![pgGather logo](./docs/pgGather.svg)
 
-`pg_gather` is an extension designed to collect and analyze test results from PostgreSQL test runs, it is especially useful for:
-
-* Gathering results from TAP test frameworks
-* Visualizing test coverage and failure rates
-* Supporting regression or fuzz testing environments
+`pg_gather` is a standalone SQL tool designed to collect and analyze PostgreSQL workloads, configurations, schemas and usages. It collects a minimal amount of data to identify any potential problems in your PostgreSQL database.
 
 You can use the following scripts:
   
@@ -14,12 +10,14 @@ You can use the following scripts:
 * `gather_report.sql`, which analyzes the collected data and generates detailed HTML reports.
 
 !!! note
-    The project is built using psql, the native command-line interface for PostgreSQL, and relies solely on SQL features.
+
+   The project is built using `psql`, the native command-line interface for PostgreSQL, and relies solely on SQL features.
 
 **Supported PostgreSQL Versions**: 10, 11, 12, 13, 14, 15, 16 & 17.
+
 **Older versions**: For PostgeSQL versions 9.6 or older, refer to the [documentation page](docs/oldversions.md).
 
-## `pg_gather` Highlights
+## `pg_gather` highlights
 
 1. **Security Through Transparency:**
 
@@ -37,12 +35,17 @@ You can use the following scripts:
 
    `pg_gather` ensures portability and compatibility among the following OS's: Linux (32/64-bit), Sun Solaris, Apple macOS, and Microsoft Windows.
 
-   !!! note
-      For Windows users, see [additional details](#additional-details).
+   !!! note "Platform-specific information"
+
+      For Windows users, see the [Additional details](#additional-details) section.
 
 5. **Architecture compatibility**
 
    `pg_gather` ensures compatibility with the following architectures: x86-64 bit, ARM, Sparc, Power, and more.
+
+   !!! note "Platform-specific information"
+
+      See the [Additional details](#additional-details) section for information on Heroku, Amazon Aurora, Docker, and Kubernetes.
 
 6. **Auditable and optionally maskable data**
 
@@ -53,7 +56,8 @@ You can use the following scripts:
    `pg_gather` works seamlessly with AWS RDS, Azure Database for PostgreSQL, Google Cloud SQL, on-premises PostgreSQL, and more.
 
    !!! note
-      For details about Heroku, AWS Aurora, Docker and Kubernetes support see [additional details](#additional-details).
+
+      See the [Additional details](#additional-details) section for information on Heroku, AWS Aurora, Docker, and Kubernetes.
 
 8. **Resilient by design**
 
@@ -67,7 +71,7 @@ You can use the following scripts:
 
    `pg_gather` minimizes data redundancy and generates a compact output file, which can be further compressed with `gzip` for more efficient transmission and storage.
 
-## How to Use `pg_gather`
+## How to use `pg_gather`
 
 * 1. Use data gathering functions:
 
@@ -87,13 +91,14 @@ This script may take over 20 seconds to run because it contains sleeps and delay
 
 ### Additional details
 
-* **Heroku** and similar DaaS hostings:
+* **Heroku** and similar DBaaS providers:
 
 These impose very high restrictions on collecting performance data. Queries on views like `pg_statistics` may produce errors during data collection, however you can ignore these.
 
 * **MS Windows** users:
 
 Client tools like [pgAdmin](https://www.pgadmin.org/) include `psql`, which can be used to run `pg_gather` against local or remote databases.
+
 For example:
 
 ```
@@ -118,25 +123,27 @@ cat gather.sql | docker exec -i <container> psql -X -f - > out.tsv
 cat gather.sql | kubectl exec -i <PGpod> -- psql -X -f - > out.tsv
 ```
 
-### Gathering data continuosly
+### Gathering data continuously
 
-In cases where the collection of data needs to be performed continously and repeatedly, `pg_gather` has a special lightweight mode for continuous data gathering. It is automatically enabled when it connects to the "template1" database.
+In cases where the collection of data needs to be performed continuously and repeatedly, `pg_gather` has a special lightweight mode for continuous data gathering. It is automatically enabled when it connects to the "template1" database.
 
 !!! note
-    For more information, see [Continuous Data collection](docs/continuous_collection.md).
 
-## 2. Data Analysis
+   For more information, see [Continuous Data collection](docs/continuous_collection.md).
+
+## 2. Data analysis
 
 ### 2.1 Importing collected data
 
-You can import the collected data to a PostgreSQL instance, which creates the required schema objects in the `public` schema of the database.
-
-!!! warning
-    Avoid importing the data into critical environments/databases. A temporary PostgreSQL instance is preferable.
+You can import the collected data to a PostgreSQL instance, which creates the required schema objects in the `public` schema of the database:
 
 ```
  psql -f gather_schema.sql -f out.tsv
 ```
+
+!!! warning
+
+   Avoid importing the data into critical environments/databases. A temporary PostgreSQL instance is preferable.
 
 The following is a deprecated usage of `sed`:
 
@@ -153,18 +160,17 @@ psql -X -f gather_report.sql > GatherReport.html
 ```
 
 !!! note
-     Generating the analysis report requires PostgreSQL version 13 or higher. You can view the report in any modern web browser.
 
-## 2.3 Alternative Approach: Dockerized report generation
+   Generating the analysis report requires PostgreSQL version 13 or higher. You can view the report in any modern web browser.
+
+## Alternative approach: Using the PostgreSQL container and wrapper script
 
 The steps for data analysis mentioned above require a PostgreSQL instance to import the data into. An alternative solution to this is to use the `generate_report.sh` script, which spins up a PostgreSQL Docker container and automates the entire process.
-
-To use this script, place it in the same directory containing the `gather_schema.sql` and `gather_report.sql` files.
 
 Once executed, the script:
 
 1. Creates a PostgreSQL container.
-2. Imports the output from `gather.sql` (i.e., `out.tsv`).
+2. Imports the output from `gather.sql` (`out.tsv`).
 3. Generates an HTML report.
 
 The script expects at least a single argument:
@@ -196,13 +202,13 @@ Finished generating report in /tmp/custom-name.html
 
 ## Advanced configurations
 
-### Timezone
+### Time zone
 
-By default, the `pg_gather` report uses the same timezone of the server from which the data is collected as it takes into account the `log_timezone` parameter for generating the report. This default timezone setting helps to compare the PostgreSQL log entries with the `pg_gather` report.
+By default, the `pg_gather` report uses the same time zone of the server from which the data is collected as it takes into account the `log_timezone` parameter for generating the report. This default time zone setting helps to compare the PostgreSQL log entries with the `pg_gather` report.
 
-However, this may not be the correct timezone for you, especially when cloud hostings are used. You can create a custom timezone by:
+However, this may not be the correct time zone for you, especially when cloud hosting's are used. You can create a custom time zone by:
 
-* setting the environment variable `PG_GATHER_TIMEZONE` to override the default. 
+* setting the environment variable `PG_GATHER_TIMEZONE` to override the default
 
 For example:
 
@@ -211,11 +217,12 @@ export PG_GATHER_TIMEZONE='UTC'
 ```
 
 !!! note
-    Please use the timezone name or abbreviation available from `pg_timezone_names`
 
-## Using pg_gather, a visual guide
+   Please use the time zone name or abbreviation available from `pg_timezone_names`.
 
-To learn more about using `pg_gather`, see the video guides below.
+## Use `pg_gather`: A visual guide
+
+To learn more about using `pg_gather`, see the below video guides:
 
 ### Data collection
 
@@ -225,6 +232,6 @@ To learn more about using `pg_gather`, see the video guides below.
 
 [![Import data and Generate report using PG](https://img.youtube.com/vi/Y8gq1dwfzQU/0.jpg)](https://youtu.be/Y8gq1dwfzQU)
 
-### Report generation using postgresql docker container made easy
+### Report generation using PostgreSQL docker container made easy
 
 [![Import data and Generate report using PG docker container: made simple](https://img.youtube.com/vi/amPQRzz5D8Y/0.jpg)](https://youtu.be/amPQRzz5D8Y)
