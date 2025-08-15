@@ -31,10 +31,8 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 SET statement_timeout=180000;
 \t on
 \x off
-PREPARE pidevents AS
-SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE (state != 'idle' OR state IS NULL) AND pid != pg_backend_pid();
 \a
-\set QUIET off
+--\set QUIET off
 \echo '\\t'
 \echo '\\r'
 
@@ -65,11 +63,16 @@ do $$ BEGIN  RAISE '***** FATAL : MINIMUM PSQL VERSION 11 IS EXPECTED : PLEASE V
 \copy (select * from  pg_stat_get_activity(NULL) where pid != pg_backend_pid()) to stdin
 \echo '\\.'
 
+BEGIN;
+PREPARE pidevents AS
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE (state != 'idle' OR state IS NULL) AND pid != pg_backend_pid();
 \o /dev/null
 SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
 \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
+DEALLOCATE pidevents;
+END;
 \echo '\\.'
 
 --Database level info
@@ -298,11 +301,15 @@ FROM pg_stat_io WHERE backend_type NOT LIKE 's%'
 \endif
 
 --Active session (again)
+BEGIN;
+PREPARE pidevents AS
+SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE (state != 'idle' OR state IS NULL) AND pid != pg_backend_pid();
 \o /dev/null
 SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
 \o
 \echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 \gexec
+END;
 \echo '\\.'
 
 --End Marker
