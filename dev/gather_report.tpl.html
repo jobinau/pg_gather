@@ -512,7 +512,7 @@ ver="31";
 //obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
-meta={"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+meta={"pgvers":["13.22","14.19","15.14","16.10","17.6"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 
 async function fetchJsonWithTimeout(url, timeout) {
     const controller = new AbortController();
@@ -1383,6 +1383,7 @@ function checkhba(){
   tab=document.getElementById("tblhba");
   tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
   const trs=tab.rows
+  let shadowed=0; //Count of shadowed rules
   for (var i=1;i<trs.length;i++){
     tr=trs[i];
     if (!["::1","127.0.0.1","","samehost"].includes(tr.cells[4].innerText.trim()) && tr.cells[8].innerText.trim() != "reject" ){
@@ -1408,9 +1409,11 @@ function checkhba(){
     if(tr.cells[11].innerText.trim() != ""){
       tr.cells[11].classList.add("high","warn");
       tr.cells[0].classList.add("high");
-      tr.cells[11].title="This rule is in shadow of the previous rule(s) and will never be used"
+      tr.title="This rule is in shadow of the previous rule(s) and will never be used"
+      shadowed++;
     }
   }
+  if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules carfully and remove the shadowed ones</li>";
 }
 
 //Sort logic

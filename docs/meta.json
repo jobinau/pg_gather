@@ -1,1 +1,1 @@
-{"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]}
+{"pgvers":["13.22","14.19","15.14","16.10","17.6"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]}
