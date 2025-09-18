@@ -13,5 +13,5 @@ If the Application becomes too chatty (Many back and forth communication), datab
 For example, An application executes a SELECT statement and receives a result set. Subsequently, a period of time may be required to process these results before the next statement is sent. This intermittent idling between transactions is also a factor to consider.
 for this category.
 5. **Overloaded servers** - Waiting for scheduling  
-On an overloaded application or database server, processes spend more time waiting in the run queue to be executed, because run queue gets longer. This increased wait time is known as run "*queue latency*" or "*CPU contention*".  
+On an overloaded application or database server, processes spend more time waiting in the run queue to be executed, because run queue gets longer. This increased wait time is known as run "*queue latency*" or "*CPU contention*".  ("*CPU wait*" as per Oracle terminology).
 Such waiting time also accounted in Net/Delay.

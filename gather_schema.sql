@@ -24,7 +24,8 @@ CREATE UNLOGGED TABLE pg_gather (
     timeline int,
     systemid bigint,
     snapshot pg_snapshot,
-    current_wal pg_lsn
+    current_wal pg_lsn,
+    bindir text
 );
 
 CREATE UNLOGGED TABLE pg_gather_end (
