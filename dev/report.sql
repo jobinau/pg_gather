@@ -56,10 +56,10 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
  tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System']) AS pg_gather,
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
-        'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')']) AS "Report"
+        'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')',bindir]) AS "Report"
 FROM pg_gather LEFT JOIN tz ON TRUE 
 UNION
 SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
@@ -505,7 +505,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 
 \echo ver="31";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo meta={"pgvers":["13.22","14.19","15.14","16.10","17.6"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo async function fetchJsonWithTimeout(url, timeout) {
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -1280,6 +1280,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   tab=document.getElementById("tblhba");
 \echo   tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
 \echo   const trs=tab.rows
+\echo   let shadowed=0;
 \echo   for (var i=1;i<trs.length;i++){
 \echo     tr=trs[i];
 \echo     if (!["::1","127.0.0.1","","samehost"].includes(tr.cells[4].innerText.trim()) && tr.cells[8].innerText.trim() != "reject" ){
@@ -1304,9 +1305,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if(tr.cells[11].innerText.trim() != ""){
 \echo       tr.cells[11].classList.add("high","warn");
 \echo       tr.cells[0].classList.add("high");
-\echo       tr.cells[11].title="This rule is in shadow of the previous rule(s) and will never be used"
+\echo       tr.title="This rule is in shadow of the previous rule(s) and will never be used"
+\echo       shadowed++;
 \echo     }
 \echo   }
+\echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules carfully and remove the shadowed ones</li>";
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
