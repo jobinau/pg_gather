@@ -1600,8 +1600,23 @@ function tabPartdtls(e){
   }
 }
 
+function tbliostatdtls(e){
+  let td = e.target;
+  let columnIndex = td.cellIndex;
+  console.log("The cell is in column: " + columnIndex); 
+  switch (columnIndex) {
+    case 1: //reads
+    case 2: //writes
+    case 3: //fsyncs
+    case 4: //read_time
+      return bytesToSize(td.innerText) + " per day";
+    default:
+      return "";
+  }
+  //return td.innerText;
+}
 
-document.querySelectorAll(".thidden").forEach(table => {
+document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
   //Event listener for mouseenter
   table.addEventListener("mouseenter", (e) => {
     let str = ""

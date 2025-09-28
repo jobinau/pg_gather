@@ -27,7 +27,7 @@
 \H
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
-SELECT setting::int >= 160000 AS pg16, setting::int >= 170000 AS pg17, setting::int >= 180000 AS pg18 FROM pg_get_confs WHERE name = 'server_version_num' \gset
+SELECT setting::int >= 170000 AS pg17, setting::int >= 180000 AS pg18 FROM pg_get_confs WHERE name = 'server_version_num' \gset
 SELECT min(min) AS reset_ts FROM 
 (SELECT min(stats_reset) FROM pg_get_io
 UNION
@@ -1451,7 +1451,21 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str;
 \echo   }
 \echo }
-\echo document.querySelectorAll(".thidden").forEach(table => {
+\echo function tbliostatdtls(e){
+\echo   let td = e.target;
+\echo   let columnIndex = td.cellIndex;
+\echo   console.log("The cell is in column: " + columnIndex); 
+\echo   switch (columnIndex) {
+\echo     case 1:
+\echo     case 2:
+\echo     case 3:
+\echo     case 4:
+\echo       return bytesToSize(td.innerText) + " per day";
+\echo     default:
+\echo       return "";
+\echo   }
+\echo }
+\echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
 \echo     let str = ""
 \echo     const td = e.target;
