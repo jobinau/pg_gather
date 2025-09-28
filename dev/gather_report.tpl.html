@@ -27,7 +27,7 @@ footer { text-align: center; padding: 3px; background-color:#d2f2ff}
 <% \H
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
--- SELECT setting AS pgver FROM pg_get_confs WHERE name = 'server_version_num' \gset
+SELECT setting::int >= 170000 AS pg17, setting::int >= 180000 AS pg18 FROM pg_get_confs WHERE name = 'server_version_num' \gset
 SELECT min(min) AS reset_ts FROM 
 (SELECT min(stats_reset) FROM pg_get_io
 UNION
@@ -406,13 +406,32 @@ LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
 
 \pset tableattr 'id="tbliostat"'
+\if :pg18
+WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat_activity)) AS c_ts  FROM pg_gather),
+rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
+d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst)
 SELECT
 CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
   WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend", 
-sum(reads) "Reads",sum(writes) "Writes",sum(writebacks) "Writebacks", sum(extends) "Extends",sum(hits) "Hits",sum(evictions) "Evictions", sum(reuses) "Reuse", sum(fsyncs) "FSyncs"
-FROM pg_get_io 
+(sum(reads)/any_value(d.dys))::int "Avg. Read",(sum(writes)/any_value(d.dys))::int "Avg. Write",(sum(writebacks)/any_value(d.dys))::int "Avg. Writeback",(sum(extends)/any_value(d.dys))::int "Avg. Extend",
+(sum(hits)/any_value(d.dys))::int "Avg. Hits",(sum(evictions)/any_value(d.dys))::int "Avg. Evictions", (sum(reuses)/any_value(d.dys))::int "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::int "Avg. FSyncs"
+FROM pg_get_io,d
 WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
 GROUP BY 1;
+\else
+WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat_activity)) AS c_ts  FROM pg_gather),
+rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
+d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst),
+blk AS (SELECT COALESCE((SELECT setting::INT FROM pg_get_confs WHERE name = 'block_size'),8192) AS blksize)
+SELECT 
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
+  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend",
+(sum(reads)*any_value(blksize)/any_value(d.dys))::int "Avg. Read",(sum(writes)*any_value(blksize)/any_value(d.dys))::int "Avg. Write",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::int "Avg. Writeback", (sum(extends)*any_value(blksize)/any_value(d.dys))::int "Avg. Extend",
+(sum(hits)/any_value(d.dys))::int "Avg. Hits",(sum(evictions)/any_value(d.dys))::int "Avg. Evictions", (sum(reuses)/any_value(d.dys))::int "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::int "Avg. FSyncs"
+FROM pg_get_io, blk, d 
+WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
+GROUP BY 1;
+\endif
 %>
 <ol id="finditem" style="padding:2em;position:relative">
 <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
@@ -1813,6 +1832,15 @@ function checkiostat(){
 tab=document.getElementById("tbliostat")
 tab.caption.innerHTML="<span>IO Statistics</span>"
 if (tab.rows.length > 1){
+  trs=tab.rows;
+  setTitles(trs[0],["Type of Backend Process","Average Bytes read per day","Average Bytes written (OS buffer) per day","Average Bytes flushed to disk per day","Average Bytes of file extends per day","Average number of times a block was found in shared buffer buffer per day",
+    "Average Number of times in a day, a block has been written out from a shared or local buffer in order to make it available for another",
+    "Average bumber of times in a day, buffer in ring buffer was reused as part of an I/O operation in the bulkread, bulkwrite, or vacuum",
+    "Average number of fsyncs in a day"
+  ]);
+  for (let tr of trs){
+
+  }
 }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 }
 
