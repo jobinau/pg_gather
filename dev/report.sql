@@ -1454,16 +1454,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo function tbliostatdtls(e){
 \echo   let td = e.target;
 \echo   let columnIndex = td.cellIndex;
-\echo   console.log("The cell is in column: " + columnIndex); 
-\echo   switch (columnIndex) {
-\echo     case 1:
-\echo     case 2:
-\echo     case 3:
-\echo     case 4:
-\echo       return bytesToSize(td.innerText) + " per day";
-\echo     default:
-\echo       return "";
-\echo   }
+\echo   if (td.matches("tr th")) return td.title;
+\echo   if ([1,2,3,4].includes(columnIndex)) return bytesToSize(td.innerText) + " per day";
+\echo   else return "";
 \echo }
 \echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
@@ -1504,7 +1497,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     }
 \echo   });
 \echo   table.addEventListener("mouseleave", (e) => {
-\echo         if (e.target.matches("tr td")) e.target.children[0]?.remove();
+\echo         if (e.target.matches("tr td, tr th")) e.target.children[0]?.remove();
 \echo   }, true);
 \echo });
 \echo let elem=document.getElementById("bottommenu")
