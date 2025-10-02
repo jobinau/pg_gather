@@ -285,14 +285,17 @@ CREATE UNLOGGED TABLE pg_get_io(
  obj char(1), -- 'bulkread=R, bulkwrite=W'
  context char(1),
  reads bigint,
+ read_bytes numeric,
  read_time float8,
  writes bigint,
+ write_bytes numeric,
  write_time float8,
  writebacks bigint,
  writeback_time float8,
  extends bigint,
+ extend_bytes numeric,
  extend_time float8,
- op_bytes bigint,
+ op_bytes bigint,  --Remove this column for PG18+
  hits bigint,
  evictions bigint,
  reuses bigint,
