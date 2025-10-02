@@ -8,6 +8,13 @@
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16,
  ( :SERVER_VERSION_NUM >= 170000 ) AS pg17, ( :SERVER_VERSION_NUM >= 180000 ) AS pg18, ( current_database() != 'template1' ) as fullgather \gset
 
+\set QUIET on
+SET statement_timeout=180000;
+\t on
+\x off
+\a
+
+
 \if :fullgather
 ---Error out and exit, unless healthy
 \echo 'SELECT (SELECT count(*) > 1 FROM pg_srvr) AS conlines \\gset'
@@ -19,6 +26,7 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 --PG Server
 \echo COPY pg_srvr FROM stdin;
 \conninfo
+\echo psql - :VERSION
 \echo '\\.'
 \endif
 
@@ -27,12 +35,6 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
 --\else
 --    \set FULL true
 --\endif
-
-\set QUIET on
-SET statement_timeout=180000;
-\t on
-\x off
-\a
 --\set QUIET off
 \echo '\\t'
 \echo '\\r'
