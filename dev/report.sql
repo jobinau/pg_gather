@@ -55,14 +55,25 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \set tzone `echo "$PG_GATHER_TIMEZONE"`
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
- tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
+ tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting),
+ connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, connstr  FROM pg_srvr)
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','Server build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
         'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')',bindir]) AS "Report"
 FROM pg_gather LEFT JOIN tz ON TRUE 
-UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
+UNION ALL
+(SELECT 'Client conn.' as col1 , STRING_AGG(connstr, ', ') AS col2
+FROM (
+  SELECT connstr, NTILE((total_rows/6)::int) OVER (ORDER BY row_num) AS group_number
+  FROM connstrs
+  WHERE  row_num < total_rows AND total_rows > 3
+) AS grouped_data GROUP BY group_number ORDER BY group_number)
+UNION ALL
+SELECT 'Client conn.' as col1 , connstr AS col2 FROM connstrs WHERE row_num < total_rows AND total_rows <= 3
+UNION ALL
+SELECT 'Client build' as col1, connstr AS col2 FROM connstrs WHERE row_num = total_rows AND total_rows > 2
+) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
@@ -309,7 +320,8 @@ FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 \pset tableattr 'id="tableConten" name="waits" style="clear: left"'
 \C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
-WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
+'WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay','IoWorkerMain','AutovacuumMain','BgwriterHibernate','BgwriterMain')
 GROUP BY 1 ORDER BY count(*) DESC;
 
 \pset tableattr 'id="tblsess" class="thidden"' 

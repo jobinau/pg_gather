@@ -55,14 +55,25 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \set tzone `echo "$PG_GATHER_TIMEZONE"`
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
- tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
+ tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting),
+ connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, connstr  FROM pg_srvr)
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','Server build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
         'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')',bindir]) AS "Report"
 FROM pg_gather LEFT JOIN tz ON TRUE 
-UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
+UNION ALL
+(SELECT 'Client conn.' as col1 , STRING_AGG(connstr, ', ') AS col2
+FROM (
+  SELECT connstr, NTILE((total_rows/6)::int) OVER (ORDER BY row_num) AS group_number
+  FROM connstrs
+  WHERE  row_num < total_rows AND total_rows > 3
+) AS grouped_data GROUP BY group_number ORDER BY group_number)
+UNION ALL
+SELECT 'Client conn.' as col1 , connstr AS col2 FROM connstrs WHERE row_num < total_rows AND total_rows <= 3
+UNION ALL
+SELECT 'Client build' as col1, connstr AS col2 FROM connstrs WHERE row_num = total_rows AND total_rows > 2
+) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
@@ -309,7 +320,8 @@ FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 \pset tableattr 'id="tableConten" name="waits" style="clear: left"'
 \C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
-WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
+'WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay','IoWorkerMain','AutovacuumMain','BgwriterHibernate','BgwriterMain')
 GROUP BY 1 ORDER BY count(*) DESC;
 
 \pset tableattr 'id="tblsess" class="thidden"' 
@@ -411,10 +423,10 @@ WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat
 rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
 d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst)
 SELECT
-CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
-  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend", 
-(sum(reads)/any_value(d.dys))::int "Avg. Read",(sum(writes)/any_value(d.dys))::int "Avg. Write",(sum(writebacks)/any_value(d.dys))::int "Avg. Writeback",(sum(extends)/any_value(d.dys))::int "Avg. Extend",
-(sum(hits)/any_value(d.dys))::int "Avg. Hits",(sum(evictions)/any_value(d.dys))::int "Avg. Evictions", (sum(reuses)/any_value(d.dys))::int "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::int "Avg. FSyncs"
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients'
+  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend",
+(sum(reads)/any_value(d.dys))::bigint "Avg. Read",(sum(writes)/any_value(d.dys))::bigint "Avg. Write",(sum(writebacks)/any_value(d.dys))::bigint "Avg. Writeback",(sum(extends)/any_value(d.dys))::bigint "Avg. Extend",
+(sum(hits)/any_value(d.dys))::bigint "Avg. Hits",(sum(evictions)/any_value(d.dys))::bigint "Avg. Evictions", (sum(reuses)/any_value(d.dys))::bigint "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::bigint "Avg. FSyncs"
 FROM pg_get_io,d
 WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
 GROUP BY 1;
@@ -426,8 +438,8 @@ blk AS (SELECT COALESCE((SELECT setting::INT FROM pg_get_confs WHERE name = 'blo
 SELECT 
 CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
   WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend",
-(sum(reads)*any_value(blksize)/any_value(d.dys))::int "Avg. Read",(sum(writes)*any_value(blksize)/any_value(d.dys))::int "Avg. Write",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::int "Avg. Writeback", (sum(extends)*any_value(blksize)/any_value(d.dys))::int "Avg. Extend",
-(sum(hits)/any_value(d.dys))::int "Avg. Hits",(sum(evictions)/any_value(d.dys))::int "Avg. Evictions", (sum(reuses)/any_value(d.dys))::int "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::int "Avg. FSyncs"
+(sum(reads)*any_value(blksize)/any_value(d.dys))::bigint "Avg. Read",(sum(writes)*any_value(blksize)/any_value(d.dys))::bigint "Avg. Write",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::bigint "Avg. Writeback", (sum(extends)*any_value(blksize)/any_value(d.dys))::bigint "Avg. Extend",
+(sum(hits)/any_value(d.dys))::bigint "Avg. Hits",(sum(evictions)/any_value(d.dys))::bigint "Avg. Evictions", (sum(reuses)/any_value(d.dys))::bigint "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::bigint "Avg. FSyncs"
 FROM pg_get_io, blk, d 
 WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
 GROUP BY 1;
