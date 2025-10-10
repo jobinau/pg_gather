@@ -296,10 +296,11 @@ COPY ( SELECT * FROM pg_stat_bgwriter ) TO stdout;
 \if :pg16
 \if :pg18
 \echo COPY pg_get_io(btype,obj,context,reads,read_bytes,read_time,writes,write_bytes,write_time,writebacks,writeback_time,extends,extend_bytes,extend_time,hits,evictions,reuses,fsyncs,fsync_time,stats_reset) FROM stdin;
-COPY ( SELECT CASE backend_type WHEN 'background writer' THEN 'G' WHEN 'checkpointer' THEN 'k' ELSE left(backend_type,1) END btype, left(object,1) obj,
-CASE context WHEN 'bulkread' THEN 'R' WHEN 'bulkwrite' THEN 'W' ELSE left(context,1) END context,
+COPY ( SELECT CASE backend_type WHEN 'background writer' THEN 'G' WHEN 'checkpointer' THEN 'k'
+WHEN 'walwriter' THEN 'W' WHEN 'walsummarizer' THEN 'W' WHEN 'walreceiver' THEN 'r' WHEN 'slotsync worker' THEN 'l' ELSE left(backend_type,1) END btype
+, left(object,1) obj, CASE context WHEN 'bulkread' THEN 'R' WHEN 'bulkwrite' THEN 'W' ELSE left(context,1) END context,
 reads,read_bytes,read_time,writes,write_bytes, write_time,writebacks,writeback_time,extends,extend_bytes,extend_time,hits,evictions,reuses,fsyncs,fsync_time,stats_reset
-FROM pg_stat_io WHERE backend_type NOT LIKE 's%'
+FROM pg_stat_io WHERE backend_type NOT LIKE 'st%'
 ) TO stdout;
 \else
 \echo COPY pg_get_io(btype,obj,context,reads,read_time,writes,write_time,writebacks,writeback_time,extends,extend_time,hits,evictions,reuses,fsyncs,fsync_time,stats_reset) FROM stdin;
