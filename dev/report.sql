@@ -19,7 +19,7 @@
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
-\echo #dtls { left:100%; top: 4%; width: max-content; color: black;}
+\echo #dtls { left:100%; top: 4%; width: max-content; color: black; z-index: 4}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -421,14 +421,15 @@ LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
 \if :pg18
 WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat_activity)) AS c_ts  FROM pg_gather),
 rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
-d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst)
+d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst),
+blk AS (SELECT COALESCE((SELECT setting::INT FROM pg_get_confs WHERE name = 'block_size'),8192) AS blksize)
 SELECT
-CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
-  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend", 
-(sum(reads)/any_value(d.dys))::int "Avg. Read",(sum(writes)/any_value(d.dys))::int "Avg. Write",(sum(writebacks)/any_value(d.dys))::int "Avg. Writeback",(sum(extends)/any_value(d.dys))::int "Avg. Extend",
-(sum(hits)/any_value(d.dys))::int "Avg. Hits",(sum(evictions)/any_value(d.dys))::int "Avg. Evictions", (sum(reuses)/any_value(d.dys))::int "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::int "Avg. FSyncs"
-FROM pg_get_io,d
-WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'Background Parallel workers' WHEN 'c' THEN 'Client Backends' WHEN 'i' THEN 'I/O Worker'
+  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WAL Sender' WHEN 'W' THEN 'WAL Writer' WHEN 'r' THEN 'WAL Receiver' WHEN 'l' THEN 'Slot Sync' ELSE btype END As "Backend",
+(sum(reads)/any_value(d.dys))::bigint "Reads/day",(sum(read_bytes)/any_value(d.dys))::bigint "Read Bytes/day",(sum(writes)/any_value(d.dys))::bigint "Writes/day",(sum(write_bytes)/any_value(d.dys))::bigint "Write Bytes/day",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::bigint "Writebacks/day",(sum(extends)/any_value(d.dys))::bigint "Extends/day",(sum(extend_bytes)/any_value(d.dys))::bigint "Extend Bytes/day",
+(sum(hits)/any_value(d.dys))::bigint "Hits/day",(sum(evictions)/any_value(d.dys))::bigint "Evictions/day", (sum(reuses)/any_value(d.dys))::bigint "Reuse/day", (sum(fsyncs)/any_value(d.dys))::bigint "FSyncs/day"
+FROM pg_get_io,d,blk
+-- WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
 GROUP BY 1;
 \else
 WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat_activity)) AS c_ts  FROM pg_gather),
@@ -436,10 +437,10 @@ rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
 d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst),
 blk AS (SELECT COALESCE((SELECT setting::INT FROM pg_get_confs WHERE name = 'block_size'),8192) AS blksize)
 SELECT 
-CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background Parallel workers' WHEN 'c' THEN 'Client Backends' 
   WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend",
-(sum(reads)*any_value(blksize)/any_value(d.dys))::int "Avg. Read",(sum(writes)*any_value(blksize)/any_value(d.dys))::int "Avg. Write",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::int "Avg. Writeback", (sum(extends)*any_value(blksize)/any_value(d.dys))::int "Avg. Extend",
-(sum(hits)/any_value(d.dys))::int "Avg. Hits",(sum(evictions)/any_value(d.dys))::int "Avg. Evictions", (sum(reuses)/any_value(d.dys))::int "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::int "Avg. FSyncs"
+(sum(reads)*any_value(blksize)/any_value(d.dys))::bigint "Read bytes/day",(sum(writes)*any_value(blksize)/any_value(d.dys))::bigint "Write bytes/day",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::bigint "Writeback bytes/day", (sum(extends)*any_value(blksize)/any_value(d.dys))::bigint "Extend bytes/day",
+(sum(hits)*any_value(blksize)/any_value(d.dys))::bigint "Avg. Cache Hit bytes/day",(sum(evictions)*any_value(blksize)/any_value(d.dys))::bigint "Evictions bytes/day", (sum(reuses)/any_value(d.dys))::bigint "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::bigint "Avg. FSyncs"
 FROM pg_get_io, blk, d 
 WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
 GROUP BY 1;
@@ -536,7 +537,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 
 \echo ver="31";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["13.22","14.19","15.14","16.10","17.6"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo meta={"pgvers":["13.22","14.19","15.14","16.10","17.6","18.0"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo async function fetchJsonWithTimeout(url, timeout) {
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -812,7 +813,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 \echo }
 \echo function formatNumber(n) {
-\echo   const ranges = [ {divisor: 1e9, suffix: " Billion"}, {divisor: 1e6, suffix: " Million"}, {divisor: 1e3, suffix: " K"}];
+\echo   const ranges = [ {divisor: 1e9, suffix: " Billion"}, {divisor: 1e6, suffix: " Million"}, {divisor: 1e3, suffix: " Thousand"} ];
 \echo   const range = ranges.find(r => n >= r.divisor);
 \echo   return range ? (n/range.divisor).toFixed(1) + range.suffix : n.toString();
 \echo };
@@ -1467,8 +1468,19 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let td = e.target;
 \echo   let columnIndex = td.cellIndex;
 \echo   if (td.matches("tr th")) return td.title;
-\echo   if ([1,2,3,4].includes(columnIndex)) return bytesToSize(td.innerText) + " per day";
-\echo   else return "";
+\echo   if (mgrver < 18){
+\echo     if ([1,2,3,4,5,6].includes(columnIndex) && td.innerText > 0) return bytesToSize(td.innerText) + " per day";
+\echo     else if ([7,8].includes(columnIndex) && td.innerText > 0) return formatNumber(td.innerText) + " times per day";
+\echo     else return "";
+\echo   }else{
+\echo     if ([2,4,5,7].includes(columnIndex) && td.innerText > 0){ let retval = ""
+\echo       retval = bytesToSize(td.innerText) + " per day" 
+\echo       if (td.previousElementSibling.innerText >0 && columnIndex != 5 ) retval += " (Avg. " + bytesToSize(Math.round(td.innerText/td.previousElementSibling.innerText)) + " per I/O)"
+\echo       return retval;
+\echo     }
+\echo     else if ([1,3,6,8,9,10,11].includes(columnIndex) && td.innerText > 0) return formatNumber(td.innerText) + " times per day";
+\echo     else return "";
+\echo   }
 \echo }
 \echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
@@ -1661,11 +1673,17 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab.caption.innerHTML="<span>IO Statistics</span>"
 \echo if (tab.rows.length > 1){
 \echo   trs=tab.rows;
+\echo   if (trs[0].cells.length < 12){
 \echo   setTitles(trs[0],["Type of Backend Process","Average Bytes read per day","Average Bytes written (OS buffer) per day","Average Bytes flushed to disk per day","Average Bytes of file extends per day","Average number of times a block was found in shared buffer buffer per day",
 \echo     "Average Number of times in a day, a block has been written out from a shared or local buffer in order to make it available for another",
 \echo     "Average bumber of times in a day, buffer in ring buffer was reused as part of an I/O operation in the bulkread, bulkwrite, or vacuum",
-\echo     "Average number of fsyncs in a day"
-\echo   ]);
+\echo     "Average number of fsyncs in a day"]);
+\echo   } else {
+\echo     setTitles(trs[0],["Type of Backend Process","Read requests per day","Read Bytes per day","Write requests to OS per day", "Write Bytes to OS per day","Bytes flushed to disk per day","File extend requests per day","Bytes of file extends per day","Average number of times a block was found in shared buffer buffer per day",
+\echo     "Average Number of times in a day, a block has been written out from a shared or local buffer in order to make it available for another",
+\echo     "Average bumber of times in a day, buffer in ring buffer was reused as part of an I/O operation in the bulkread, bulkwrite, or vacuum",
+\echo     "Average number of fsyncs in a day"]);
+\echo   }
 \echo   for (let tr of trs){
 \echo   }
 \echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
