@@ -634,6 +634,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         let startIndex = val.innerText.indexOf("(") + 1;
 \echo         days = parseInt(val.innerText.substring(startIndex,val.innerText.indexOf(" days", startIndex)));
 \echo         break;
+\echo       case "PG Bin Dir." :
+\echo         {const pattern = new RegExp("(\\/usr\\/lib\\/postgresql\\/\\d+|\\/usr\\/pgsql-\\d+\\/)");
+\echo         if(!pattern.test(val.innerText) ) {
+\echo           val.classList.add("warn"); val.title = "Unusual PostgreSQL binary directory : " + val.innerText + ". Could be due to source build or portable binaries.";
+\echo           strfind += "<li><b>Unusual PostgreSQL binary directory : " + val.innerText + "</b>. Could be due to custom build or portable binaries. Understand the <a href='"+ docurl +"pgbinary.html'>risk involved</a></li>";
+\echo         }
+\echo         }
+\echo         break;
 \echo       case "Latest xid" :
 \echo         xmax = parseInt(val.innerText);
 \echo         break;
@@ -905,11 +913,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val=rowref.cells[1]; 
 \echo     if (val.innerText != "on" ) {
 \echo       val.classList.add("warn");
+\echo       val.title="Please configure TLBHugePages and set huge_pages=on. This is essential for stability and reliability";
 \echo       let param = params.find(p => p.param === "huge_pages");
 \echo       param["suggest"] = "on";
 \echo     } else val.classList.add("lime"); 
 \echo   },
 \echo   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   huge_pages_status: function(rowref){ val=rowref.cells[1]; if (val.innerText == "off") { val.classList.add("warn"); val.title="Huge pages are not used"; } 
+\echo    else val.classList.add("lime"); },
 \echo   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   idle_session_timeout:function(rowref){ 
 \echo     val=rowref.cells[1]; 
@@ -1424,7 +1435,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  }
 \echo }
 \echo }
-\echo function sessdtls(th){
+\echo function tblsessdtls(e){
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   th = e.target.parentNode;  
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
 \echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
 \echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
@@ -1434,17 +1447,24 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (typeof o.f6 != "undefined") str += "<div class=warn>" + o.f6 + "<div>"; 
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
-\echo }
-\echo function userdtls(tr){
-\echo if(tr.cells[1].innerText.length > 2){
-\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>Connections per DB by user '"+tr.cells[0].innerText+"'</u></b><br>";
-\echo   for(i=0;i<o.length;i++){
-\echo     str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
 \echo   }
-\echo   return str
-\echo } else return "No connections"
 \echo }
-\echo function dbcons(tr){
+\echo function tblusrdtls(e){  
+\echo  if (e.target.matches("tr td:first-child")){  
+\echo   let td = e.target;
+\echo   let tr = td.parentNode;
+\echo   if (tr.cells[1].innerText.length > 2){
+\echo     let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>Connections per DB by user '"+tr.cells[0].innerText+"'</u></b><br>";
+\echo     for(i=0;i<o.length;i++){
+\echo       str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
+\echo     }
+\echo     return str
+\echo   } else return "No connections"
+\echo }}
+\echo function tblcsdtls(e){  
+\echo if (e.target.matches("tr td:first-child")){
+\echo let td = e.target;
+\echo let tr = td.parentNode;
 \echo if(tr.cells[1].innerText.length > 2){
 \echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>User connections to DB \'"+ tr.cells[0].innerText +"'</u></b><br>";
 \echo   for(i=0;i<o.length;i++){
@@ -1452,7 +1472,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo   return str
 \echo } else return "No connections"
-\echo }
+\echo }}
 \echo function tabPartdtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
 \echo   th = e.target.parentNode;
@@ -1489,13 +1509,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if (td.innerText.trim().length < 1 ) return;
 \echo     if (typeof window[e.currentTarget.id + "dtls"] === "function") {
 \echo      str = window[e.currentTarget.id + "dtls"](e);  
-\echo     } else if (e.target.matches("tr td:first-child")){   
-\echo       const tr = td.parentNode;
-\echo       const tab = tr.closest("table");
-\echo       str = tab.id === "tblsess" ? sessdtls(tr) :
-\echo                      tab.id === "tblusr" ? userdtls(tr) :
-\echo                      tab.id === "tblcs" ? dbcons(tr) : "";
-\echo     }  
+\echo     } 
 \echo     if ( str ) {
 \echo       var el = document.createElement("div");
 \echo       el.setAttribute("id", "dtls");
