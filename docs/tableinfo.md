@@ -1,6 +1,8 @@
  ## Table Level Informations as a Single Query
- It might be needed to extract the table level information displayed in the HTML report using custom queries. Please conside using the following template SQL for it. You may comment out unwanted fields.
- ```SQL
+
+Extract the table level information displayed in the HTML report using custom queries. Please conside using the following template SQL for it. You may comment out unwanted fields.
+ 
+ ```sql
 SELECT
     c.relname "Table",   -- Table name
     r.relid, -- OID of the table
