@@ -78,8 +78,18 @@ Some DataFilePrefetch waits are normal and indicate the prefetch system is worki
 2. Need to tune shared_buffers or maintenance_work_mem
 3. High concurrent I/O load
 
+## OidGen / OidGenLock
+Waiting to allocate a new OID. Ideally it should be really fast.
+If it takes time, It may indicates that  address space contention (32bit)
+Reperted that toast chucks which uses oid, when runs out of available oids, this wait event appears.
+
+
 ## LockManager
 The LockManager wait event indicates that a process is waiting to access the lock manager's shared memory structure. This structure holds all the locks in the database and is protected by a lightweight lock (LWLock). When multiple sessions try to acquire locks simultaneously, they must access this shared structure, and contention can arise
+
+High LockManager waits might indicate that there are SQL statements which fast-path lock is not possible because they are using more than 16 tables or indexes. Which is common when partitioned tables are used.  If the situation is very severe, upgrading to PG 18+ would be the best solution. Because PG18 uses a variable size array in shared memory. fast-path locks for a backend scales with max_locks_per_transaction (default 64 slots)
+
+
 
 ### Causes
 1. High Concurrency: A large number of concurrent sessions trying to acquire locks simultaneously can overwhelm the lock manager. This is especially problematic if the number of concurrent (Active and Idle-in-Transaction) sessions exceeds the number of CPU cores.

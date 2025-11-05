@@ -1,4 +1,4 @@
- ## Table Level Informations as a Single Query
+ # Table Level Informations as a Single Query
 
 Extract the table level information displayed in the HTML report using custom queries. Please conside using the following template SQL for it. You may comment out unwanted fields.
  

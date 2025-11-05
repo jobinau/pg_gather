@@ -1,0 +1,81 @@
+<h3>IPC:BgWorkerShutdown</h3>
+
+This is part of Parallel query execution. There will be a <b>main backend process</b> and few <b>worker processes</b>. 
+The <code>IPC:BgWorkerShutdown</code> wait event occurs when a main backend process is waiting for a background worker process to cleanly shut down and terminate.
+
+<h3>Common Problems</h3>
+<h4>Hanging Sessions</h4>
+When a main backend process is waiting for a background worker to shut down, it may lead to hanging sessions if the worker does not terminate as expected. This can occur due to various reasons such as resource contention, deadlocks, or bugs in the worker process.
+Sometimes the main backend process may become uninterruptible while waiting for the worker to shut down, making it difficult to terminate the session using <code>pg_terminate_backend()</code>.
+
+<h3>Investigation</h3>
+<h4>Check whether workers are visible</h4>
+Mouseover the process id of the main backend process and check whether there are any worker processes associated with it. 
+If there are no worker processes visibile, There is something wrong with the worker process.
+<h4>Use top</h4>
+capture the top command output by repated execution
+<pre>
+$ sudo top -b -c -n 24 -d 5 > top 
+</pre>
+grep the output for the main backend process id and check whether there are any worker processes associated with it.
+<pre>
+$ grep "1726716" top
+---- ouptput truncated ----
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+1726716 postgres  20   0   17.0g  92796  20936 S   0.0   0.1   0:42.59 postgres: dbuser1 db1 192.168.0.78(58946) SELECT
+1757088 postgres  20   0   16.9g   5160   4516 S   0.0   0.0   0:00.00 postgres: parallel worker for PID 1726716
+</pre>
+if the workers process is visible at OS level, but sleeping (Status 'S') and not consuming any CPU, Then there is something wrong with the worker process.
+<h4>Check PostgreSQL logs</h4>
+Look for errors like "out of memory" "terminating background worker" "parallel worker failed to initialize" "lost connection to parallel worker" and "No space left on device"
+Following is an example
+<pre>
+$ grep -E 'ERROR:|FATAL:|PANIC:' postgres.log-20251104.txt | sed -E 's/.*(ERROR:|FATAL:|PANIC:)/\1/' | sort | uniq -c | sort -nr
+---- ouptput truncated ----
+ 243 ERROR:  out of memory
+  38 FATAL:  terminating background worker "parallel worker" due to administrator command
+  15 ERROR:  syntax error at or near ")" at character 3322
+  15 ERROR:  parallel worker failed to initialize
+   4 FATAL:  out of memory
+   2 FATAL:  terminating connection due to idle-session timeout
+   2 ERROR:  lost connection to parallel worker
+   2 ERROR:  could not resize shared memory segment "/PostgreSQL.1098917120" to 4194304 bytes: No space left on device
+   1 ERROR:  out of memory at character 25278
+</pre>
+
+<h3>General suggessions</h3>
+
+<h4>Essential Tuning</h4>
+Make sure that the parameters, especially the parallelism related parameters are properly tuned according to your system resources and workload.
+Avoid excessive parallelism which can lead to resource contention and instability.
+
+<h4>Update PostgreSQL</h4>
+Ensure that you are running the latest stable version of PostgreSQL, as updates often include bug fixes and performance improvements related to parallel query execution.
+PostgreSQL minor versions will be updated in every 3 months. It is mandatory to keep your PostgreSQL minor version up to date for every compliance and security reason.
+
+<h4>Carefull about extensions</h4>
+Extensions are the most frequent cause of instability in PostgreSQL, especially those that interact with query execution.
+Avoid using extensions that are not widely used or not well-maintained or have known issues with parallelism.
