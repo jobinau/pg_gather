@@ -1277,7 +1277,7 @@ function aged(cell){
 function checktabs(){
   const startTime =new Date().getTime();
   tab=document.getElementById("tabInfo")
-  tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
+  tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB. <a href="+ docurl +"tableinfo.html>🗎</a>"; 
   const trs=document.getElementById("tabInfo").rows
   const len=trs.length;
   let bloatTabTot = 0; //Total bloated tables with more than 20% bloat
@@ -1450,7 +1450,7 @@ function checkhba(){
       } else tr.cells[4].classList.add("lime")
     }
     if(tr.cells[11].innerText.trim() != ""){
-      tr.cells[11].classList.add("high","warn");
+      tr.cells[11].classList.add("warn");
       tr.cells[0].classList.add("high");
       tr.title="This rule is in shadow of the previous rule(s) and will never be used"
       shadowed++;
