@@ -1817,7 +1817,11 @@ if (trs.length > 1){
     tr.cells[0].classList.add("high"); tr.cells[0].title="More than 10% of forced checkpoints is not desirable, increase max_wal_size";
   }
   if(tr.cells[1].innerText < 10 ){
-    tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
+    tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. Tune the checkpoint related parameters to reduce the frequency";
+  }
+  if(tr.cells[3].innerText > 0.04 ){
+    tr.cells[3].classList.add("high"); tr.cells[3].title="Checkpoint Sync time is high, Suspected slow storage. consider using faster storage";
+    strfind += "<li><b>Indications of Storage performance issue.</b> High checkpoint sync time. Consider performing benchmarking of storage.</li>";  //add to findings
   }
   if(tr.cells[11].innerText > 50){
     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
