@@ -1241,6 +1241,13 @@ var paramDespatch = {
       wmem["suggest"] = "'" + Math.min(parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ),64) + "MB'";
     }
   },
+  wal_sender_timeout: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "wal_sender_timeout");
+    if(val.innerText == 0) { val.classList.add("warn"); val.title="Avoid disabling wal_sender_timeout to prevent hangs, sometimes cascaded hangs";
+      param["suggest"] = "'1min'";
+    }
+  },
   default : function(rowref) {}  //NOT used. remove after Test of time
 };
 
