@@ -535,9 +535,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
-\echo ver="31";
+\echo ver="32";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["13.22","14.19","15.14","16.10","17.6","18.0"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo async function fetchJsonWithTimeout(url, timeout) {
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -1160,6 +1160,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       delete param["suggest"]
 \echo     }
 \echo   },
+\echo   wal_sync_method: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_sync_method");
+\echo     if (val.innerText != "fdatasync" && val.innerText != "open_datasync"){ 
+\echo         val.classList.add("warn"); val.title="'fdatasync' is recommended for wal_sync_method, unless there is a specific reason to use others";
+\echo         param["suggest"] = "fdatasync";
+\echo     } else val.classList.add("lime");
+\echo   },
 \echo   work_mem: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024,1024) ;
@@ -1169,6 +1177,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let wmem = params.find(p => p.param === "work_mem");
 \echo     if ( totMem > 0.2 && conns.val > 1){
 \echo       wmem["suggest"] = "'" + Math.min(parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ),64) + "MB'";
+\echo     }
+\echo   },
+\echo   wal_sender_timeout: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_sender_timeout");
+\echo     if(val.innerText == 0) { val.classList.add("warn"); val.title="Avoid disabling wal_sender_timeout to prevent hangs, sometimes cascaded hangs";
+\echo       param["suggest"] = "'1min'";
 \echo     }
 \echo   },
 \echo   default : function(rowref) {} 
@@ -1197,7 +1212,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo function checktabs(){
 \echo   const startTime =new Date().getTime();
 \echo   tab=document.getElementById("tabInfo")
-\echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
+\echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB. <a href="+ docurl +"tableinfo.html>🗎</a>"; 
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
 \echo   let bloatTabTot = 0;
@@ -1346,7 +1361,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       } else tr.cells[4].classList.add("lime")
 \echo     }
 \echo     if(tr.cells[11].innerText.trim() != ""){
-\echo       tr.cells[11].classList.add("high","warn");
+\echo       tr.cells[11].classList.add("warn");
 \echo       tr.cells[0].classList.add("high");
 \echo       tr.title="This rule is in shadow of the previous rule(s) and will never be used"
 \echo       shadowed++;
@@ -1651,7 +1666,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     tr.cells[0].classList.add("high"); tr.cells[0].title="More than 10% of forced checkpoints is not desirable, increase max_wal_size";
 \echo   }
 \echo   if(tr.cells[1].innerText < 10 ){
-\echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
+\echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. Tune the checkpoint related parameters to reduce the frequency";
+\echo   }
+\echo   if(tr.cells[3].innerText > 0.04 ){
+\echo     tr.cells[3].classList.add("high"); tr.cells[3].title="Checkpoint Sync time is high, Suspected slow storage. consider using faster storage";
+\echo     strfind += "<li><b>Indications of Storage performance issue.</b> High checkpoint sync time. Consider performing benchmarking of storage.</li>"; 
 \echo   }
 \echo   if(tr.cells[11].innerText > 50){
 \echo     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";

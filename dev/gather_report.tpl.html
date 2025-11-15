@@ -539,12 +539,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 %>
 
 //pg_gather version
-ver="31";
+ver="32";
 //Global object to hold json values passed from the SQL analysis
 //obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
-meta={"pgvers":["13.22","14.19","15.14","16.10","17.6","18.0"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 
 async function fetchJsonWithTimeout(url, timeout) {
     const controller = new AbortController();
@@ -1228,6 +1228,14 @@ var paramDespatch = {
       val.classList.remove("warn");
       delete param["suggest"]
     }
+  },
+  wal_sync_method: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "wal_sync_method");
+    if (val.innerText != "fdatasync" && val.innerText != "open_datasync"){ 
+        val.classList.add("warn"); val.title="'fdatasync' is recommended for wal_sync_method, unless there is a specific reason to use others";
+        param["suggest"] = "fdatasync";
+    } else val.classList.add("lime");
   },
   work_mem: function(rowref){
     val=rowref.cells[1];
