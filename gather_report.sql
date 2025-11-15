@@ -19,7 +19,7 @@
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
-\echo #dtls { margin-left: -0.2em; left:100%; top: 4%; width: max-content; color: black;}
+\echo #dtls { left:100%; top: 4%; width: max-content; color: black; z-index: 4}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -27,7 +27,7 @@
 \H
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
--- SELECT setting AS pgver FROM pg_get_confs WHERE name = 'server_version_num' \gset
+SELECT setting::int >= 170000 AS pg17, setting::int >= 180000 AS pg18 FROM pg_get_confs WHERE name = 'server_version_num' \gset
 SELECT min(min) AS reset_ts FROM 
 (SELECT min(stats_reset) FROM pg_get_io
 UNION
@@ -55,18 +55,29 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 \set tzone `echo "$PG_GATHER_TIMEZONE"`
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
- tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting)
-SELECT  UNNEST(ARRAY ['Collected At','Collected By','PG build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System']) AS pg_gather,
+ tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting),
+ connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, connstr  FROM pg_srvr)
+SELECT  UNNEST(ARRAY ['Collected At','Collected By','Server build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
-        'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')']) AS "Report"
+        'ID: ' || systemid || ' Since: ' || to_timestamp ( systemid >> 32 ) || ' ('|| collect_ts-to_timestamp ( systemid >> 32 ) || ')',bindir]) AS "Report"
 FROM pg_gather LEFT JOIN tz ON TRUE 
-UNION
-SELECT  'Connection', replace(connstr,'You are connected to ','') FROM pg_srvr ) a WHERE "Report" IS NOT NULL ORDER BY 1;
+UNION ALL
+(SELECT 'Client conn.' as col1 , STRING_AGG(connstr, ', ') AS col2
+FROM (
+  SELECT connstr, NTILE((total_rows/6)::int) OVER (ORDER BY row_num) AS group_number
+  FROM connstrs
+  WHERE  row_num < total_rows AND total_rows > 3
+) AS grouped_data GROUP BY group_number ORDER BY group_number)
+UNION ALL
+SELECT 'Client conn.' as col1 , connstr AS col2 FROM connstrs WHERE row_num < total_rows AND total_rows <= 3
+UNION ALL
+SELECT 'Client build' as col1, connstr AS col2 FROM connstrs WHERE row_num = total_rows AND total_rows > 2
+) a WHERE "Report" IS NOT NULL ORDER BY 1;
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage)
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -231,17 +242,38 @@ LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 \pset tableattr 'id="tblhba"'
 WITH rules AS (SELECT * FROM pg_get_hba_rules WHERE mask IS NOT NULL AND addr NOT IN ('all','samehost','samenet')),
 cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
- sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) "CIDR Mask"
+ sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) cidr_mask
 FROM rules
 LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
   ON family(addr::inet) = 4
 LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
-GROUP BY 1)
-SELECT hba.seq "Line",typ "Type",db "DB",usr "USER",addr "Address", "CIDR Mask", mask "DDN/Binary Mask",
+GROUP BY 1),
+rule_data AS (SELECT hba.seq ,typ ,db ,usr ,addr , cidr_mask , mask,
 CASE WHEN addr IN ('all','samehost','samenet') OR ( mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6'
  ELSE 'IPv'||family(addr::inet)
-END  "IP" ,method "Method", err
-FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq;
+END  "IP" ,method , err, (addr||'/'||cidr_mask)::inet network_block
+FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq)
+SELECT victim.seq "Line",victim.typ "Type",victim.db "Database",victim.usr "User",victim.addr "Address", victim.cidr_mask "CIDR Mask",victim.mask "DDN/Binary Mask" 
+  ,victim."IP" "IP Ver.",victim.Method,victim.err,victim.network_block "Network Block", string_agg(shadower.seq::text,',') "In shadow of"
+ FROM rule_data AS victim
+LEFT JOIN rule_data AS shadower
+ON  shadower.seq < victim.seq
+    AND (
+     (victim.typ = 'local' AND shadower.typ = 'local')
+     OR (victim.typ = 'host' AND shadower.typ = 'host')
+     OR (victim.typ = 'hostssl' AND shadower.typ IN ('host', 'hostssl'))
+     OR (victim.typ = 'hostnossl' AND shadower.typ IN ('host', 'hostnossl'))
+    )
+    AND ( victim.typ = 'local'
+     OR ( victim.network_block IS NOT NULL  AND shadower.network_block IS NOT NULL AND shadower.network_block >>= victim.network_block )
+     OR shadower.addr = 'all'
+    )
+    AND (('replication' = ANY(victim.db) AND 'replication' = ANY(shadower.db) AND  victim.db <@ shadower.db)  OR
+        (NOT ('replication' = ANY(victim.db)) AND ( shadower.db = '{all}'  OR victim.db <@ shadower.db ) ))
+    AND (  shadower.usr = '{all}'  OR victim.usr <@ shadower.usr)
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+ORDER BY 1;
+
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -288,7 +320,8 @@ FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 \pset tableattr 'id="tableConten" name="waits" style="clear: left"'
 \C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
-WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain','WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay')
+WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
+'WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay','IoWorkerMain','AutovacuumMain','BgwriterHibernate','BgwriterMain')
 GROUP BY 1 ORDER BY count(*) DESC;
 
 \pset tableattr 'id="tblsess" class="thidden"' 
@@ -385,13 +418,33 @@ LEFT JOIN pg_get_confs delay ON delay.name = 'bgwriter_delay'
 LEFT JOIN pg_get_confs lru ON lru.name = 'bgwriter_lru_maxpages';
 
 \pset tableattr 'id="tbliostat"'
+\if :pg18
+WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat_activity)) AS c_ts  FROM pg_gather),
+rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
+d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst),
+blk AS (SELECT COALESCE((SELECT setting::INT FROM pg_get_confs WHERE name = 'block_size'),8192) AS blksize)
 SELECT
-CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background worker' WHEN 'c' THEN 'Clients' 
-  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend", 
-sum(reads) "Reads",sum(writes) "Writes",sum(writebacks) "Writebacks", sum(extends) "Extends",sum(hits) "Hits",sum(evictions) "Evictions", sum(reuses) "Reuse", sum(fsyncs) "FSyncs"
-FROM pg_get_io 
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'Background Parallel workers' WHEN 'c' THEN 'Client Backends' WHEN 'i' THEN 'I/O Worker'
+  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WAL Sender' WHEN 'W' THEN 'WAL Writer' WHEN 'r' THEN 'WAL Receiver' WHEN 'l' THEN 'Slot Sync' ELSE btype END As "Backend",
+(sum(reads)/any_value(d.dys))::bigint "Reads/day",(sum(read_bytes)/any_value(d.dys))::bigint "Read Bytes/day",(sum(writes)/any_value(d.dys))::bigint "Writes/day",(sum(write_bytes)/any_value(d.dys))::bigint "Write Bytes/day",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::bigint "Writebacks/day",(sum(extends)/any_value(d.dys))::bigint "Extends/day",(sum(extend_bytes)/any_value(d.dys))::bigint "Extend Bytes/day",
+(sum(hits)/any_value(d.dys))::bigint "Hits/day",(sum(evictions)/any_value(d.dys))::bigint "Evictions/day", (sum(reuses)/any_value(d.dys))::bigint "Reuse/day", (sum(fsyncs)/any_value(d.dys))::bigint "FSyncs/day"
+FROM pg_get_io,d,blk
+-- WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
+GROUP BY 1;
+\else
+WITH cts AS ( SELECT COALESCE(collect_ts, (SELECT max(state_change) FROM pg_stat_activity)) AS c_ts  FROM pg_gather),
+rst AS ( SELECT max(stats_reset) AS max_reset FROM pg_get_io),
+d AS (SELECT cts.c_ts, rst.max_reset,cts.c_ts - rst.max_reset, EXTRACT(EPOCH FROM (cts.c_ts - COALESCE(rst.max_reset,:'reset_ts')))/86400 AS dys FROM cts, rst),
+blk AS (SELECT COALESCE((SELECT setting::INT FROM pg_get_confs WHERE name = 'block_size'),8192) AS blksize)
+SELECT 
+CASE btype WHEN 'a' THEN 'Autovacuum' WHEN 'C' THEN 'Client Backend' WHEN 'G' THEN 'BG writer' WHEN 'b' THEN 'background Parallel workers' WHEN 'c' THEN 'Client Backends' 
+  WHEN 'k' THEN 'Checkpointer' WHEN 'w' THEN 'WALSender' ELSE btype END As "Backend",
+(sum(reads)*any_value(blksize)/any_value(d.dys))::bigint "Read bytes/day",(sum(writes)*any_value(blksize)/any_value(d.dys))::bigint "Write bytes/day",(sum(writebacks)*any_value(blksize)/any_value(d.dys))::bigint "Writeback bytes/day", (sum(extends)*any_value(blksize)/any_value(d.dys))::bigint "Extend bytes/day",
+(sum(hits)*any_value(blksize)/any_value(d.dys))::bigint "Avg. Cache Hit bytes/day",(sum(evictions)*any_value(blksize)/any_value(d.dys))::bigint "Evictions bytes/day", (sum(reuses)/any_value(d.dys))::bigint "Avg. Reuse", (sum(fsyncs)/any_value(d.dys))::bigint "Avg. FSyncs"
+FROM pg_get_io, blk, d 
 WHERE reads > 0 OR writes > 0  OR writebacks > 0 or extends > 0 OR hits > 0 OR evictions > 0 OR reuses > 0 OR fsyncs > 0
 GROUP BY 1;
+\endif
 
 \echo <ol id="finditem" style="padding:2em;position:relative">
 \echo <h3 style="font: italic bold 2em Georgia, serif;text-decoration: underline; margin: 0 0 0.5em;">Findings:</h3>
@@ -482,9 +535,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
 ) r;
 
-\echo ver="31";
+\echo ver="32";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["13.21","14.18","15.13","16.9","17.5"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo async function fetchJsonWithTimeout(url, timeout) {
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -511,6 +564,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo let blokers = []
 \echo let blkvictims = []
 \echo let params = []
+\echo const canvas=document.createElement("canvas");
+\echo const canvascontext=canvas.getContext("2d");
 \echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 \echo async function doAllChecks(){
 \echo   const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
@@ -578,6 +633,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       case "System" :  
 \echo         let startIndex = val.innerText.indexOf("(") + 1;
 \echo         days = parseInt(val.innerText.substring(startIndex,val.innerText.indexOf(" days", startIndex)));
+\echo         break;
+\echo       case "PG Bin Dir." :
+\echo         {const pattern = new RegExp("(\\/usr\\/lib\\/postgresql\\/\\d+|\\/usr\\/pgsql-\\d+\\/)");
+\echo         if(!pattern.test(val.innerText) ) {
+\echo           val.classList.add("warn"); val.title = "Unusual PostgreSQL binary directory : " + val.innerText + ". Could be due to source build or portable binaries.";
+\echo           strfind += "<li><b>Unusual PostgreSQL binary directory : " + val.innerText + "</b>. Could be due to custom build or portable binaries. Understand the <a href='"+ docurl +"pgbinary.html'>risk involved</a></li>";
+\echo         }
+\echo         }
 \echo         break;
 \echo       case "Latest xid" :
 \echo         xmax = parseInt(val.innerText);
@@ -658,7 +721,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo    if (obj.arcfail != null) {
 \echo    if (obj.arcfail.f1 == null) strfind += "<li>No working WAL archiving and backup detected. PITR may not be possible</li>";
 \echo    if (obj.arcfail.f1 > 300) strfind += "<li>No WAL archiving happened in last "+ Math.round(obj.arcfail.f1/60) +" minutes. <b>Archiving could be failing</b>; please check PG logs</li>";
-\echo    if (obj.arcfail.f2 && obj.arcfail.f2 > 0) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b>. Last archived WAL is : <b>"+ obj.arcfail.f3 +"</b> at "+ obj.arcfail.f4 +"</li>";
+\echo    if (obj.arcfail.f2 && obj.arcfail.f2 > 0) strfind += "<li>WAL archiving is <b>lagging by "+ bytesToSize(obj.arcfail.f2,1024)  +"</b>. Last archived WAL is : <b>"+ obj.arcfail.f3 +"</b> at "+ obj.arcfail.f4 +".<a href='"+ docurl +"walarchive.html'> Details<a></li>";
 \echo   }
 \echo   if (obj.wmemuse !== null && obj.wmemuse.length > 0){ strfind += "<li> Biggest <code>maintenance_work_mem</code> consumers are :<b>"; obj.wmemuse.forEach(function(t,idx){ strfind += (idx+1)+". "+t.f1 + " (" + bytesToSize(t.f2) + ")    " }); strfind += "</b></li>"; }
 \echo   if (obj.victims !== null && obj.victims.length > 0) strfind += "<li><b>" + obj.victims.length + " session(s) blocked.</b></li>"
@@ -757,6 +820,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (i === 0) return bytes + sizes[i];
 \echo   return (bytes / (divisor ** i)).toFixed(1) + sizes[i]; 
 \echo }
+\echo function formatNumber(n) {
+\echo   const ranges = [ {divisor: 1e9, suffix: " Billion"}, {divisor: 1e6, suffix: " Million"}, {divisor: 1e3, suffix: " Thousand"} ];
+\echo   const range = ranges.find(r => n >= r.divisor);
+\echo   return range ? (n/range.divisor).toFixed(1) + range.suffix : n.toString();
+\echo };
 \echo function setheadtip(th,tips){
 \echo   for (i in tips) th.cells[i].title = tips[i];
 \echo }
@@ -836,7 +904,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   default_toast_compression: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "default_toast_compression");
-\echo     if (val.innerText != "lz4") { val.classList.add("warn"); val.title="Better to use pglz for TOAST compression";
+\echo     if (val.innerText != "lz4") { val.classList.add("warn"); val.title="Better to use lz4 for TOAST compression";
 \echo       param["suggest"] = "lz4";
 \echo      }
 \echo   },
@@ -845,11 +913,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     val=rowref.cells[1]; 
 \echo     if (val.innerText != "on" ) {
 \echo       val.classList.add("warn");
+\echo       val.title="Please configure TLBHugePages and set huge_pages=on. This is essential for stability and reliability";
 \echo       let param = params.find(p => p.param === "huge_pages");
 \echo       param["suggest"] = "on";
 \echo     } else val.classList.add("lime"); 
 \echo   },
 \echo   huge_page_size: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
+\echo   huge_pages_status: function(rowref){ val=rowref.cells[1]; if (val.innerText == "off") { val.classList.add("warn"); val.title="Huge pages are not used"; } 
+\echo    else val.classList.add("lime"); },
 \echo   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   idle_session_timeout:function(rowref){ 
 \echo     val=rowref.cells[1]; 
@@ -1089,6 +1160,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       delete param["suggest"]
 \echo     }
 \echo   },
+\echo   wal_sync_method: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_sync_method");
+\echo     if (val.innerText != "fdatasync" && val.innerText != "open_datasync"){ 
+\echo         val.classList.add("warn"); val.title="'fdatasync' is recommended for wal_sync_method, unless there is a specific reason to use others";
+\echo         param["suggest"] = "fdatasync";
+\echo     } else val.classList.add("lime");
+\echo   },
 \echo   work_mem: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     val.title=bytesToSize(val.innerText*1024,1024) ;
@@ -1098,6 +1177,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let wmem = params.find(p => p.param === "work_mem");
 \echo     if ( totMem > 0.2 && conns.val > 1){
 \echo       wmem["suggest"] = "'" + Math.min(parseInt(totMem*1024/(5*parseInt(conns.val)) + 4 ),64) + "MB'";
+\echo     }
+\echo   },
+\echo   wal_sender_timeout: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "wal_sender_timeout");
+\echo     if(val.innerText == 0) { val.classList.add("warn"); val.title="Avoid disabling wal_sender_timeout to prevent hangs, sometimes cascaded hangs";
+\echo       param["suggest"] = "'1min'";
 \echo     }
 \echo   },
 \echo   default : function(rowref) {} 
@@ -1126,7 +1212,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo function checktabs(){
 \echo   const startTime =new Date().getTime();
 \echo   tab=document.getElementById("tabInfo")
-\echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB" 
+\echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB. <a href="+ docurl +"tableinfo.html>🗎</a>"; 
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
 \echo   let bloatTabTot = 0;
@@ -1252,6 +1338,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   tab=document.getElementById("tblhba");
 \echo   tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
 \echo   const trs=tab.rows
+\echo   let shadowed=0;
 \echo   for (var i=1;i<trs.length;i++){
 \echo     tr=trs[i];
 \echo     if (!["::1","127.0.0.1","","samehost"].includes(tr.cells[4].innerText.trim()) && tr.cells[8].innerText.trim() != "reject" ){
@@ -1273,7 +1360,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo           tr.cells[4].title="Avoid allowing connetions from all addresses"
 \echo       } else tr.cells[4].classList.add("lime")
 \echo     }
+\echo     if(tr.cells[11].innerText.trim() != ""){
+\echo       tr.cells[11].classList.add("warn");
+\echo       tr.cells[0].classList.add("high");
+\echo       tr.title="This rule is in shadow of the previous rule(s) and will never be used"
+\echo       shadowed++;
+\echo     }
 \echo   }
+\echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules carfully and remove the shadowed ones</li>";
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
@@ -1298,13 +1392,17 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let str= th.cells[0].classList.contains("lime")?" (pg_gather connected)<br/>":"" 
 \echo   return "<b>" + th.cells[0].innerText + "</b>" + str + 
 \echo    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
-\echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" ;
+\echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
+\echo    + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
 \echo   }
 \echo }
-\echo function tabdtls(th){
-\echo   let o=th.cells[1].innerText.split(",");
-\echo   let vac=th.cells[13].innerText; 
-\echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(th.cells[2].innerText).toString());
+\echo function tabInfodtls(e){
+\echo   let td = e.target;
+\echo   let tr = td.parentNode;
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   let o=tr.cells[1].innerText.split(",");
+\echo   let vac=tr.cells[13].innerText; 
+\echo   let ns=obj.ns.find(el => el.nsoid === JSON.parse(tr.cells[2].innerText).toString());
 \echo   let str=""
 \echo   if (o[10] == "r") str += "<c>Inheritance Partition of : " + o[9] + "</c>";
 \echo   if (o[10] == "p") str += "<c>Native Partition of : " + o[9] + "</c>";
@@ -1333,9 +1431,28 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if (threshold < 500) threshold = 500;
 \echo     str += "<c>AUTOVACUUM : autovacuum_vacuum_threshold = "+ threshold +", autovacuum_analyze_threshold = " + threshold + "</c>"
 \echo   }}
-\echo   return "<b>" + th.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+\echo   return "<b>" + tr.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
+\echo }else{
+\echo  let tdSiblings = Array.from(tr.querySelectorAll("td"));
+\echo  let thIndex = tdSiblings.indexOf(td);
+\echo  switch (thIndex) {
+\echo  case 7:
+\echo  case 8:
+\echo  case 9:
+\echo  case 15:
+\echo    return bytesToSize(tr.cells[thIndex].innerText);
+\echo  case 10:
+\echo  case 16:
+\echo  case 17:
+\echo   return formatNumber(tr.cells[thIndex].innerText)
+\echo  default:
+\echo    return "";
+\echo  }
 \echo }
-\echo function sessdtls(th){
+\echo }
+\echo function tblsessdtls(e){
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   th = e.target.parentNode;  
 \echo   let o=JSON.parse(th.cells[1].innerText); let str="";
 \echo   if (o.f1 !== null) str += "Database :" + o.f1 + "<br/>";
 \echo   if (o.f2 !== null && o.f2.length > 1 ) str += "Application :" + o.f2 + "<br/>";
@@ -1345,17 +1462,24 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (typeof o.f6 != "undefined") str += "<div class=warn>" + o.f6 + "<div>"; 
 \echo   if (str.length < 1) str+="Independent/Background process";
 \echo   return str;
-\echo }
-\echo function userdtls(tr){
-\echo if(tr.cells[1].innerText.length > 2){
-\echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>Connections per DB by user '"+tr.cells[0].innerText+"'</u></b><br>";
-\echo   for(i=0;i<o.length;i++){
-\echo     str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
 \echo   }
-\echo   return str
-\echo } else return "No connections"
 \echo }
-\echo function dbcons(tr){
+\echo function tblusrdtls(e){  
+\echo  if (e.target.matches("tr td:first-child")){  
+\echo   let td = e.target;
+\echo   let tr = td.parentNode;
+\echo   if (tr.cells[1].innerText.length > 2){
+\echo     let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>Connections per DB by user '"+tr.cells[0].innerText+"'</u></b><br>";
+\echo     for(i=0;i<o.length;i++){
+\echo       str += (i+1).toString() + ". Database:" + o[i].f1 + " Active:" + o[i].f2 + ", IdleInTrans:" + o[i].f3  + ", Idle:" + o[i].f4 +  " <br>";
+\echo     }
+\echo     return str
+\echo   } else return "No connections"
+\echo }}
+\echo function tblcsdtls(e){  
+\echo if (e.target.matches("tr td:first-child")){
+\echo let td = e.target;
+\echo let tr = td.parentNode;
 \echo if(tr.cells[1].innerText.length > 2){
 \echo   let o=JSON.parse(tr.cells[1].innerText); let str="<b><u>User connections to DB \'"+ tr.cells[0].innerText +"'</u></b><br>";
 \echo   for(i=0;i<o.length;i++){
@@ -1363,7 +1487,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }
 \echo   return str
 \echo } else return "No connections"
-\echo }
+\echo }}
 \echo function tabPartdtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
 \echo   th = e.target.parentNode;
@@ -1375,24 +1499,43 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str;
 \echo   }
 \echo }
-\echo document.querySelectorAll(".thidden").forEach(table => {
+\echo function tbliostatdtls(e){
+\echo   let td = e.target;
+\echo   let columnIndex = td.cellIndex;
+\echo   if (td.matches("tr th")) return td.title;
+\echo   if (mgrver < 18){
+\echo     if ([1,2,3,4,5,6].includes(columnIndex) && td.innerText > 0) return bytesToSize(td.innerText) + " per day";
+\echo     else if ([7,8].includes(columnIndex) && td.innerText > 0) return formatNumber(td.innerText) + " times per day";
+\echo     else return "";
+\echo   }else{
+\echo     if ([2,4,5,7].includes(columnIndex) && td.innerText > 0){ let retval = ""
+\echo       retval = bytesToSize(td.innerText) + " per day" 
+\echo       if (td.previousElementSibling.innerText >0 && columnIndex != 5 ) retval += " (Avg. " + bytesToSize(Math.round(td.innerText/td.previousElementSibling.innerText)) + " per I/O)"
+\echo       return retval;
+\echo     }
+\echo     else if ([1,3,6,8,9,10,11].includes(columnIndex) && td.innerText > 0) return formatNumber(td.innerText) + " times per day";
+\echo     else return "";
+\echo   }
+\echo }
+\echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
 \echo     let str = ""
 \echo     const td = e.target;
+\echo     if (td.innerText.trim().length < 1 ) return;
 \echo     if (typeof window[e.currentTarget.id + "dtls"] === "function") {
 \echo      str = window[e.currentTarget.id + "dtls"](e);  
-\echo     } else if (e.target.matches("tr td:first-child")){   
-\echo       const tr = td.parentNode;
-\echo       const tab = tr.closest("table");
-\echo       str = tab.id === "tabInfo" ? tabdtls(tr) :
-\echo                      tab.id === "tblsess" ? sessdtls(tr) :
-\echo                      tab.id === "tblusr" ? userdtls(tr) :
-\echo                      tab.id === "tblcs" ? dbcons(tr) : "";;
-\echo     }  
+\echo     } 
 \echo     if ( str ) {
 \echo       var el = document.createElement("div");
 \echo       el.setAttribute("id", "dtls");
 \echo       el.setAttribute("align", "left");
+\echo       if (td.align != "left") {
+\echo         el.style.cssText += "left: 100%; top: 80%";
+\echo       } else {
+\echo         computedStyle=window.getComputedStyle(td);
+\echo         canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+\echo         el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+\echo       }
 \echo       el.addEventListener("mouseleave", (event) => {
 \echo       if (!td.contains(event.relatedTarget)) el.remove();
 \echo       })
@@ -1400,19 +1543,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       td.appendChild(el); 
 \echo     }
 \echo   }, true);
-\echo });
-\echo document.querySelectorAll(".thidden").forEach(container => {
-\echo   container.addEventListener("dblclick", function(event) {
+\echo   table.addEventListener("dblclick", function(event) {
 \echo     if (event.target.matches("tr td:first-child")) {
 \echo       navigator.clipboard.writeText(event.target.children[0].innerText);
 \echo       flash("Details copied to clipboard");
 \echo     }
 \echo   });
-\echo });
-\echo document.querySelectorAll(".thidden").forEach(table => {
-\echo     table.addEventListener("mouseleave", (e) => {
-\echo         if (e.target.matches("tr td:first-child")) e.target.children[0]?.remove();
-\echo     }, true);
+\echo   table.addEventListener("mouseleave", (e) => {
+\echo         if (e.target.matches("tr td, tr th")) e.target.children[0]?.remove();
+\echo   }, true);
 \echo });
 \echo let elem=document.getElementById("bottommenu")
 \echo elem.onmouseover = function() { document.getElementById("menu").style.display = "block"; }
@@ -1527,7 +1666,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     tr.cells[0].classList.add("high"); tr.cells[0].title="More than 10% of forced checkpoints is not desirable, increase max_wal_size";
 \echo   }
 \echo   if(tr.cells[1].innerText < 10 ){
-\echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. consider checkpoint_timeout=1800";
+\echo     tr.cells[1].classList.add("high"); tr.cells[1].title="checkpoints are too frequent. Tune the checkpoint related parameters to reduce the frequency";
+\echo   }
+\echo   if(tr.cells[3].innerText > 0.04 ){
+\echo     tr.cells[3].classList.add("high"); tr.cells[3].title="Checkpoint Sync time is high, Suspected slow storage. consider using faster storage";
+\echo     strfind += "<li><b>Indications of Storage performance issue.</b> High checkpoint sync time. Consider performing benchmarking of storage.</li>"; 
 \echo   }
 \echo   if(tr.cells[11].innerText > 50){
 \echo     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
@@ -1562,6 +1705,20 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab=document.getElementById("tbliostat")
 \echo tab.caption.innerHTML="<span>IO Statistics</span>"
 \echo if (tab.rows.length > 1){
+\echo   trs=tab.rows;
+\echo   if (trs[0].cells.length < 12){
+\echo   setTitles(trs[0],["Type of Backend Process","Average Bytes read per day","Average Bytes written (OS buffer) per day","Average Bytes flushed to disk per day","Average Bytes of file extends per day","Average number of times a block was found in shared buffer buffer per day",
+\echo     "Average Number of times in a day, a block has been written out from a shared or local buffer in order to make it available for another",
+\echo     "Average bumber of times in a day, buffer in ring buffer was reused as part of an I/O operation in the bulkread, bulkwrite, or vacuum",
+\echo     "Average number of fsyncs in a day"]);
+\echo   } else {
+\echo     setTitles(trs[0],["Type of Backend Process","Read requests per day","Read Bytes per day","Write requests to OS per day", "Write Bytes to OS per day","Bytes flushed to disk per day","File extend requests per day","Bytes of file extends per day","Average number of times a block was found in shared buffer buffer per day",
+\echo     "Average Number of times in a day, a block has been written out from a shared or local buffer in order to make it available for another",
+\echo     "Average bumber of times in a day, buffer in ring buffer was reused as part of an I/O operation in the bulkread, bulkwrite, or vacuum",
+\echo     "Average number of fsyncs in a day"]);
+\echo   }
+\echo   for (let tr of trs){
+\echo   }
 \echo }else  tab.tBodies[0].innerHTML="IO statistics is available for PostgreSQL 16 and above"
 \echo }
 \echo function checkreplstat(){
