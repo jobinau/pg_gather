@@ -317,9 +317,9 @@ CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
 "Active","IdleInTrans","Idle","Total","SSL","NonSSL"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
-\pset tableattr 'id="tableConten" name="waits" style="clear: left"'
+\pset tableattr 'id="tableConten" name="waits" style="clear: left" class="thidden"'
 \C 'WaitEvents'
-SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
+SELECT COALESCE(wait_event,'CPU') "Event", NULL, count(*)::text "Event Count" FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
 'WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay','IoWorkerMain','AutovacuumMain','BgwriterHibernate','BgwriterMain')
 GROUP BY 1 ORDER BY count(*) DESC;
@@ -538,6 +538,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo ver="32";
 \echo docurl="https://jobinau.github.io/pg_gather/";
 \echo meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo let eventMaps;
 \echo async function fetchJsonWithTimeout(url, timeout) {
 \echo     const controller = new AbortController();
 \echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -568,10 +569,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo const canvascontext=canvas.getContext("2d");
 \echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 \echo async function doAllChecks(){
-\echo   const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
-\echo     meta = data;
-\echo     console.log("Data received:", data);})
-\echo     .catch(error => { console.error("Error fetching JSON:", error); });
+\echo   await fetchJsonWithTimeout(docurl + "meta.json",500).then(data => { meta = data; })
+\echo   .catch(error => { console.error("Error fetching JSON:", error); });
+\echo   try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 500));}
+\echo   catch (error) { console.error("Error fetching wait events JSON:", error); eventMaps = new Map(); }
 \echo   console.log("Starting all checks");
 \echo   afterRenderingComplete(() => {  console.log("This runs after the current rendering is complete."); 
 \echo   document.getElementById("sections").style="display:table";
@@ -622,8 +623,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         val.innerText = val.innerText + "-v" + ver;
 \echo         break;
 \echo       case "Collected By" :
-\echo         if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
-\echo         strfind += "<li><b>Old/obsolete version (v"+ val.innerText.slice(-2) + ") of pg_gather script (gather.sql) is used for data collection</b>. Please use v" + ver + " <a href='"+ docurl +"versionpolicy.html'>Details</a></li>";
+\echo         if (val.innerText.slice(-2) < ver || val.innerText.slice(-2) < meta.ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
+\echo         strfind += "<li><b>Old/obsolete version (v"+ val.innerText.slice(-2) + ") of pg_gather script (gather.sql) is used for data collection</b>. Please use the latest relase <b>(v" + meta.ver + ")</b> <a href='"+ docurl +"versionpolicy.html'>Details</a></li>";
 \echo         }
 \echo         break;
 \echo       case "In recovery?" :
@@ -1488,6 +1489,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str
 \echo } else return "No connections"
 \echo }}
+\echo function tableContendtls(e){
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   th = e.target.parentNode;  
+\echo   let str= "Wait Event information ";
+\echo   return str;
+\echo   }
+\echo }
 \echo function tabPartdtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
 \echo   th = e.target.parentNode;
@@ -1550,7 +1558,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     }
 \echo   });
 \echo   table.addEventListener("mouseleave", (e) => {
-\echo         if (e.target.matches("tr td, tr th")) e.target.children[0]?.remove();
+\echo         if (e.target.matches("tr td,tr th") && e.target.children[0]?.id === "dtls") 
+\echo            e.target.children[0]?.remove();
 \echo   }, true);
 \echo });
 \echo let elem=document.getElementById("bottommenu")
@@ -1588,11 +1597,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo trs=tab.rows;
 \echo let tempstr=""
 \echo if (trs.length > 1){ 
-\echo   maxevnt=Number(trs[1].cells[1].innerText);
+\echo   maxevnt=Number(trs[1].cells[2].innerText);
 \echo   for (let tr of trs) {
-\echo    evnts=tr.cells[1];
+\echo    evnts=tr.cells[2];
 \echo    if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
-\echo    if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
+\echo    if (tr.cells[0].innerText == "CPU" && evnts.innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
 \echo   }
 \echo   el=document.createElement("tfoot");
 \echo   el.innerHTML = "<th colspan='2'>"+ tempstr +" </th>";

@@ -317,9 +317,9 @@ CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
 "Active","IdleInTrans","Idle","Total","SSL","NonSSL"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
-\pset tableattr 'id="tableConten" name="waits" style="clear: left"'
+\pset tableattr 'id="tableConten" name="waits" style="clear: left" class="thidden"'
 \C 'WaitEvents'
-SELECT COALESCE(wait_event,'CPU') "Event", count(*)::text "Event Count" FROM pg_pid_wait
+SELECT COALESCE(wait_event,'CPU') "Event", NULL, count(*)::text "Event Count" FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
 'WalWriterMain','CheckpointWriteDelay','PgSleep','VacuumDelay','IoWorkerMain','AutovacuumMain','BgwriterHibernate','BgwriterMain')
 GROUP BY 1 ORDER BY count(*) DESC;
@@ -545,6 +545,7 @@ ver="32";
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
 meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+let eventMaps; //Global variable to hold wait event mappings
 
 async function fetchJsonWithTimeout(url, timeout) {
     const controller = new AbortController();
@@ -589,10 +590,11 @@ function afterRenderingComplete(callback) { requestAnimationFrame(() => {  reque
 
 //function to check the parameters and display the findings, called from DOMContentLoaded event listner below.
 async function doAllChecks(){
-  const result = await fetchJsonWithTimeout("https://jobinau.github.io/pg_gather/meta.json",500).then(data => {
-    meta = data;
-    console.log("Data received:", data);})
-    .catch(error => { console.error("Error fetching JSON:", error); });
+  await fetchJsonWithTimeout(docurl + "meta.json",500).then(data => { meta = data; })
+  .catch(error => { console.error("Error fetching JSON:", error); }); // there was an error
+
+  try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 500));} //convert the fetched json array to Map
+  catch (error) { console.error("Error fetching wait events JSON:", error); eventMaps = new Map(); } // if there is an error, report and create an empty map.
 
   console.log("Starting all checks");
   afterRenderingComplete(() => {  console.log("This runs after the current rendering is complete."); 
@@ -662,8 +664,8 @@ function checkgather(){
         val.innerText = val.innerText + "-v" + ver;
         break;
       case "Collected By" :
-        if (val.innerText.slice(-2) < ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
-        strfind += "<li><b>Old/obsolete version (v"+ val.innerText.slice(-2) + ") of pg_gather script (gather.sql) is used for data collection</b>. Please use v" + ver + " <a href='"+ docurl +"versionpolicy.html'>Details</a></li>";
+        if (val.innerText.slice(-2) < ver || val.innerText.slice(-2) < meta.ver ) { val.classList.add("warn"); val.title = "Data is collected using old/obsolete version of gather.sql file. Please use v" + ver; 
+        strfind += "<li><b>Old/obsolete version (v"+ val.innerText.slice(-2) + ") of pg_gather script (gather.sql) is used for data collection</b>. Please use the latest relase <b>(v" + meta.ver + ")</b> <a href='"+ docurl +"versionpolicy.html'>Details</a></li>";
         }
         break;
       case "In recovery?" :
@@ -1609,6 +1611,15 @@ if(tr.cells[1].innerText.length > 2){
 } else return "No connections"
 }}
 
+function tableContendtls(e){
+  if (e.target.matches("tr td:first-child")){
+  th = e.target.parentNode;  
+  //let o=th.cells[1].innerText.split(",");
+  let str= "Wait Event information ";
+  return str;
+  }
+}
+
 function tabPartdtls(e){
   if (e.target.matches("tr td:first-child")){
   th = e.target.parentNode;
@@ -1682,7 +1693,8 @@ document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
 
   //Event listener for mouseleave to remove the popup on mouse leave
   table.addEventListener("mouseleave", (e) => {
-        if (e.target.matches("tr td, tr th")) e.target.children[0]?.remove();
+        if (e.target.matches("tr td,tr th") && e.target.children[0]?.id === "dtls") 
+           e.target.children[0]?.remove();
   }, true); // `true` for capture phase (better performance)
 
 });
@@ -1743,11 +1755,12 @@ tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and D
 trs=tab.rows;
 let tempstr=""
 if (trs.length > 1){ 
-  maxevnt=Number(trs[1].cells[1].innerText);
+  maxevnt=Number(trs[1].cells[2].innerText);
   for (let tr of trs) {
-   evnts=tr.cells[1];
+   evnts=tr.cells[2];
+   //console.log("Event :" + tr.cells[0].innerText + " Event Type :" + eventMaps.get(tr.cells[0].innerText));
    if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
-   if (tr.cells[0].innerText == "CPU" && tr.cells[1].innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
+   if (tr.cells[0].innerText == "CPU" && evnts.innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
   }
   //Add footer to table with available info.
   el=document.createElement("tfoot");
