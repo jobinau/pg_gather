@@ -23,6 +23,31 @@ ol { width: fit-content;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
+.bar-chart {
+    display: flex;
+    justify-content: space-between; /* Distribute bars evenly */
+    align-items: flex-end; /* Align bars to the bottom */
+    height: 300px; /* Fixed height for the graph area */
+    border-bottom: 2px solid #ccc; /* The X-axis line */
+    padding-bottom: 5px;
+    gap: 10px; /* Space between bars */
+}
+.bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    flex: 1; /* Each bar takes equal width */
+    position: relative;
+}
+.vbar {
+    width: 80%; /* Width of bar relative to its column space */
+    background-color: #3b82f6;
+    border-radius: 4px 4px 0 0;
+    position: relative;
+}
+.vbar span { display: block;  position: absolute; top: -20px; /* Position above the bar */ left: 50%; transform: translateX(-50%); /* Center horizontally */ }
 </style>
 <% \H
 \pset footer off 
@@ -546,7 +571,34 @@ docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
 meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 let eventMaps; //Global variable to hold wait event mappings
+//CONST Color map for all known wait event categories. Default is brown which is part of CSS
+let colorMaps = new Map([["Activity","#00EE00"],["BufferPin","#8B0000"],["Client","#999999"],["CPU","#00CC00"],["Extension","#6B4226"],["IO","#0000CC"],["IPC","#FF9900"],["LWLock","#8B0000"],["Lock","#FF0000"],["Timeout","#FF00FF"]]);
 
+mgrver="";
+//walcomprz="";
+datadir=""; //data directory is needed for understanding the tablespaces.
+//Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
+autovacuum_freeze_max_age = 0;
+//Global varaible to hold all emitted findings from different sections, which will finally presented in Findings section
+let strfind = "";
+
+//total DB size
+totdb=0;
+//Number of CPUs and Memory. Since many parameter are based on CPU and memory better to hold as a global variable.
+totCPU=4;  //total number of CPUs, Minimum 4 is assumed, unless modified by the user using the input box in the html
+totMem=8;  //total memory in GB, Minimum 8GB is assumed, unless modified by the user using the input box in the html
+wrkld=""; //workload type (OLTP, OLAP etc.)
+flsys= ""; //filesystem type (rglr vs cow)
+//Prepare the list of blockers and Victims
+let blokers = []
+let blkvictims = []
+//Parameter array with each parameter ("param") current value ("val"), recomendations.
+let params = []
+
+const canvas=document.createElement("canvas"); //canvas for getting the width of text
+const canvascontext=canvas.getContext("2d"); //canvas context for getting the width of text
+
+//async function to fetch json using AJAX request with timeout, works if the user's browser supports fetch API and connected to internet.
 async function fetchJsonWithTimeout(url, timeout) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -562,30 +614,7 @@ async function fetchJsonWithTimeout(url, timeout) {
     }
 }
 
-mgrver="";
-//walcomprz="";
-datadir=""; //data directory is needed for understanding the tablespaces.
-//Global variable to hold autovacuum_freeze_max_age, so that each table can be compared
-autovacuum_freeze_max_age = 0;
-//Global varaible to hold all emitted findings from different sections, which will finally presented in Findings section
-let strfind = "";
-
-//total DB size
-totdb=0;
-//Number of CPUs and Memory. Since many parameter are based on CPU and memory better to hold as a global variable.
-totCPU=4;  //total number of CPUs, Minimum 4 is assumed, unless modified by the user
-totMem=8;  //total memory in GB, Minimum 8GB is assumed, unless modified by the user
-wrkld=""; //workload type (OLTP, OLAP etc.)
-flsys= ""; //filesystem type (rglr vs cow)
-//Prepare the list of blockers and Victims
-let blokers = []
-let blkvictims = []
-//Parameter array with each parameter ("param") current value ("val"), recomendations.
-let params = []
-
-const canvas=document.createElement("canvas"); //canvas for getting the width of text
-const canvascontext=canvas.getContext("2d"); //canvas context for getting the width of text
-//another function passed into this functio will be called after the rendering is complete
+//another function passed into this function will be called after the rendering is complete
 function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 
 //function to check the parameters and display the findings, called from DOMContentLoaded event listner below.
@@ -750,7 +779,7 @@ function checkfindings(){
    }
    if (tmpstr.length > 100 ){
     strfind += "<li>" + tmpstr + "</li>"
-    document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
+    document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += "<br/>" + tmpstr
    }
   }
  }
@@ -960,6 +989,13 @@ var paramDespatch = {
       val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
     }
   },
+  checkpoint_completion_target: function(rowref){
+    val=rowref.cells[1];
+    if(val.innerText < 0.7) { val.classList.add("warn"); val.title="Low checkpoint_completion_target can cause I/O spikes during checkpoints" ;
+      let param = params.find(p => p.param === "checkpoint_completion_target");
+      param["suggest"] = "0.9";
+    }
+  },
   checkpoint_timeout: function(rowref){
     val=rowref.cells[1];
     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"
@@ -1008,6 +1044,13 @@ var paramDespatch = {
     let param = params.find(p => p.param === "jit");
     param["suggest"] = "off";
   }},
+  log_hostname: function(rowref){
+    val=rowref.cells[1];
+    if (val.innerText == "on"){
+    let param = params.find(p => p.param === "log_hostname");
+    val.classList.add("warn"); val.title="Unless you are particular about logging the hostnames, better to turn this off to avoid DNS lookup overhead";
+    param["suggest"] = "off";
+    }},
   log_temp_files: function(rowref){
     val = val=rowref.cells[1];
     let param = params.find(p => p.param === "log_temp_files");
@@ -1753,19 +1796,44 @@ function checkdbtime(){
 tab=document.getElementById("tableConten")
 tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 trs=tab.rows;
+let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0};  //Object to hold counters for each event type
 let tempstr=""
+let newElement;
 if (trs.length > 1){ 
   maxevnt=Number(trs[1].cells[2].innerText);
   for (let tr of trs) {
+   if (tr.rowIndex === 0) continue; //skip header row completely and continue to next iteration
    evnts=tr.cells[2];
-   //console.log("Event :" + tr.cells[0].innerText + " Event Type :" + eventMaps.get(tr.cells[0].innerText));
-   if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
+   //console.log("Event :" + tr.cells[0].innerText + " Event Type :" + eventMaps.get(tr.cells[0].innerText.toUpperCase()) + " Color code" + colorMaps.get(eventMaps.get(tr.cells[0].innerText.toUpperCase())));
+   counters[eventMaps.get(tr.cells[0].innerText.toUpperCase())] += evnts.innerText*1;
+   if (evnts.innerText*1500/maxevnt > 1){ 
+    const newBar = document.createElement("div");  //create a new div element for the horizontal bar graph.
+    newBar.className = "bar";   //Assign class name for styling
+    newBar.style.width = (evnts.innerText * 1500 / maxevnt).toFixed(1) + "px";  //Set width proportional to the event count
+    newBar.style.borderColor = colorMaps.get(eventMaps.get(tr.cells[0].innerText.toUpperCase())); //Set color based on event type 
+    evnts.appendChild(newBar); //Append it to the parent
+  }
    if (tr.cells[0].innerText == "CPU" && evnts.innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
   }
-  //Add footer to table with available info.
-  el=document.createElement("tfoot");
-  el.innerHTML = "<th colspan='2'>"+ tempstr +" </th>";
-  tab.appendChild(el);
+  const totalEvents = Object.values(counters).reduce((sum, count) => sum + count, 0);   //Calculate sum of all wait events
+  
+  /*** BEGIN : Footer section creation ***/
+  tf=document.createElement("tfoot"); //Create a footer .
+  tf.innerHTML = "<tr><th colspan='2'>"+ tempstr +" </th></tr>";
+  th=tf.children[0].children[0]; //Reference to th element.
+  th.innerHTML += "<div style=max-width:800px;margin:auto><h3>Wait Event Catagory</h3><div class=bar-chart></div></div>";
+  let chartDiv=th.children[0].children[1]; //Reference to div with class bar-chart
+  /**** Create vertical bars for each wait-event catagory as single html text. Then add it to "bar-chart" area created above ***/
+  let htmlContent = "";
+  for (const [key, value] of Object.entries(counters)) {
+    if (value > 0){
+      let percentage = Math.round((totalEvents > 0) ? ((value / totalEvents) * 100) : 0);
+      htmlContent += "<div class=bar-group><div class=vbar style=height:" + percentage +"%;background-color:"+ colorMaps.get(key) +"><span>" + percentage + "%</span></div><div class=bar-label>" + key + "</div></div>"
+    }
+  }
+  chartDiv.innerHTML = htmlContent;  //END : Footer section is ready. which includes the wait-event catagory chart
+
+  tab.appendChild(tf);  //Append the generated footer to the table
 }else {
   tab.tBodies[0].innerHTML="No Wait Event information or CPU usage information is available, Probably the PostgreSQL is completely idle or data collection failed"
 }
