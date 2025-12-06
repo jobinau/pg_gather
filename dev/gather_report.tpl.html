@@ -23,31 +23,10 @@ ol { width: fit-content;}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
-.bar-chart {
-    display: flex;
-    justify-content: space-between; /* Distribute bars evenly */
-    align-items: flex-end; /* Align bars to the bottom */
-    height: 300px; /* Fixed height for the graph area */
-    border-bottom: 2px solid #ccc; /* The X-axis line */
-    padding-bottom: 5px;
-    gap: 10px; /* Space between bars */
-}
-.bar-group {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-end;
-    height: 100%;
-    flex: 1; /* Each bar takes equal width */
-    position: relative;
-}
-.vbar {
-    width: 80%; /* Width of bar relative to its column space */
-    background-color: #3b82f6;
-    border-radius: 4px 4px 0 0;
-    position: relative;
-}
-.vbar span { display: block;  position: absolute; top: -20px; /* Position above the bar */ left: 50%; transform: translateX(-50%); /* Center horizontally */ }
+.bar-chart { display: flex; justify-content: space-between; align-items: flex-end; height: 300px; padding-bottom: 5px; gap: 10px; }
+.bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; position: relative;}
+.vbar { width: 80%; max-width: 100px; background-color: #3b82f6; border-radius: 4px 4px 0 0; position: relative;}
+.vbar span { display: block;  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);}
 </style>
 <% \H
 \pset footer off 
@@ -162,7 +141,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <li><a href="#tblextn">Extensions</a></li>
 <li><a href="#tblhba">Security-HBA rules</a>
 <li><a href="#tblcs">Connection & Users</a></li>
-<li><a href="#tableConten">Database Time</a></li>
+<li><a href="#tblDBTime">Database Time</a></li>
 <li><a href="#tblsess">Session Details</a></li>
 <li><a href="#tblstmnt">Top Statements</a></li>
 <li><a href="#tblreplstat">Replications</a></li>
@@ -182,7 +161,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
     <li><a href="#tblextn">Extensions</a></li>
     <li><a href="#tblhba">Security-HBA rules</a>
     <li><a href="#tblcs">Connection & Users</a></li>
-    <li><a href="#tableConten">Database Time</a></li>
+    <li><a href="#tblDBTime">Database Time</a></li>
     <li><a href="#tblsess">Session Details</a></li>
     <li><a href="#tblstmnt">Top Statements</a></li>
     <li><a href="#tblreplstat">Replications</a></li>
@@ -342,7 +321,7 @@ CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
 "Active","IdleInTrans","Idle","Total","SSL","NonSSL"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
-\pset tableattr 'id="tableConten" name="waits" style="clear: left" class="thidden"'
+\pset tableattr 'id="tblDBTime" name="waits" style="clear: left" class="thidden"'
 \C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", NULL, count(*)::text "Event Count" FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
@@ -581,9 +560,7 @@ datadir=""; //data directory is needed for understanding the tablespaces.
 autovacuum_freeze_max_age = 0;
 //Global varaible to hold all emitted findings from different sections, which will finally presented in Findings section
 let strfind = "";
-
-//total DB size
-totdb=0;
+totdb=0; //total DB size
 //Number of CPUs and Memory. Since many parameter are based on CPU and memory better to hold as a global variable.
 totCPU=4;  //total number of CPUs, Minimum 4 is assumed, unless modified by the user using the input box in the html
 totMem=8;  //total memory in GB, Minimum 8GB is assumed, unless modified by the user using the input box in the html
@@ -742,9 +719,9 @@ function checkfindings(){
  let tmpstr = ""; //temporary string for hoding info during the string formatting
  if (obj.sess.f7 < 4){ 
   strfind += "<li><b>The pg_gather data is collected by a user who don't have necessary privilege OR Content of the output file (out.txt) is copy-pasted destroying the TSV format</b><br/><b>1.</b>Please run the gather.sql as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege and <b>2.</b> Please provide the output file as it is without copy-pasting</li>"
-  document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper privilege OR content of output file is copy-pasted. Please refer the Findings section";
-  document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
-  document.getElementById("tableConten").classList.add("high");
+  document.getElementById("tblDBTime").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper privilege OR content of output file is copy-pasted. Please refer the Findings section";
+  document.getElementById("tblDBTime").caption.innerHTML += "<br/>" + document.getElementById("tblDBTime").title
+  document.getElementById("tblDBTime").classList.add("high");
  }
  if (obj.sess.f2 > 0) strfind += "<li><b>Found " + obj.sess.f2 + " session(s) in idle-in-transaction state</b>. This can cause poor concurrency. Details in <a href=#tblsess>Sessions</a> section. Consider improving the application code and design</li>";
  if (obj.cn.f1 > 0){
@@ -779,7 +756,7 @@ function checkfindings(){
    }
    if (tmpstr.length > 100 ){
     strfind += "<li>" + tmpstr + "</li>"
-    document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += "<br/>" + tmpstr
+    document.getElementById("tblDBTime").tFoot.children[0].children[0].innerHTML += "<br/>" + tmpstr
    }
   }
  }
@@ -1654,7 +1631,7 @@ if(tr.cells[1].innerText.length > 2){
 } else return "No connections"
 }}
 
-function tableContendtls(e){
+function tblDBTimedtls(e){
   if (e.target.matches("tr td:first-child")){
   th = e.target.parentNode;  
   //let o=th.cells[1].innerText.split(",");
@@ -1793,7 +1770,7 @@ for (let tr of trs) {
 
 //database time draw graph
 function checkdbtime(){
-tab=document.getElementById("tableConten")
+tab=document.getElementById("tblDBTime")
 tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 trs=tab.rows;
 let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0};  //Object to hold counters for each event type
@@ -1821,7 +1798,7 @@ if (trs.length > 1){
   tf=document.createElement("tfoot"); //Create a footer .
   tf.innerHTML = "<tr><th colspan='2'>"+ tempstr +" </th></tr>";
   th=tf.children[0].children[0]; //Reference to th element.
-  th.innerHTML += "<div style=max-width:800px;margin:auto><h3>Wait Event Catagory</h3><div class=bar-chart></div></div>";
+  th.innerHTML += "<div style=max-width:800px;margin:auto;background-color:white><h3>Wait-Event Catagory Chart</h3><div class=bar-chart></div></div>";
   let chartDiv=th.children[0].children[1]; //Reference to div with class bar-chart
   /**** Create vertical bars for each wait-event catagory as single html text. Then add it to "bar-chart" area created above ***/
   let htmlContent = "";
@@ -1993,7 +1970,7 @@ if (tab.rows.length > 1){
     //xmin age check
     [14,15].forEach(function(num){  if(row.cells[num].innerText > 20) row.cells[num].classList.add("warn"); });
     //check for abandoned replication slots
-    if (row.cells[13].innerText == "f" || row.cells[2].innerText == "") {
+    if ((obj.primary && (row.cells[13].innerText == "f" || row.cells[2].innerText == "")) || (!obj.primary && row.cells[13].innerText == "f" && row.cells[14].innerText > 1000 )) {
       row.cells[8].classList.add("high");
       row.cells[8].title="Abandoned replication slot";
       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
