@@ -572,6 +572,7 @@ let blkvictims = []
 //Parameter array with each parameter ("param") current value ("val"), recomendations.
 let params = []
 
+//Following canvas elements are created for version 32. CURRENTLY NOT USED. but might be used in future for calculating text width dynamically.
 const canvas=document.createElement("canvas"); //canvas for getting the width of text
 const canvascontext=canvas.getContext("2d"); //canvas context for getting the width of text
 
@@ -590,6 +591,23 @@ async function fetchJsonWithTimeout(url, timeout) {
         else throw error;
     }
 }
+
+//duplicate of above function but returns the response object instead of json
+async function fetchWithTimeout(url, timeout) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
+        else return await response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === "AbortError")  throw new Error("Request timed out");
+        else throw error;
+    }
+}
+
 
 //another function passed into this function will be called after the rendering is complete
 function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
@@ -1631,20 +1649,24 @@ if(tr.cells[1].innerText.length > 2){
 } else return "No connections"
 }}
 
-function tblDBTimedtls(e){
+async function tblDBTimedtls(e){
   if (e.target.matches("tr td:first-child")){
-  th = e.target.parentNode;  
-  //let o=th.cells[1].innerText.split(",");
-  let str= "Wait Event information ";
-  return str;
+  td = e.target;
+  const htmlString = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000)
+    .then(res => res.text())
+    .then(htmlString => {
+      td.appendChild(genPopup( htmlString + "<h4><a href="+ docurl + "events/" + td.innerText.toUpperCase() +">🔗</a><h4>") );
+    })
+    .catch(error => {
+      console.error("Error fetching wait events", error);
+    });
+    return;
   }
 }
 
 function tabPartdtls(e){
   if (e.target.matches("tr td:first-child")){
   th = e.target.parentNode;
-  //let str= th.cells[1].innerText;
-  //str = str.replace('/(\\w+)/g', '''"$1"''');  //Results in js: str = str.replace(/(\w+)/g, '"$1"');
   let o=th.cells[1].innerText.split(",");
   let str = "";
   if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
@@ -1674,8 +1696,27 @@ function tbliostatdtls(e){
   //return td.innerText;
 }
 
+function genPopup(str){
+      var el = document.createElement("div");
+      el.setAttribute("id", "dtls");
+      el.setAttribute("align", "left");
+      el.style.cssText += "left: 100%; top: 80%; margin-left: -4px;";
+      /*if (td.align != "left") {
+        el.style.cssText += "left: 100%; top: 80%";
+      } else {
+        computedStyle=window.getComputedStyle(td); //get the style of the current td element and copy it to canvas context for measuring text width
+        canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+        el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+      }*/
+      el.addEventListener("mouseleave", (event) => {
+      if (!el.parentNode.contains(event.relatedTarget)) el.remove(); // Check if the mouse is moving back to the parent, Remove the child element if it is leaving, but not going back to parent
+      })
+      el.innerHTML= str;
+      return el;
+}
+
+//Event listener for mouseenter for tables. This will create pop-up details box
 document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
-  //Event listener for mouseenter
   table.addEventListener("mouseenter", (e) => {
     let str = ""
     const td = e.target;
@@ -1683,22 +1724,8 @@ document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
     if (typeof window[e.currentTarget.id + "dtls"] === "function") { //if there is a function with the name of table id + dtls
      str = window[e.currentTarget.id + "dtls"](e);   //pass the event to the function and get the processed string
     } 
-    if ( str ) { //if the string is not empty, create a popup
-      var el = document.createElement("div");
-      el.setAttribute("id", "dtls");
-      el.setAttribute("align", "left");
-      if (td.align != "left") {
-        el.style.cssText += "left: 100%; top: 80%";
-      } else {
-        computedStyle=window.getComputedStyle(td); //get the style of the current td element and copy it to canvas context for measuring text width
-        canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
-        el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
-      }
-      el.addEventListener("mouseleave", (event) => {
-      if (!td.contains(event.relatedTarget)) el.remove(); // Check if the mouse is moving back to the parent, Remove the child element if it is leaving, but not going back to parent
-      })
-      el.innerHTML= str;
-      td.appendChild(el); 
+    if ( str && typeof(str) == "string" ) { //if the string is not empty, create a popup
+      td.appendChild(genPopup(str)); 
     }
   }, true); // `true` for capture phase (better performance)
 
