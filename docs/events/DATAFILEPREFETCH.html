@@ -1,0 +1,15 @@
+<h2>IO:DataFilePrefetch</h2>
+<p>DataFilePrefetch indicates:
+1. PostgreSQL is performing read-ahead operations to prefetch data blocks from disk into shared buffers before they're actually needed<br/>
+2. The system is waiting for these asynchronous I/O operations to finish<br/>
+3. It's part of PostgreSQL's optimization to reduce I/O wait times for subsequent queries</p>
+<h3> When It Occurs</h3>
+DataFilePrefetch typically happens during:<br/>
+1. Large sequential scans<br/>
+2. Index scans that will need many blocks<br/>
+3. Operations where PostgreSQL predicts future block needs<br/>
+<h3>Performance Implications</h3>
+Some DataFilePrefetch waits are normal and indicate the prefetch system is working,However, Excessive waits might suggest:<br/>
+1. Slow storage subsystem<br/>
+2. Need to tune shared_buffers or <code>maintenance_work_mem</code><br/>
+3. High concurrent I/O load<br/>

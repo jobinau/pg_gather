@@ -1,0 +1,6 @@
+<h2>IO:BufFileRead</h2>
+BufFileRead happens when temporary files generated for SQL execution are read back to memory.<br>
+Generally this happens after BuffileWrite.<br/>
+BufFileRead means that PostgreSQL is Reading from buffered Temporary Files.<br/>
+All sorts of temporary files including the one used for sort and hashjoins, parallel execution, And files used by single sessions (refer: buffile.c) can be responsible for this.<br/>
+Query tuning effort is suggestable.

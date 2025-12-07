@@ -1,11 +1,13 @@
-<h3>ClientRead</h3>
-Waiting to read/hear from the client/application. This is the server time wasted without processing anything at the server side.
-Big precentage of this wait-event indicates response from application is not fast enough, DB server is wasting its processing power waiting for the application to respond.
-Two reasons generally cause high values for this wait-event
-<h4>1. Network :</h4> 
-The communication channel between the database and the application/client may have low bandwith or high latency. 
-For example, there could be too many network hops. Many of the Cloud, Virtualization, Containerization, Firewall, and Routing (sometimes multi-layer routing) are found to cause high network latency. Latency has nothing to do with network bandwidth. Even a very high bandwidth connection can have high latency and affect the database performance.  
-   The network related waits within the trasactions are generally accounted as "ClientRead"
-<h4>2. Application response:</h4> 
-The application side might be taking too long to respond to the database. For example, a transaction in progress might not be sending a COMMIT or ROLLBACK fast enough after sending the DML to the database server. 
+<h3>Client:ClientRead</h3>
+Waiting to read/hear from the client/application. This is the server time wasted without processing anything at the server side.<br/>
+Big precentage of ClientRead indicates that the response from application is not fast enough, DB server is wasting its processing power waiting for the application to respond.<br/>
+Two reasons generally cause high values for this wait-event<br/>
+<h4>Reason 1. Network :</h4> 
+The communication channel between the database and the application/client may have low bandwith or high latency.<br/>
+For example, there could be too many network hops. Many of the Cloud, Virtualization, Containerization, Firewall, and Routing (sometimes multi-layer routing) are found to cause high network latency.<br/>
+Latency has nothing to do with network bandwidth. Even a very high bandwidth connection can have high latency and affect the database performance.<br/>
+Please remember that the network related waits within the trasactions are generally accounted as "ClientRead"
+<h4>Reason 2. Application response:</h4> 
+The application side might be taking too long to respond to the database.<br/>
+For example, a transaction in progress might not be sending a COMMIT or ROLLBACK fast enough after sending the DML to the database server.<br/>
 This "ClientRead" wait-event combined with "idle-in-transaction" can cause contention in the server. 

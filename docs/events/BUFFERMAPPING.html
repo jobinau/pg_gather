@@ -1,0 +1,6 @@
+
+<h2>Lwlock:BufferMapping</h2>
+This indicates the heavy activity in shared_buffers.<br/>
+Loading or removing pages from shared_buffers requires exclusive lock on the page. Each session also can put a shared lock on the page.<br/>
+High BufferMapping can indicate that big working-set-of-data by each session which the system is struggling to accomodate.<br/>
+Excessive indexes and bloated indexes and unpartitioned huge tables are the common reasons.

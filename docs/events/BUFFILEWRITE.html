@@ -1,0 +1,6 @@
+<h2>IO:BuffileWrite</h2>
+This waitevent occurs when PostgreSQL needs to write data to temporary files on disk as part of SQL execution.<br/>
+This typically happens when operations require more memory than the work_mem parameter allows, causing the system to spill data to disk.<br/>
+From SQL tuning perspective,  We need to check whether large amount of data is pulled into memory for sort and join operations. Good filtering conditions are important.<br/>
+<br/>
+For Further reading: <a href=https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/apg-waits.iobuffile.html>[IO:BufFileRead and IO:BufFileWrite]</a>

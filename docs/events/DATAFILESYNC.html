@@ -1,9 +1,8 @@
 <h3>IO:DataFileSync</h3>
-This is the wait event that occurs when a backend process is waiting for a data file to be synchronized to disk.
-This is expected during the durable writes, which flushes the dirty pages in the buffers to disk. This typically expected during a
-checkpoint.
+This is the wait event that occurs when a backend process is waiting for a data file to be synchronized to disk.<br/>
+This is expected during the durable writes, which flushes the dirty pages in the buffers to disk. This typically expected during a checkpoint.<br/>
 
 <h4>Monitoring</h4>
-During the checkpoint operation, The checkpointer process is expected to show <b>upto 3%</b> of wait time on this event.
-If processes are showing high wait time on this event, It indicates that the storage is slow in synchronizing the data files to disk.
+During the checkpoint operation, The checkpointer process is expected to show <b>upto 3%</b> of wait time on this event.<br/>
+If processes are showing high wait time on this event, It indicates that the storage is slow in synchronizing the data files to disk.<br/>
 

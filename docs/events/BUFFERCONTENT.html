@@ -1,0 +1,8 @@
+<h2>Lwlock:BufferContent</h2>
+BufferContent happens when a sessions which want to modify a buffer is aquring lock on buffers.<br/>
+This might indicate when there is high concurrency.<br/>
+<h3>Solution:</h3>
+1. Reduce the number of connections. Multiplex large number of application connection over few database connections using transaction level pooling.<br/>
+2. Reduce the size of the table (Archive / Purge) to fit in to memory<br/>
+3. Partition the table.<br/>
+4. Reduce the data integrity checks in the database side including foreign keys, check contraints and triggers<br/>

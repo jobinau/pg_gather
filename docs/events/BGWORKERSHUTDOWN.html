@@ -1,16 +1,17 @@
 <h3>IPC:BgWorkerShutdown</h3>
 
-This is part of Parallel query execution. There will be a <b>main backend process</b> and few <b>worker processes</b>. 
-The <code>IPC:BgWorkerShutdown</code> wait event occurs when a main backend process is waiting for a background worker process to cleanly shut down and terminate.
+This is part of Parallel query execution. There will be a <b>main backend process</b> and few <b>worker processes</b>.<br/>
+The <code>IPC:BgWorkerShutdown</code> wait event occurs when a main backend process is waiting for a background worker process to cleanly shut down and terminate.<br/>
 
 <h3>Common Problems</h3>
 <h4>Hanging Sessions</h4>
-When a main backend process is waiting for a background worker to shut down, it may lead to hanging sessions if the worker does not terminate as expected. This can occur due to various reasons such as resource contention, deadlocks, or bugs in the worker process.
+When a main backend process is waiting for a background worker to shut down, it may lead to hanging sessions if the worker does not terminate as expected.<br/>
+This can occur due to various reasons such as resource contention, deadlocks, or bugs in the worker process.<br/>
 Sometimes the main backend process may become uninterruptible while waiting for the worker to shut down, making it difficult to terminate the session using <code>pg_terminate_backend()</code>.
 
 <h3>Investigation</h3>
 <h4>Check whether workers are visible</h4>
-Mouseover the process id of the main backend process and check whether there are any worker processes associated with it. 
+Mouseover the process id of the main backend process and check whether there are any worker processes associated with it.<br/>
 If there are no worker processes visibile, There is something wrong with the worker process.
 <h4>Use top</h4>
 capture the top command output by repated execution
@@ -69,13 +70,13 @@ $ grep -E 'ERROR:|FATAL:|PANIC:' postgres.log-20251104.txt | sed -E 's/.*(ERROR:
 <h3>General suggessions</h3>
 
 <h4>Essential Tuning</h4>
-Make sure that the parameters, especially the parallelism related parameters are properly tuned according to your system resources and workload.
+Make sure that the parameters, especially the parallelism related parameters are properly tuned according to your system resources and workload.<br/>
 Avoid excessive parallelism which can lead to resource contention and instability.
 
 <h4>Update PostgreSQL</h4>
-Ensure that you are running the latest stable version of PostgreSQL, as updates often include bug fixes and performance improvements related to parallel query execution.
+Ensure that you are running the latest stable version of PostgreSQL, as updates often include bug fixes and performance improvements related to parallel query execution.<br/>
 PostgreSQL minor versions will be updated in every 3 months. It is mandatory to keep your PostgreSQL minor version up to date for every compliance and security reason.
 
 <h4>Carefull about extensions</h4>
-Extensions are the most frequent cause of instability in PostgreSQL, especially those that interact with query execution.
+Extensions are the most frequent cause of instability in PostgreSQL, especially those that interact with query execution.<br/>
 Avoid using extensions that are not widely used or not well-maintained or have known issues with parallelism.
