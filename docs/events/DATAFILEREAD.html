@@ -1,3 +1,34 @@
 <h2>IO:DataFileRead</h2>
-The page required is not there in the shared buffers and waiting to fetch it.<br/>
-High percentage of waits can indicate poor cacheing.
+DataFileRead occurs when a connection needs to access a specific data page that is not currently present in the PostgreSQL Shared Buffers. <br/>
+The process must wait while the operating system reads the page from the disk (or filesystem cache) into memory.
+
+<h3>Implication:</h3>
+While some disk reads are normal, a high percentage of these wait events typically indicates that your active dataset (working set) is larger than your available memory,<br/>
+or that inefficient queries are forcing unnecessary disk reads.
+
+<h3>Why it is happening (Root Causes)</h3>
+If this event is dominating, look for these culprits:
+<ul>
+<li>Sequential Scans (Missing Indexes): <br/>
+If a query scans a whole table because it lacks an index, it forces PostgreSQL to read old/unused data from the disk churning the cache.<br/>
+Missing or inefficient indexes are a common cause of high DataFileRead events.<br>
+</li>
+<li>Insufficient Memory:<br/>
+The shared_buffers (PostgreSQL's cache) or the OS Page Cache (System RAM) is too small to hold the "hot" (frequently accessed) data.
+</li>
+<li>
+Cold Cache:<br/>
+This is normal immediately after a database restart because the memory is empty.
+</li>
+<li>
+Bloat:<br/>
+If tables/indexes are bloated with dead rows, PostgreSQL has to read more pages from the disk to get the same amount of live data.
+</li>
+</ul>
+
+<h3>Comparison: IO:DataFileRead vs. IO:DataFilePrefetch</h3>
+It is important not to confuse this with Prefetching.
+<ul>
+<li>DataFileRead: The process is stuck waiting for a specific page it needs right now.</li>
+<li>DataFilePrefetch: The OS is reading pages ahead of time because it anticipates you will need them (an optimization).</li>
+</ul>

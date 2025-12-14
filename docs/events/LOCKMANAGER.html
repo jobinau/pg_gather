@@ -1,0 +1,48 @@
+<h2>LWLock:LockManager</h2>
+This event occurs when a process is waiting to access the internal shared memory structure that tracks locks on tables and indexes<br/>
+It is not waiting for a row lock (like a standard blocking update); it is waiting for the right to read/write the list of who holds what locks.<br>
+This is effectively a CPU scaling bottleneck. It happens when  many processes are trying to acquire or release locks at the exact same microsecond,<br/>
+causing a traffic jam at the "Lock Manager's Front Desk."<br/>
+This is an area where PostgreSQL 18 has made significant improvements.<br/>
+
+<h3>Why it is happening (Root Causes)</h3>
+<ul>
+<li>The "Fast-Path" Limit (The Core Issue):<br/>
+PostgreSQL tries to avoid touching the main shared memory lock table because it's slow/contested.<br/>
+Instead, it tries to record locks in a small, private "Fast-Path" array associated with the backend process.<br>
+This array was hardcoded to hold only 16 locks in old verions, where the OIDs of the tables and indexes are "remembered"<br/>
+If a query touched 17+ tables/indexes (or partitions), it "spilled over" into the main shared lock manager, forcing it to take the LockManager LWLock.<br/>
+</li>
+<li>
+<b>The Partition Trap:</b>If you query a partitioned table with 100 partitions and don't prune effectively, you instantly grab 100 locks,<br/>
+overflow the Fast-Path, and hammer the LockManager<br/>
+</li>
+<li>
+<b>The Connection Storms:</b>
+if hundreds of connections suddenly try to query data, even if they don't touch the same rows, they all need to register their presence in the Lock Manager.<br/>
+This creates contention on the memory buckets (Lock Manager partitions).
+</li>
+<li>
+<b>Lock Holders:</b>
+Many sessions (especially "idle in transaction") holding locks for long periods.
+</li>
+<li>Complex Queries and Table Partitions:<br/>
+Queries that involve multiple partitions or indexes can acquire many locks.</li>
+</ul>
+<h3>Further Diagnosis</h3>
+<p>Use <code>SELECT * FROM pg_locks</code> to check the lock status</p>
+
+<h3>Resolution</h3>
+<ul>
+<li>Identify and terminate or commit long-running idle in transaction sessions. Configure idle_in_transaction_session_timeout</li>
+<li>Ensure partition pruning, reduce transaction scope, and minimize explicit locking commands.</li>
+<li>Use connection pooling and limit the number of concurrent active transactions.</li>
+<li>For workloads inherently requiring many relation locks (e.g., massive partitioning), PostgreSQL 18+ offers a significant architectural improvement.</li>
+<li>Use Prepared statements. Reported to give 5x improvement</li>
+</ul>
+<h3>Additional References</h3>
+<ul>
+<li><a href="https://www.youtube.com/watch?v=iCmUhS9XYI0">Fast-path locking improvements in PG18 : Tomas Vondra</a><br/>
+** Mentions that MALLOC_TOP_PAD_=64MB can help reduce contention by padding memory allocation.
+</li>
+</ul>

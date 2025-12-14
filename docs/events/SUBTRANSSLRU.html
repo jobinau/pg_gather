@@ -1,0 +1,59 @@
+<h2>Lwlock:SubtransSLRU</h2>
+A process is waiting to access the Subtransaction Status Log (pg_subtrans). This corresponds to Control Lock (or mapping lock) of the pg_subtrans system - sub-transaction SLRU cache <br/>
+This structure tracks the parent-child relationship of subtransactions (created via SAVEPOINT or PL/pgSQL EXCEPTION blocks).<br/>
+This is almost always a sign of "Subtransaction Cache Overflow."<br/>
+It means active transactions have created so many subtransactions that PostgreSQL can no longer track them in fast,local memory and is forced to constantly read/write to this shared SLRU structure, creating a massive bottleneck.<br/>
+Subtransaction metadata, including parent transaction IDs and status, is stored in the pg_subtrans SLRU. <br/>
+It a disk-based structure that tracks subtransaction relationships.<br/>
+The SLRU (Simple Least Recently Used) is a caching mechanism in PostgreSQL for managing certain control data structures<br/>
+(like pg_subtrans, pg_clog, or pg_multixact). The SubtransSLRU specifically refers to the buffer used for subtransaction data.
+
+<h3>Why it is happening (Root Causes to reach "Overflow" Cliff)</h3>
+<b>The "Fast" Path (Normal):</b> Each connection (backend) has a small private cache in memory (part of the PGPROC structure) 
+that can hold up to 64 open subtransactions. When checking if a row is visible, PostgreSQL checks this local cache. It is near-instant.<br/>
+<b>The "Slow" Path (Overflow):</b>
+If a transaction opens the 65th subtransaction (via SAVEPOINT), it "overflows." 
+PostgreSQL stops using the fast local cache and marks the transaction as "overflowed."<br/>
+When the Slow Path (Overflow) is triggered, Following things happens<br/>
+every other connection in the database that needs to check if your transaction is still running must go to the pg_subtrans SLRU (shared memory) to look it up.<br/>
+If you have high concurrency, thousands of queries suddenly start fighting for locks on these few SLRU pages (LWLock:SubtransSLRU), bringing the database to a crawl.<br/>
+
+<h3>Common Problems</h3>
+<ul>
+<li>ORMs (Django/Hibernate): Some ORMs wrap every single row insertion in a SAVEPOINT to handle errors gracefully. If you bulk insert 1,000 rows this way, you trigger the overflow.</li>
+<li>PL/pgSQL Exception Blocks: Using EXCEPTION blocks in PL/pgSQL functions creates subtransactions. 
+    If a function processes many rows and has an EXCEPTION block, it can easily overflow.
+<pre>
+FOR x IN 1..1000 LOOP
+  BEGIN
+    INSERT INTO ...;
+  EXCEPTION WHEN OTHERS THEN ... -- Implicit SAVEPOINT!
+  END;
+END LOOP;
+</pre>
+</li>
+</ul>
+
+
+<h3>Analysis</h3>
+From PostgreSQL 16 onwards we can findout the PID of the session causing the subtransaction and overflow using a query as follows:
+<pre>
+SELECT
+    pg_stat_get_backend_pid(bid) AS pid,
+    s.subxact_count,
+    s.subxact_overflowed,
+    pg_stat_get_backend_activity(bid) AS query
+FROM
+    pg_stat_get_backend_idset() AS bid
+JOIN LATERAL pg_stat_get_backend_subxact(bid) AS s ON TRUE
+WHERE s.subxact_count > 0 OR s.subxact_overflowed;
+</pre>
+SubtransSLRU may appear along with SubtransBuffer wait event.`SubtransBuffer` wait event, refers to waiting for in-memory subtransaction buffer in shared memory. 
+Which means waiting for I/O
+
+<h3>Fixes</h3>
+<ul>
+<li>Avoid ORMs that create excessive SAVEPOINTs. Use bulk operations without many SAVEPOINTs. Do not use SAVEPOINT (or atomic() in Python) inside a loop. Move the transaction block outside the loop. </li>
+<li>Avoid PL/pgSQL EXCEPTION blocks inside loops that process many rows.</li>
+<li>PostgreSQL 17+ has <a href=https://git.postgresql.org/gitweb/?p=postgresql.git;a=commitdiff;h=53c2a97a9>great improvement in this area.</a> However fixing the app logic is almost always the correct path. </li>
+</ul>

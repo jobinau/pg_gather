@@ -1,0 +1,22 @@
+<h2>LWLock:OidGen</h2>
+<p>The process is waiting for <b>exclusive access to the OID Counter</b> to assign a unique Object Identifier (OID)<br>
+to a new database object (like a table, a type, or a TOAST value).<br/>
+If it takes time, It may indicates that  address space contention (32bit)<br/>
+It has been Reported that toast chucks which uses oid, when runs out of available oids, this wait event appears.</p>
+<h3>Why it is happening (Root Causes)</h3>
+<ul>
+<li>The 32-Bit Limit:<br/>
+PostgreSQL OIDs are 4-byte integers (max value ~4 billion). When the counter reaches the maximum, it wraps back to the beginning.
+</li>
+<li>The "Wraparound" Performance Cliff:
+Normal Mode: "Give me an OID" → Counter++. (Fast)<br/>
+Wraparound Mode: "Give me an OID" → Counter++ → "Does this exist?" → Check Internal Hash/Index → "Yes, it exists, try next."<br/>
+This "check if exists" loop is what causes the wait event to spike.
+</li>
+<li>The TOAST / Large Object Connection<br/>
+Since PostgreSQL 12, standard user table rows do not have OIDs. Inserting a million normal rows generally does not touch this lock.<br/>
+However, when you store a large text or binary file, it is "TOASTed" (compressed and sliced). The system assigns a chunk_id to these pieces. This chunk_id is an OID.<br/>
+If you have an application doing massive insertions of large text/BLOB data (Heavy TOAST usage), you burn through OIDs rapidly.<br/>
+If you hit the wraparound point, every single large insert has to "hunt" for a free OID, causing the OidGenLock to become a bottleneck.
+</li>
+</ul>

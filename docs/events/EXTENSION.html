@@ -1,0 +1,27 @@
+<h2>Extension</h2>
+<p>The server process is waiting for some condition defined by an extension module <br/>
+In other words, The PostgreSQL process is waiting for an operation defined by an installed Extension (add-on module) to complete.<br/>
+The core database engine is "handing over the wheel" to an external module.<br/>
+If you see high waits here, the bottleneck is not in standard PostgreSQL features (like tables or indexes), but in the specific logic of the extension you are using.
+</p>
+<h3>Why it is happening (Root Causes)</h3>
+Following extensions are some of the common trouble makers that can cause waits in this category:
+<ul>
+<li>Foreign Data Wrappers (postgres_fdw, oracle_fdw):<br/>
+This is the most common cause. If you query a remote table, your local PostgreSQL waits for the remote server to reply.<br/>
+While waiting for the network packet, the wait event is often "Extension".
+<li>
+Distributed Databases (Citus/TimescaleDB):<br/>
+If you use Citus, the "Coordinator" node must wait for "Worker" nodes to process data and send it back.<br/>
+That wait is often recorded as an Extension event.
+</li>
+<li>
+Logical Replication Plugins:<br/>
+Custom logical decoders (used for CDC - Change Data Capture) might wait on external systems to acknowledge data receipt.
+</li>
+<li>
+Background Workers (pg_cron):<br/>
+Tools like pg_cron sleep while waiting for the next scheduled job time. This sleep is technically a wait event.
+</li>
+</ul>
+

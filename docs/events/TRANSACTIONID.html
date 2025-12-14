@@ -1,0 +1,35 @@
+<h2>Lock:transactionid</h2>
+<p>
+Session waiting for other session to complete the transaction. (Session is blocked).<br/>
+The transactionid wait event in PostgreSQL occurs when a backend process is blocked while waiting for a specific transaction to complete.<br/>
+For example, Updating the same rows of a table from multiple sessions can lead to this situation.<br/>
+This is one of the more serious wait events that can significantly impact database performance.</p>
+This waitevent indicates that:
+<ol>
+<li> One transaction is waiting for another transaction to finish (commit or abort)</li>
+<li> There is direct transaction ID dependency between sessions</li>
+<li> This typically involves row-level locking scenarios where MVCC (Multi-Version Concurrency Control) can't resolve the conflict</li>
+</ol>
+
+<h3>Why it is happening (Root Causes)</h3>
+Following are common scenarios that lead to transactionid waits:
+<ol>
+<li>Lock Contention: When Transaction A holds locks that Transaction B needs  
+    Example: Long-running UPDATE blocking another UPDATE/DELETE on same rows</li>
+<li> Foreign Key Operations: When checking referential integrity during updates/deletes</li>
+<li> Prepared Transactions: Waiting for a prepared transaction (2PC) to commit/rollback</li>
+<li> Serializable Isolation Level: In SERIALIZABLE isolation, waiting for a potentially conflicting transaction to complete</li>
+<li> VACUUM Operations: When VACUUM is blocked by long-running transactions</li>
+</ol>
+
+<h3>Performance Implications</h3>
+<ol>
+<li> More severe than tuple waits as it involves entire transactions rather than individual rows</li>
+<li> Can lead to transaction chains where multiple sessions wait in sequence</li>
+</ol>
+<h3>Often indicates:</h3>
+<ol>
+<li> Long-running transactions holding locks</li>
+<li> Application logic issues (transactions staying open too long)</li>
+<li> Insufficient vacuuming leading to transaction ID wraparound prevention</li>
+</ol>

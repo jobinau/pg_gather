@@ -1,0 +1,26 @@
+<h2>IPC:SyncRep</h2>
+<p>This event occurs when a transaction has completed locally and is waiting for confirmation from a remote standby server before it can return "Success" to the client.</p>
+PostgreSQL "Synchronous Replication" is technically Asynchronous Replication + A Wait. The database does not "write successfully to both places at the exact same instant." Instead,<br/>
+it writes locally, streams the data asynchronously to the standby, and then pauses the user session (generating this wait event) until the standby sends a "Thumbs Up" acknowledgment.
+
+<h3>Why it is happening (Root Causes)</h3>
+<ul>
+<li>The "Lie" of Sync Replication:<br/>
+PostgreSQL does not slow down your INSERT or UPDATE statements while they are running.<br/>
+The data transmission to the standby happens in the background (by WAL Senders).<br/>
+The IPC:SyncRep wait only kicks in at the very end, during COMMIT. </li>
+<li>Network Latency (RTT):<br/>
+Since the primary must send a message and receive a reply, the minimum duration of this wait is the Round Trip Time (RTT) between servers.<br/>
+If your servers are 50ms apart, every commit will wait at least 50ms.</li>
+<li>
+Standby Performance Issues:<br/>
+If the Standby server is overloaded or has slow disks, it cannot write the WAL data fast enough to send the acknowledgment back.<br/>
+The Primary waits in IPC:SyncRep while the Standby struggles to catch up.
+</li>
+</ul>
+<h3>Additional References</h3>
+<ul>
+<li><a href="https://ardentperf.com/2025/10/27/explaining-ipcsyncrep-postgres-sync-replication-is-not-actually-sync-replication/">Explaining IPC:SyncRep – Postgres Sync Replication is Not Actually Sync Replication</a></li>
+<li><a href="https://www.postgresql.org/docs/current/warm-standby.html#SYNCHRONOUS-REPLICATION">PostgreSQL Documentation: Synchronous Replication</a></li>
+</ul>
+
