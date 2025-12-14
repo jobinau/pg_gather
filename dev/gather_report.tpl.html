@@ -1216,9 +1216,14 @@ var paramDespatch = {
       //Actual value need to be considering OLTP/OLAP workload
     }
   },
+  synchronous_commit: function(rowref){},
   synchronous_standby_names: function(rowref){
     val=rowref.cells[1];
-    if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+    let syncCommit = params.find(p => p.param === "synchronous_commit") 
+    if (val.innerText.trim().length > 0 && syncCommit.val == "on"){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; 
+      let param = params.find(p => p.param === "synchronous_standby_names");
+      param["warn"] = "<b>synchronous_standby_names</b> is set and <b>synchronous_commit=on</b>, resulting globally synchronous mode. This can cause session hangs, temporary stalls and poor performance.<br/> Consider using asynchronous replication only if its unavoidable and with a limited scope. <a href='"+ docurl +"params/synchronous_standby_names.html'> Details<a>";
+    }
   },
   track_io_timing: function(rowref){
     val=rowref.cells[1];
