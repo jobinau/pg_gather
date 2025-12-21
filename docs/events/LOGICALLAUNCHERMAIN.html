@@ -1,0 +1,22 @@
+<h2>LogicalLauncherMain</h2>
+This wait event corresponds to a situation when the Logical Replication Launcher process is waiting in its main sleep loop for something to happen<br/>
+Logical Replication Launcher is a background process that is responsible for launching and managing logical replication workers in PostgreSQL. <br/>
+It periodically wakes up to check for new replication tasks and starts the necessary worker processes to handle them. <br/>
+When the Logical Replication Launcher is in its main sleep loop, it is essentially idle, waiting for a signal or event that indicates it needs to take action, such as starting a new logical replication worker. <br/>
+
+<h3>How it works</h3>
+<ul>
+    <li>The launcher periodically wakes up to see if any new subscriptions have been created or if any existing ones need a worker process (e.g., if an "apply" worker crashed)</li>
+    <li>If there are no new tasks, it goes back to sleep, waiting for the next check interval and showing <code>LogicalLauncherMain</code> which is normal and expected behavior for the Logical Replication Launcher process</li>
+    <li>When a new task is detected, the launcher requests the postmaster to start a new background worker process</li>
+</ul>
+<h3>When to be concerned</h3>
+<ul>
+    <li>High percentages of time spent in <code>LogicalLauncherMain</code> are generally not a concern, as this is expected behavior for the Logical Replication Launcher process</li>
+    <li>However, if you notice that logical replication workers are not being started when expected, it may be worth investigating further to ensure that the launcher is functioning correctly<br/>
+        Make sure that <code>max_worker_processes</code> is configured to allow for the necessary background workers to be started
+    </li>
+</ul>
+<h3>Tuning considerations</h3>
+<a href="MAXWORKERPROCESSES.html">max_worker_processes</a> parameter can be adjusted to ensure that there are enough resources available for logical replication workers and other background processes. <br/>
+<a href="https://www.postgresql.org/docs/current/logical-replication-config.html#LOGICAL-REPLICATION-CONFIG">Logical Replication Configuration Parameters</a>

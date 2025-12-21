@@ -1,0 +1,40 @@
+<h2>WALWrite</h2>
+<p>The WALWrite event occurs when a backend process is waiting for the PostgreSQL WAL buffers to be written out to the operating system's write cache.</p>
+<h3>The Difference Between WALWrite and WALSync</h3>
+<b>WALWrite:</b> Waiting for the data to be moved from PostgreSQL's internal buffers to the OS kernel buffer.<br/>
+<b>WALSync:</b> Waiting for the OS to move the data to be from the OS kernel buffer to the physical disk.
+<h3>Common Causes of High WALWrite Wait Times</h3>
+When WALWrite becomes a bottleneck, it is usually due to one of the following factors:
+<ul>
+<li>High WAL generation rate: If the system is generating WAL data faster than it can be written to the OS buffer, it can lead to increased WALWrite wait times.<br/>
+    If your application is performing a massive number transactions, the system must constantly move data to the OS, leading to contention.
+</li>
+<li>Disk I/O bottlenecks: Slow disk performance can cause delays in writing WAL data to the OS buffer.<br/>
+While WALWrite specifically measures the handoff to the OS, a saturated disk subsystem can cause a "backpressure" effect. <br/>
+If the disk cannot keep up with WALSync operations, the OS buffers stay full, and subsequent WALWrite requests are delayed.
+</li>
+<li>Insufficient WAL buffer size: If the WAL buffer is too small, it can lead to frequent flushes and increased wait times.</li>
+</ul>
+<h3>Additional troubleshooting</h3>
+<p>You should also check your system-level I/O metrics (using tools like <code>iostat</code> or <code>iotop</code>) to see if the disk write latency is spiking.</p>
+<h3>Strategies for Optimization</h3>
+<ul>
+<li>Tune wal_buffers: 
+    This determines how much WAL data can be stored in memory before being written to disk. Increasing this (up to 16MB or 32MB) can reduce the frequency of writes for high-concurrency workloads.<br/>
+    Please refer to the parameter tuning section for reccommendations on setting wal_buffers.
+</li>
+<li>
+    Tune checkpoint, using parameters like checkpoint_timeout, max_wal_size, and checkpoint_completion_target to control the frequency and duration of checkpoints.<br/>
+    This is to prevent checkpoint related spikes in WAL generation and I/O that can overwhelm the WAL writing process.
+</li>
+<ii>Use Faster Storage:
+    Since WAL is written sequentially, disk latency is the primary hardware bottleneck. Moving the WAL directory (pg_wal) to a dedicated, high-speed NVMe drive or a RAID 10 array can significantly decrease WALWrite wait times.
+</ii>
+<li>Use group commits: 
+    PostgreSQL can group multiple transactions' WAL writes into a single write operation. This reduces the number of write operations and can improve throughput.
+    This can be achived using parameters like commit_delay and commit_siblings.<br/>
+</li>
+<li>Consider asynchronous commits wherever possible:
+    This reduces the number of WAL writes that need to be confirmed before a transaction is considered committed.
+</li>
+</ul>

@@ -1,0 +1,16 @@
+<h2>Lwlock:SubtransBuffer</h2>
+The SubtransBuffer event occurs when a backend process is waiting to read or write a data page in the pg_subtrans SLRU (Simple Least Recently Used) cache.<br/>
+Waiting for I/O on a sub-transaction SLRU buffer.<br/>
+The SubtransBuffer wait event is often considered as the early indicators of architectural issues within your application.<br/>
+While most developers are familiar with standard transaction locks, SubtransBuffer indicates a bottleneck in how PostgreSQL tracks the relationship between transactions and their subtransactions.
+<h3>Common Causes of High SubtransBuffer Waits</h3>
+<ul>
+    <li>SAVEPOINT and ROLLBACK TO SAVEPOINT commands.</li>
+    <li>EXCEPTION blocks in PL/pgSQL (every block with an EXCEPTION clause creates an internal subtransaction).</li>
+    <li>Certain ORM or driver features (like the JDBC autosave setting).</li>
+    <li>High transaction nesting: If your application has a lot of nested transactions, it can lead to increased SubtransBuffer wait times.</li>
+    <li>Insufficient SLRU buffer size: If the SLRU buffer is too small, it can lead to frequent flushes and increased wait times.</li>
+</ul>
+PostgreSQL uses the pg_subtrans directory to maintain a mapping of every subtransaction ID (subXID) to its parent transaction ID.<br/>
+This mapping is vital for MVCC (Multi-Version Concurrency Control)—the database needs it to determine if a row version (tuple) created by a subtransaction should be visible to other sessions.
+This wait event may appear along with SubtransSLRU wait events. If yes, Please refer to SubtransSLRU for more details<br/>

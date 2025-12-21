@@ -1,0 +1,5 @@
+<h2>AutoVacuumMain</h2>
+It occurs when the Autovacuum Launcher process is idling between its scheduled searches for tables that need vacuuming or analyzing.<br/>
+There is a persistent background process in PostgreSQL called the Autovacuum Launcher, which is responsible for periodically checking the database for tables that require maintenance tasks such as vacuuming or analyzing.<br/>
+When the Launcher has finished checking the database and has spawned all necessary worker processes (up to the limit defined by autovacuum_max_workers), it enters a sleep state. During this sleep period, its wait event is recorded as AutoVacuumMain.
+

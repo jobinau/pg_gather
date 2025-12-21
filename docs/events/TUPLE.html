@@ -1,0 +1,26 @@
+<h2>Lock:tuple</h2>
+The <code>tuple</code> wait event is a specific type of lock contention that occurs at the row level.<br/>
+The tuple wait event occurs when a backend process is waiting to acquire a lock on a specific tuple (a physical row version).<br/>
+when a transaction wants to update or delete a row, it must first lock that row. If another transaction already holds a lock on that row,<br>
+the second transaction enters a "waiting" state. If the contention is specifically for the right to access the row structure itself or to wait for a prior locker to finish, it is categorized as a <code></code>Lock: tuple event.
+<br/>
+
+<h3>Understanding both tuple & transactionid wait events</h3>
+<code>transactionid:</code> You are waiting for another transaction to COMMIT or ROLLBACK so you can see if the row is actually available.<br>
+<code>tuple:</code> You are waiting in a "queue" to acquire the lock on the row itself. This usually happens when three or more transactions are trying to modify the same row simultaneously.
+<p>
+When multiple sessions target the same row, the sequence usually looks like this:
+<ul>
+    <li>Transaction A updates a row and holds the lock.</li>
+    <li>Transaction B tries to update the same row. It sees Transaction A is busy and starts waiting (this often shows as a transactionid wait).</li>
+    <li>Transaction C tries to update the same row. Because there is already a queue forming, Transaction C (and any subsequent transactions) will wait on the tuple event.</li>
+</ul>
+Essentially, tuple is the "waiting room" for row-level locks when there is high concurrency on a single record.
+</p>
+
+<h3>Common Causes of Lock: tuple Wait Events</h3>
+<ul>
+    <li>High Concurrency on Specific Rows: When multiple transactions attempt to modify the same row simultaneously, it leads to contention.</li>
+    <li>Long-Running Transactions: Transactions that hold locks for extended periods can cause other transactions to wait.</li>
+    <li>Inefficient Application Logic: Poorly designed application logic that frequently updates the same rows can increase contention.</li>
+    <li>Massive batch updates:If a large batch job updates thousands of rows in a single transaction without committing, any other process trying to touch those same rows will be queued.</li>
