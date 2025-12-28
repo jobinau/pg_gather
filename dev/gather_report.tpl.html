@@ -617,7 +617,7 @@ async function doAllChecks(){
   await fetchJsonWithTimeout(docurl + "meta.json",500).then(data => { meta = data; })
   .catch(error => { console.error("Error fetching JSON:", error); }); // there was an error
 
-  try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 500));} //convert the fetched json array to Map
+  try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 5000));} //convert the fetched json array to Map
   catch (error) { console.error("Error fetching wait events JSON:", error); eventMaps = new Map(); } // if there is an error, report and create an empty map.
 
   console.log("Starting all checks");
@@ -1301,6 +1301,14 @@ var paramDespatch = {
       param["suggest"] = "'1min'";
     }
   },
+  zero_damaged_pages: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "zero_damaged_pages");
+    if(val.innerText == "on") { val.classList.add("warn"); val.title="zero_damaged_pages should be off to avoid data corruption going unnoticed";
+      param["suggest"] = "off";
+      param["warn"] = "<b>zero_damaged_pages is 'on'</b>. This setting can lead to silent data loss by replacing corrupted pages with zeroed pages. It is strongly recommended to set this parameter to 'off' to ensure data integrity.";
+    }
+    }, 
   default : function(rowref) {}  //NOT used. remove after Test of time
 };
 
