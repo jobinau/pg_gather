@@ -1,0 +1,11 @@
+<h2>IO:DataFileExtend</h2>
+DataFileExtend is a PostgreSQL wait event that occurs when a backend process is waiting for the physical extension of a data file (such as a table or index file) on disk. 
+This happens when a relation needs to grow—typically during INSERT, COPY, or index creation—and PostgreSQL must allocate and initialize new blocks in the file.
+During extension, PostgreSQL usually writes zeros to the newly allocated portion of the file to ensure crash safety and prevent exposure of stale disk contents. 
+This I/O operation can block the backend until the file system confirms the allocation and initialization are complete.
+DataFileExtend events may indicate:
+<ul>
+<li>High data ingestion rates causing frequent file growth.</li>
+<li>Storage performance bottlenecks affecting file extension times.</li>
+<li>File system limitations impacting efficient file preallocation  (e.g., missing fallocate or sparse file optimizations)</li>
+</ul>

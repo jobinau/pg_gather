@@ -1,0 +1,19 @@
+<h2>BgwriterHibernate</h2>
+The BgwriterHibernate wait event occurs when the background writer process has no work to do and enters a sleep state.
+
+<h3>When Does Bgwriter Go Into Hibernate?</h3>
+The background writer follows an adaptive algorithm that determines when to write and when to sleep. It wakes up periodically based on several configuration parameters:
+<ul>
+    <li><strong>bgwriter_delay</strong>: The base delay between activity rounds.(default: 200ms)</li>
+    <li><strong>bgwriter_lru_maxpages</strong>: The maximum number of pages written per round.(default: 100)</li>
+    <li><strong>bgwriter_lru_multiplier</strong>: A multiplier that adjusts the number of pages to write based on recent demand.</li>
+</ul>
+<h3>Problem detection</h3>
+you notice minimal BgwriterHibernate time on a normally quiet database<br>
+<ul>
+    <li>A misconfigured autovacuum running aggressively</li>
+    <li>A new ETL process loading data</li>
+    <li>Inefficient queries causing excessive temporary file writes</li>
+    <li>Insufficient shared_buffers causing frequent page eviction</li>
+    <li>Storage performance issues</li>
+</ul>

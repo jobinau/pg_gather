@@ -1,0 +1,7 @@
+<h2>IPC:MessageQueueInternal</h2>
+The process is waiting for another process to be attached to a shared message queue.
+This wait event typically arises during parallel query execution, logical decoding, or other subsystems that rely on PostgreSQL’s internal message-passing infrastructure.
+
+<h3>Context and Meaning</h3>
+When a query is executed in parallel, the "leader" process and the "worker" processes communicate through shared memory message queues (shm_mq).
+For a message queue to function, both the sender and the receiver must "attach" to it. If one process (for example, the leader) has initialized a queue and is waiting for workers to connect and start participating in the communication, it will report the MessageQueueInternal wait event.

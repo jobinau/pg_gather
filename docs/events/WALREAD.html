@@ -1,0 +1,3 @@
+<h2>IO:WALRead</h2>
+WALRead is a PostgreSQL wait event that occurs when a process is waiting to read WAL (Write-Ahead Log) data from disk.
+This typically happens during crash recovery, standby replay, or logical decoding, when the required WAL records are not already in memory (e.g., not in the WAL read buffer or WAL receiver’s buffer) and must be fetched from archived WAL files or the pg_wal directory.

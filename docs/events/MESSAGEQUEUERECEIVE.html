@@ -1,0 +1,14 @@
+<h2>IPC:MessageQueueReceive</h2>
+backend process is waiting to receive a message from an internal shared message queue. 
+This typically happens during inter-process communication (IPC) between PostgreSQL backend processes or auxiliary/worker processes 
+A common scenario is during parallel query execution, where the leader process waits for results or status updates from parallel workers via message queues. 
+It can also occur in replication or logical decoding contexts where processes exchange control messages.
+
+<h3>Potential Problem</h3>
+High percentage of this wait event may indicate issues such as:
+<ul>
+    <li><b>Excessive parallelism</b>: Too many workers causing communication bottlenecks</li>
+    <li><b>Small result sets</b>: Coordination overhead dominates when workers produce minimal data</li>
+    <li><b>CPU saturation</b>: System cannot efficiently handle the number of parallel processes</li>
+    <li><b>Slow worker execution</b>: Leader waiting long periods for workers to complete</li>
+</ul>

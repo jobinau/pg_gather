@@ -1,0 +1,41 @@
+<h2>IPC:BtreePage</h2>
+This event is specific to Parallel B-tree Index Scans, a feature that allows multiple CPU cores to work together to scan a single index in parallel. 
+<br>This event occurs when a parallel worker process is waiting for the leader or other workers to coordinate which page of a B-tree index should be scanned next.
+<br>The process is waiting for the page number needed to continue a parallel B-tree scan to become available
+
+<h3>When It Appears</h3>
+<ol>
+<li><b>Parallel B-Tree Index Scans</b>
+    <br>When max_parallel_workers_per_gather > 0 and the query planner chooses a parallel index scan
+    <br>During parallel index-only scans or parallel bitmap heap scans that involve B-tree indexes
+    <br>When multiple workers are actively scanning different parts of the same B-tree index simultaneously
+</li>
+<li>
+<b>High Parallelism or Coordination Overhead</b>
+    <br>With a high number of parallel workers (e.g., 8+ workers) competing for page allocation
+    <br>When the overhead of inter-process messaging becomes significant relative to the actual scan work
+    <br>On systems with many CPUs where parallel query is heavily utilized
+</li>
+<li>
+<b>Short-Lived Worker Coordination</b>
+    <br>Typically appears briefly during the scan's execution as workers continuously request and receive page numbers
+    <br>Can be more frequent with irregular index structures or when scanning indexes with high fragmentation
+</li>
+</ol>
+<h3>Related Wait Events</h3>
+    Often appears alongside other IPC waits like MessageQueueSend and MessageQueueReceive as parallel workers communicate via shared message queues
+
+<h3>Tuning Tips</h3>
+<ol>
+<li>
+<b>Adjust Parallel Worker Settings</b>
+    <br>Consider reducing max_parallel_workers_per_gather if IPC:BtreePage waits are excessive
+    <br>Balance parallelism with the overhead of inter-process communication
+</li>
+<li><b>Optimize Indexing Strategies</b>
+    <br>Ensure B-tree indexes are well-maintained and not overly fragmented
+    <br>Regularly REINDEX or VACUUM to improve index structure and reduce scan times
+    <br>Consider using BRIN indexes for very large tables where appropriate, as they may reduce the need for parallel B-tree scans
+    <br>Consider partial indexes to limit the size of the index being scanned
+</li>
+</ol>

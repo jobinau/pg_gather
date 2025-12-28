@@ -1,0 +1,9 @@
+<h2>BgwriterMain</h2>
+This means the process is currently in its "Main Loop," specifically in a sleep state.
+
+<h3>How BgWriter works</h3>
+<ul>
+    <li>Periodically it wakes up and scans a portion of the shared buffers for dirty pages.</li>
+    <li>It writes a limited number of them to disk (governed by <code>bgwriter_lru_maxpages</code>) to disk to ensure that the shared buffers do not become too full of dirty pages.</li>
+    <li>It goes back to sleep for a duration defined by <code>bgwriter_delay</code></li>
+</ul>

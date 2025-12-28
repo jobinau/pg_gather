@@ -1,6 +1,22 @@
 <h2>IO:BuffileWrite</h2>
 This waitevent occurs when PostgreSQL needs to write data to temporary files on disk as part of SQL execution.<br/>
 This typically happens when operations require more memory than the work_mem parameter allows, causing the system to spill data to disk.<br/>
+These temporary files are used internally by PostgreSQL for operations that exceed available memory, such as large sorts, hash joins, materialized intermediate results, or batched aggregations.<br/>
 From SQL tuning perspective,  We need to check whether large amount of data is pulled into memory for sort and join operations. Good filtering conditions are important.<br/>
 <br/>
 For Further reading: <a href=https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/apg-waits.iobuffile.html>[IO:BufFileRead and IO:BufFileWrite]</a>
+
+<h3>Common Causes</h3>
+Temporary files are created when large volume of data is fetched for operations like sorting, joining, or aggregating that exceed the allocated memory (work_mem).<br/>
+<ul>
+<li><b>heavy SQL</b>SQL statement will be fetching huge volume of data from tables and indexes for processing
+<ul>
+    <li>Large sorts: ORDER BY, DISTINCT, GROUP BY clauses on large datasets</li>
+    <li>Large joins: JOIN operations involving large tables without proper indexing</li>
+    <li>Hash Joins and Aggregations: Operations like SUM, AVG, COUNT on large datasets</li>
+    <li>Creation of Large Indexes: Building a B-tree index is essentially a massive sort operation. If the index size is larger than maintenance_work_mem, the CREATE INDEX or REINDEX command will write temporary files to the disk.</li>
+    <li>Window Functions: Complex window functions (e.g., RANK(), OVER(PARTITION BY...)) often require large-scale sorting or buffering of row sets that can easily exceed memory limits.</li>
+</ul>
+</li>
+ <li><b>Insufficient work_mem:</b> If the work_mem parameter is set too low, PostgreSQL will spill more data to temporary files, increasing I/O overhead. Set work_mem at lowest scope possible</li>
+</ul>

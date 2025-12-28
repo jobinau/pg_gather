@@ -1,0 +1,4 @@
+<h2>Lwlock:WALBufMapping</h2>
+This wait event occurs when a process is waiting to acquire a lightweight lock (LWLock) that protects the WAL buffer mapping structure in shared memory. 
+This lock is required when a backend needs to pin a specific WAL buffer page for writing WAL records
+<br>If all existing buffer pages are "dirty" (containing data not yet written to disk), the process must wait for a page to be flushed and then "mapped" (assigned) for reuse

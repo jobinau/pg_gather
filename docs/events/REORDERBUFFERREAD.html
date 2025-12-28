@@ -1,0 +1,22 @@
+<h2>IO:ReorderBufferRead</h2>
+This wait event that occurs during logical decoding or logical replication, when the system is waiting to read data from a reorder buffer. 
+<br>The reorder buffer is used to temporarily store and reorder changes (e.g., from WAL records) so they can be emitted in consistent, transactionally correct order
+<br>This reordering is necessary because changes may arrive out of order due to WAL contains records from multiple transactions that can be interleaved.
+
+
+<h3>What this means</h3>
+When PostgreSQL performs logical decoding, it reads the Write-Ahead Log (WAL) and reconstructs the changes.<br>
+Because transactions can be massive and WAL records are interleaved, PostgreSQL uses a ReorderBuffer to group these changes by transaction
+<ul>
+<li>The Memory Limit: The size of this buffer is controlled by the setting logical_decoding_work_mem (default is 64MB).</li>
+<li>Spilling to Disk: If a single transaction (or a set of concurrent transactions) exceeds this memory limit, PostgreSQL "spills" the changes to temporary files on disk (stored in pg_replslot/slot_name/).</li>
+<li>The Wait: When the transaction finally commits, the walsender must read those files back from the disk to send the data to the subscriber. The time spent waiting for the disk to provide this data is recorded as ReorderBufferRead.</li>
+</ul>
+
+<h3>What causes this wait event?</h3>
+<ul>
+<li><b>Large Transactions:</b>The most common cause. If your application performs a single transaction that modifies millions of rows (or contains large JSONB/TEXT blobs), it will easily exceed the 64MB memory limit and force a disk spill.</li>
+<li><b>Low logical_decoding_work_mem</b></li>If this parameter is set too low for your workload, even moderate-sized transactions will trigger disk I/O, significantly slowing down replication.</li>
+<li><b>High Concurrency:</b>PostgreSQL 13 and newer track the total memory used across all transactions in the buffer. If many transactions are running simultaneously, the collective memory usage might hit the limit, forcing the largest "victim" transaction to spill to disk.</li>
+<li><b>Slow Disk Subsystem:</b>If the underlying disk is slow (e.g., HDD instead of SSD), the time spent reading the spill files back will be much longer, making the wait event more prominent.</li>
+</ul>

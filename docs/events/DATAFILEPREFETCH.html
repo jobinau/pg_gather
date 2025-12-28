@@ -1,5 +1,7 @@
 <h2>IO:DataFilePrefetch</h2>
-<p>DataFilePrefetch indicates:
+The DataFilePrefetch wait event occurs when a PostgreSQL process has requested data from the disk in advance (read-ahead) and is now waiting for that asynchronous I/O operation to complete before it can proceed.<br/>
+It is like saying to Operating System: "I'm going to need these next 32 blocks soon, please start loading them into memory now."
+<p>This wait event indicates that:<br/>
 1. PostgreSQL is performing read-ahead operations to prefetch data blocks from disk into shared buffers before they're actually needed<br/>
 2. The system is waiting for these asynchronous I/O operations to finish<br/>
 3. It's part of PostgreSQL's optimization to reduce I/O wait times for subsequent queries</p>

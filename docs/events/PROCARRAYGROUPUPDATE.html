@@ -1,0 +1,14 @@
+<h2>IPC:ProcArrayGroupUpdate</h2>
+Waiting for the group leader to clear the transaction ID at transaction end.
+
+<h3>The "Group Update" Optimization</h3>
+In older versions of PostgreSQL, every process finishing a transaction had to acquire a lock on the ProcArray individually to clear its Transaction ID. On very busy servers, hundreds of processes would "fight" for this lock simultaneously, leading to massive overhead.
+To fix this, PostgreSQL now uses Group Updates:
+<ul>
+    <li>When multiple processes need to update the ProcArray at the same time, they join a "queue."</li>
+    <li>One process is designated as the Group Leader.</li>
+    <li>The Group Leader acquires the lock once and performs the updates for everyone in the queue.</li>
+    <li>The other processes (the followers) wait. Their wait event is recorded as ProcArrayGroupUpdate.</li>
+</ul>
+
+    

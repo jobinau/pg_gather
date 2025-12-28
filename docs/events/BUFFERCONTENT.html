@@ -1,8 +1,19 @@
 <h2>Lwlock:BufferContent</h2>
-BufferContent happens when a sessions which want to modify a buffer is aquring lock on buffers.<br/>
+The BufferContent wait event (specifically LWLock:BufferContent or LWLock:buffer_content) occurs when a process is waiting for a lightweight lock (LWLock) to access the actual data inside a buffer in shared memory.
+<br>Other processes may be reading from or writing to the same buffer, and the LWLock ensures that only one process can modify the buffer at a time to maintain data integrity.
+<br>Unlike BufferMapping (which is about finding the page in a map), BufferContent is about reading or modifying the data on that page once it has been found.
 This might indicate when there is high concurrency.<br/>
 <h3>Solution:</h3>
-1. Reduce the number of connections. Multiplex large number of application connection over few database connections using transaction level pooling.<br/>
-2. Reduce the size of the table (Archive / Purge) to fit in to memory<br/>
-3. Partition the table.<br/>
-4. Reduce the data integrity checks in the database side including foreign keys, check contraints and triggers<br/>
+<ol>
+<li><b>Reduce the number of connections.</b>Multiplex large number of application connection over few database connections using transaction level pooling.</li>
+<li><b>Reduce the size of the table (Archive / Purge) to fit in to memory</b></li>
+<li><b>Partition the table.</b> This will reduce the number of rows in each partition and thus reduce the contention on buffer content locks.</li>
+<li><b>Reduce the data integrity checks in the database side including foreign keys, check contraints and triggers</b></li>
+<li><b>Application-level sharding:</b>Spread concurrent updates across different logical partitions</li>
+</ol>
+<h3>Key Distinctions</h3>
+<ol>
+<li><b>BufferContent:</b> Waiting to access page content in memory (lock conflict)</li>
+<li><b>BufferMapping:</b> Waiting to locate a buffer in the pool (hash table lock)</li>
+<li><b>BufferIO:</b> Waiting for I/O coordination when reading a page from disk</li>
+</ol>

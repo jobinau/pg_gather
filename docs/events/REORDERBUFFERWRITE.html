@@ -1,0 +1,13 @@
+<h2>IO:ReorderBufferWrite</h2>
+Waiting for a write during reorder buffer management.
+The ReorderBufferWrite wait event occurs when a PostgreSQL walsender process is waiting to write decoded transaction data from memory to a temporary file on disk.
+This event is specific to Logical Decoding.
+<h3>What is the Reorder Buffer?</h3>
+When logical replication is active, PostgreSQL doesn't send WAL records to the subscriber as they appear in the log. 
+Instead, it must "reorder" them so that all changes for a specific transaction are grouped together and sent only after that transaction commits.
+To do this, the walsender process maintains a Reorder Buffer in memory.
+<ol>
+    <li>It reads WAL records.</li>
+    <li>It assembles the changes into a per-transaction list in memory.</li>
+    <li>When a transaction commits, it streams the whole list to the subscriber.</li>
+</ol>

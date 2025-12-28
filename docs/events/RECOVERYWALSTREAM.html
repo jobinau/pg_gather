@@ -1,0 +1,10 @@
+<h2>RecoveryWalStream OR RecoveryWalAll</h2>
+Waiting in main loop of startup process for WAL to arrive, during streaming recovery.<br>
+wait event occurs on a standby (replica) server during streaming replication when the recovery process (The startup process) is waiting for new WAL records to be received from the primary server
+<br>This wait event indicates that the standby has processed all currently available WAL data and is idle, awaiting the next batch of WAL records to continue applying changes. 
+<br>It is a normal and expected state in replication when the primary is idle or when there’s a temporary delay in WAL transmission.
+
+<h3>What does it mean?</h3>
+In a replication setup, the Startup Process on the standby server is responsible for replaying WAL records sent from the primary. When the standby has replayed all the available data and is "caught up" with the primary, it enters a waiting state.
+<br>The Startup process is essentially saying, "I have finished replaying everything you sent me. I am now sitting here with an open connection, waiting for you to send the next batch of changes."
+<br>This is the equivalent of an idle state for a regular user session, but specifically for the background process managing replication.

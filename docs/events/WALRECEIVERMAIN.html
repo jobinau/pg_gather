@@ -1,3 +1,4 @@
 <h2>WalReceiverMain</h2>
 WAL receiver process is waiting for WAL data from the primary server.<br/>
-This can be considered as idle state of the WAL receiver process.<br/>
+This wait event indicates that the standby is idle, waiting for new WAL data to be sent from the primary server.<br>
+It is a normal and expected state during streaming replication when there is no new transaction activity on the primary to replicate. 

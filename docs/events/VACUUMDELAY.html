@@ -1,0 +1,11 @@
+<h2>VacuumDelay</h2>
+Its a built-in PostgreSQL mechanism for throttling autovacuum I/O to avoid excessive resource consumption that could impact normal database operations
+This event appears when PostgreSQL's cost-based vacuum delay feature is active. The system intentionally pauses vacuum work whenever the estimated I/O "cost" of vacuum exceeds the limits set by the configuration parameters.
+<h3>Parameters</h3>
+Following parameters influence the behavior of this event:
+<ul>
+    <li><b>autovacuum_vacuum_cost_delay:</b>Reducing this value to 2ms allows autovacuum to be more aggressive in its operations.</li>
+    <li><b>autovacuum_vacuum_cost_limit:</b>Increasing the value to 1000 is general practice to let the autovacuum do more work cycle</li>
+    <li><b>vacuum_cost_delay:</b></li>
+    <li><b>vacuum_cost_limit:</b></li>
+</ul>

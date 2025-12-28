@@ -1,0 +1,10 @@
+<h2>CheckpointWriteDelay</h2>
+CheckpointWriteDelay appears when a process is deliberately pausing (i.e., sleeping) to throttle the rate of I/O during a checkpoint.<br/>
+This is not an indication of a problem or contention—it's a controlled delay implemented to avoid overwhelming the I/O subsystem.
+
+<h3>What does it mean?</h3>
+A checkpoint is the process of flushing "dirty" (modified) data from memory (shared_buffers) to the permanent storage. If the checkpointer flushed everything at once, it would saturate your disk I/O, making the database unresponsive<br/>
+To prevent this "I/O spike," PostgreSQL uses a setting called checkpoint_completion_target.<br/>
+Instead of writing as fast as possible, the checkpointer calculates a "speed limit." It writes a few pages, then sleeps for a short duration to ensure the total checkpoint duration is spread out over time.<br/>
+During those intentional sleep intervals, the checkpointer process reports the wait event CheckpointWriteDelay.<br/>
+This behavior is normal and expected during checkpoints.<br/>

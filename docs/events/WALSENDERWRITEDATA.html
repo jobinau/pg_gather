@@ -1,0 +1,13 @@
+<h2>Client:WalSenderWriteData</h2>
+WAL sender process on a primary server is waiting to write WAL (Write-Ahead Logging) data to a connected standby or downstream replica during streaming replication. <br>
+This typically happens when the WAL sender has generated WAL records faster than the network or the receiving standby can consume them, causing the sender to block while trying to transmit data over the replication connection.<br>
+
+<h3>Further analysis</h3>
+There is higher chance of pg_gather reporting "Transmission Lag" or "Replica Write lag" if this wait event is severe.<br>
+Expect replication lag on the standby server if this wait event is frequently observed.<br>
+
+<h3>Common causes</h3>
+<ul>
+<li><b>Network Latency or Bandwidth Issues:</b> If the network connection between the primary and standby is slow or congested, it can cause delays in transmitting WAL data, leading to this wait event.</li>
+<li><b>Standby Server Resource Constraints:</b> If the standby server is under heavy load or has limited CPU, memory, or disk I/O capacity, it may not be able to keep up with the rate of WAL data being sent from the primary.</li>
+</ul>

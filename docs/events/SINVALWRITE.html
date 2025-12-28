@@ -1,0 +1,5 @@
+<h2>LWLock:SInvalWrite</h2>
+Waiting to add a message to the shared catalog invalidation queue.
+<h3>What is the Shared Invalidation Queue?</h3>
+Every PostgreSQL session (backend) keeps its own local cache of the system catalogs (metadata about tables, indexes, and columns) to avoid querying the disk for every SQL statement. 
+However, when one session changes a table's structure (e.g., ALTER TABLE), the other sessions need to know that their local caches are now "stale."

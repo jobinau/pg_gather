@@ -1,0 +1,26 @@
+<h2>WALSync</h2>
+WALSync is a PostgreSQL wait event that occurs when a process is waiting for WAL (Write-Ahead Logging) records to be synchronized (flushed) to durable storage.<br>
+This typically happens during transaction commit when synchronous_commit is enabled (which is the default), ensuring that WAL data is safely written to disk before the transaction is considered complete. 
+<br>The wait reflects time spent waiting for the operating system or storage hardware to confirm that WAL buffers have been physically written, and it falls under the IO wait event category. 
+
+<h3>How it Works</h3>
+<ol>
+    <li>Write: The process writes WAL data from the memory buffer to the OS file system cache.</li>
+    <li>Sync: The process issues an fsync() system call (or equivalent) to force the OS to move that data from the volatile cache to the physical disk platter or SSD.</li>
+    <li>The Wait: While the hardware is busy "syncing" that data, the PostgreSQL process enters the WALSync state.</li>
+</ol>
+
+<h3>When does it appear?</h3>
+<ul>
+    <li>During transaction commits when synchronous_commit is enabled.</li>
+    <li>When checkpoints are occurring, as they also involve flushing WAL data to disk.</li>
+</ul>
+
+<h3>Impact on Performance</h3>
+<ul>
+    <li>Under heavy write loads, where multiple transactions are trying to commit simultaneously.
+        <br>If you have 1,000 users all committing small transactions at once, the disk must perform 1,000 separate "sync" operations. 
+        <br>Even fast SSDs have limits on how many physical syncs per second they can handle.</li>
+    <li>High Disk latency:If your storage is overloaded or you are using network-attached storage (like AWS EBS) that has hit its IOPS limit, 
+        <br>the time spent waiting for a single fsync to return increases, leading to higher WALSync times.</li>
+</ul>

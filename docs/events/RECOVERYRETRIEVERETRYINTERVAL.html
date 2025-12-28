@@ -1,0 +1,15 @@
+<h2>RecoveryRetrieveRetryInterval</h2>
+<p>wait event occurs on a standby (replica) server when the system is in recovery mode and has failed to retrieve new Write-Ahead Log (WAL) data from all available sources (Archive, pg_wal, or Streaming Replication).
+<br>Instead of constantly hammering the CPU or the network to check for new files, the standby enters a "sleep" state for a specific duration before trying again.
+<br>So this is waiting before retrying to fetch WAL (Write-Ahead Log) data that is not yet available. 
+</p>
+<h3>What causes it?</h3>
+<ul>
+    <li><b>The End of the WAL Stream</b>: This is the most common cause. When a standby has replayed every transaction log available on the primary and there is currently no new activity (the primary is idle), the standby will eventually timeout and enter this retry state.</li>
+    <li><b>Connection Failures</b>: If the connection to the primary (streaming replication) is broken due to network issues, or if the primary server is down, the standby will attempt to reconnect. If it fails, it waits for the RecoveryRetrieveRetryInterval before the next attempt.</li>
+    <li><b>Archive Delays</b>: If the standby is configured to restore WAL from an archive (like S3 or a network share via restore_command) and the expected next file isn't there yet, it will pause. This often happens if the primary hasn't finished "shipping" the latest 16MB segment.</li>
+</ul>
+<h3>Parameters</h3>
+wal_retrieve_retry_interval (default: 5 seconds) - This parameter defines the duration the standby will wait before retrying to fetch WAL data after a failed attempt. It can be adjusted based on the expected latency and network conditions.
+
+

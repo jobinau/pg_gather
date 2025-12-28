@@ -1,0 +1,3 @@
+<h2>IPC:ExecuteGather</h2>
+ExecuteGather is a PostgreSQL wait event that occurs in the leader process of a parallel query when it is waiting to collect (or "gather") results from its parallel worker processes. 
+This happens after the workers have been launched to execute parts of a query plan (e.g., a parallel sequential scan or parallel join), and the leader must wait for them to finish and return their partial results.

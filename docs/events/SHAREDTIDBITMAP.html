@@ -1,0 +1,4 @@
+<h2>Lwlock:SharedTidBitmap</h2>
+LWLock that occurs when a backend process is waiting to access or modify a shared TID (Tuple ID) bitmap
+after the leader process builds a bitmap of qualifying tuple locations (via a bitmap index scan), it may share this bitmap with parallel workers so they can cooperatively scan the table (heap). 
+The SharedTidBitmap lightweight lock ensures safe concurrent access to this shared bitmap structure

@@ -1,6 +1,35 @@
 
 <h2>Lwlock:BufferMapping</h2>
-This indicates the heavy activity in shared_buffers.<br/>
-Loading or removing pages from shared_buffers requires exclusive lock on the page. Each session also can put a shared lock on the page.<br/>
-High BufferMapping can indicate that big working-set-of-data by each session which the system is struggling to accomodate.<br/>
-Excessive indexes and bloated indexes and unpartitioned huge tables are the common reasons.
+This indicates the heavy activity in shared_buffers.
+<br/>BufferMapping is a PostgreSQL wait event that occurs when a backend process is waiting to acquire a lock on the shared buffer mapping structure—specifically, 
+<br>the hash partition lock that protects the buffer lookup table (the buffer mapping lock). This lock is required when locating or pinning a data page in shared buffers, 
+<br>such as during reads or writes of table or index pages. Contention on BufferMapping typically arises under high concurrency when many sessions simultaneously access different pages, 
+<br>causing serialized access to the buffer lookup mechanism. This wait event is classified under the LWLock (lightweight lock) category and can indicate a need to increase shared_buffers, adjust access patterns, 
+<br>or investigate query concurrency bottlenecks.
+
+<h3>What does it mean?</h3>
+<p>
+To quickly find a data page in memory, PostgreSQL uses a Hash Table. This table maps a "Page ID" (which table and which block number) to a "Buffer ID" (where it is in RAM).
+<br>Because this hash table is a shared resource used by every single connection, it is split into 128 partitions (in standard builds). Each partition is protected by an LWLock (Lightweight Lock). </p>
+
+<ul>
+<li>When you see BufferMapping, your session is trying to lock one of those 128 partitions to look up, add, or remove a page, but another session is already holding that lock.</li>
+<li>This event often correlates with High CPU usage. Because LWLocks are very "fast," processes will "spin" or retry rapidly to get the lock, which consumes CPU cycles.</li>
+</ul>
+<h3>What causes it?</h3>
+<ol>
+<li>If your shared_buffers is too small to hold the data your queries need, PostgreSQL must constantly "evict" old pages to make room for new ones.
+    <br>Every time a page is moved in or out, the hash table must be updated.
+    <br>If 100 sessions are all trying to swap pages at the same time, they will collide on the BufferMapping locks.</li>
+    <li>Queries that perform full table scans on very large tables rapidly "cycle" through the buffer pool. This creates a high volume of requests to the hash table, increasing the likelihood of lock contention</li>
+<li>High concurrency: A large number of simultaneous connections accessing different data pages can lead to increased contention for the BufferMapping locks.</li>
+<li>Excessive indexes and bloated indexes and unpartitioned huge tables are the common reasons.</li>
+</ol>
+<h3>How to fix it?</h3>
+<ul>
+<li><b>Increase shared_buffers:</b> Allocating more memory to shared_buffers allows PostgreSQL to cache more data pages, reducing the frequency of page evictions and updates to the buffer mapping table.</li>
+<li><b>Optimize queries:</b> Review and optimize queries to minimize full table scans and improve data access patterns. Using indexes effectively can reduce the number of pages that need to be accessed.</li>
+<li><b>Reduce connections and concurrency:</b> If possible, limit the number of simultaneous connections or stagger heavy workloads to reduce contention on the BufferMapping locks.</li>
+<li><b>Partition large tables:</b> Consider partitioning large tables to reduce the amount of data each query needs to access, which can help decrease the load on the buffer mapping mechanism.</li>
+<li><b>Monitor and tune:</b> Regularly monitor wait events and system performance. Use tools like pg_stat_statements to identify problematic queries and adjust configurations as needed.</li>
+</ul>

@@ -1,0 +1,20 @@
+<h2>DataFileFlush</h2>
+<p>The <code>DataFileFlush</code> operation is used to flush data files to ensure that all buffered data is written to disk.
+This operation is crucial for maintaining data integrity and consistency, especially in systems where data is frequently updated or modified.</p>
+While <code>DataFileWrite</code> tells the OS "here is some data," <code>DataFileFlush</code> is the process calling <code>fsync()</code> to say "don't tell me you're done until this is safely on the disk platter or flash cells."
+
+<h3>When does it appear?</h3>
+<ul>
+<li><b>Checkpointer and background writer</b> For example, After the checkpointer has finished "writing" all the dirty buffers to the OS (which shows up as DataFileWrite), it must "flush" them to make the checkpoint valid.</li>
+<li><b>Table and Index creation</b> When creating or modifying tables and indexes, PostgreSQL may flush data files to ensure that changes are persisted to disk.</li>
+<li><b>Bulk data copy (COPY)</b>When performing large bulk loads, especially if the table was created in the same transaction, PostgreSQL will flush the data file to ensure integrity.</li>
+</ul>
+
+<h3>Troubleshooting</h3>
+Generally, in a healthy system we may see upto 0.5% of time in DataFileFlush. If you see significantly higher times, consider the following:
+<ul>
+    <li>Check Storage Write Latency</li>
+    <li>Tune Checkpoints</li>
+    <li>Review wal_level. DataFileFlush will be competing with WAL flushes. Excessive WAL generation can increase flush times.</li>
+    <li>Group Commits. If user sessions (rather than background processes) are showing this wait, ensure you are using transactions effectively. Committing every single row individually forces much more frequent syncing than committing in batches.</li>
+</ul>

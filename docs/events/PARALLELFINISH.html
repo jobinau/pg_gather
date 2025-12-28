@@ -1,0 +1,10 @@
+<h2>IPC:ParallelFinish</h2>
+This wait event occurs in the leader process of a parallel query when it is waiting for all parallel worker processes to shut down cleanly after completing their portion of the work. 
+This wait happens at the end of parallel query execution, during the cleanup and synchronization phase, before the leader can finalize and return results to the client.
+
+While typically brief, prolonged ParallelFinish waits may indicate:
+<ul>
+    <li>Workers stuck due to I/O, locks, or errors,</li>
+    <li>Resource contention during worker teardown,</li>
+    <li>System-level process scheduling delays.</li>
+</ul>

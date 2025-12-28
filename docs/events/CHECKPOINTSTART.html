@@ -1,0 +1,22 @@
+<h2>IPC:CheckpointStart</h2>
+CheckpointStart is a PostgreSQL wait event that occurs when a backend process is waiting for a checkpoint to begin. 
+<br>This typically happens in scenarios where a session explicitly requests a checkpoint (e.g., via the CHECKPOINT SQL command) or when internal operations require synchronization with the start of a new checkpoint cycle.
+
+<h3>What causes it?</h3>
+<ul>
+<li><b>Frequent Checkpoint Requests</b>If your system is configured to checkpoint too often, processes may start queuing up behind the checkpointer.
+<ul>
+    <li>If max_wal_size is too low, the database will force a checkpoint every time that limit is hit. If you are doing bulk loads, you might be triggering checkpoints every few seconds.</li>
+    <li>If multiple users or scripts are running the CHECKPOINT command manually at the same time, they will collide.</li>
+    <li>if frequent backups are scheduled using pg_start_backup(), they will also trigger checkpoints.</li>
+</ul>
+</li>
+<li><b>High I/O Backpressure</b>
+    Before a checkpoint can "start" writing data, it must perform some administrative tasks, such as recycling WAL files and identifying "dirty" buffers in the shared_buffers.
+</li>
+<li><b>Large shared_buffers Initialization</b>
+In systems with very large shared_buffers (e.g., hundreds of gigabytes), the checkpointer has to scan the buffer metadata to determine which pages need to be written. If the CPU is under extreme pressure, this "scanning/startup" phase can take longer, causing other processes to wait for the signal that the checkpoint has officially begun.
+</li>
+<li><b>Wait for the "Previous" Checkpoint</b>
+    If a checkpoint is already in progress, subsequent checkpoints must wait for the current one to finish before starting.
+</ul>

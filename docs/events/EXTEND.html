@@ -1,0 +1,3 @@
+<h2>Lock:extend</h2>
+extend (Lock type) is a PostgreSQL wait event that occurs when a backend is waiting to acquire a heavyweight lock needed to extend a table or index file (i.e., allocate new disk blocks). 
+This lock ensures that only one process can grow the relation at a time, preventing race conditions during file extension.

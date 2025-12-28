@@ -1,3 +1,21 @@
 <h3>Client:ClientWrite</h3>
 Waiting to write data to client/application.<br/>
-Generally caused by application retriving large amount of data at ones.
+Generally caused by application retrieving large amount of data at once.<br/>
+This wait event occurs when a backend process is blocked while trying to write data back to the client (e.g., query results, error messages, or command completions). <br/>
+This typically happens when the client is slow to consume data—due to network latency, a slow application, or the client being temporarily unresponsive—causing the server to wait before it can send more output.<br/>
+
+<h3>Common causes</h3>
+<ol>
+<li><b>Large Result Sets (The Most Common Cause)</b> If a query returns millions of rows or very large TEXT/JSONB blobs, the database will quickly fill the OS network buffers.</li>
+<li><b>Network Latency</b> Slow network connections can cause delays in data transmission to the client, leading to this wait event.</li>
+<li><b>Application Slowness</b> The client application may be slow in processing or consuming data, causing it to fall behind and block the server from sending more output.</li>
+</ol>
+
+<h3>Remediation</h3>
+<ol>
+<li>Optimize queries to reduce the amount of data returned at once. Only retrieve the necessary data.</li>
+<li>Implement pagination or LIMIT clauses in queries to reduce the amount of data returned at once.</li>
+<li>Reduce the network latency. Ensure the round-trip time (RTT) for packets is minimized (sub-milliseconds)</li>
+<li>Reduce the use of external poolers and proxies. Additional latency caused by these components can contribute to this wait event.</li>
+<li>Ensure the client application is optimized to consume data efficiently. If your application code fetches rows one by one but performs "heavy" logic (like calling an external API or doing complex calculations) between each row, the database process sits idle waiting to push the next bit of data.</li>
+</ol>

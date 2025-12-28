@@ -1,0 +1,8 @@
+<h2>IO:BaseBackupRead</h2>
+<p>
+This wait event that occurs during a base backup operation (e.g., when using pg_basebackup or a custom backup tool that leverages the replication protocol) when the server is reading data files from disk to send them to the backup client.
+<br>This wait event reflects I/O time spent reading the actual database files—such as heap tables, indexes, and control files—as part of creating a physical copy of the cluster.
+</p>
+<h3>Note</h3>
+BaseBackupRead is normal and expected during backup operations. However, prolonged or high-frequency waits may indicate slow storage performance or large database size, and could impact both backup duration and server I/O load. 
+<br>Optimizing storage throughput or scheduling backups during low-activity periods can help mitigate performance effects.

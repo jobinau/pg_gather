@@ -1,0 +1,9 @@
+<h2>Client:LibPQWalReceiverReceive</h2>
+LibPQWalReceiverReceive is a PostgreSQL wait event that occurs on a standby (replica) server when the WAL receiver process is waiting to receive WAL (Write-Ahead Log) data from the primary server over a replication connection using the libpq client library
+
+While LibPQWalReceiverReceive is typically normal and expected during replication—especially during low-write periods—persistent or long waits combined with growing replication lag may indicate:
+<ul>
+    <li>Network issues between primary and standby,</li>
+    <li>A stalled or overloaded primary server,</li>
+    <li>Replication slot or authentication problems.</li>
+</ul>

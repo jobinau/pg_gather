@@ -1,0 +1,21 @@
+<h2>Lock:relation</h2>
+This event occurs when a process is waiting to acquire a heavyweight lock on a database object—most commonly a table, but it could also be an index, view, or sequence.
+<br>Unlike the "Lightweight" locks (like BufferContent or BufferIO) which protect memory or I/O and last for microseconds, Relation locks are "Heavyweight" locks that protect the logical structure and data integrity of your tables.
+<br>They can last for the entire duration of a transaction.
+
+<h3>What does it mean?</h3>
+In PostgreSQL, every query requires a certain "Lock Mode" on a table to ensure that someone else doesn't change the rules while the query is running.
+<ul>
+    <li>You see the relation wait event when Session A holds a lock that is incompatible with the lock requested by Session B.</li>
+    <li>PostgreSQL maintains a lock queue. If Session B's request is blocked, it sits in the relation wait state until Session A either COMMITs or ROLLBACKs.</li>
+</ul>
+
+<h3>Common scenarios when this occurs:</h3>
+<ul>
+    <li><b>Conflicting statements (The most common cause).</b>
+    For example, if you try to change the structure of a table (DDL) while queries are running, you will see this wait.</li>
+    <li><b>Explicit Table Locking.</b>
+    If your application code explicitly calls LOCK TABLE name IN EXCLUSIVE MODE, any other process trying to access that table will enter the relation wait state.
+    </li>
+    <li><b>Heavy Maintenance Tasks.</b>Operations like VACUUM FULL, CLUSTER, or REINDEX (without the CONCURRENTLY keyword) require exclusive access to the relation. If these tasks are running, all other users trying to access those tables will be blocked.</li>
+</ul>

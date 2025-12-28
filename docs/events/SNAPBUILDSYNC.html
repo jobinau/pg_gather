@@ -1,0 +1,17 @@
+<h2>SnapbuildSync</h2>
+Waiting for a serialized historical catalog snapshot to reach durable storage.
+It is often observed in processes involved in logical replication or decoding (such as walsender backends). It occurs when the server is waiting for a serialized historical catalog snapshot
+
+<h3>Whats this?</h3>
+To perform logical replication, PostgreSQL needs to decode Write-Ahead Logs (WAL) into logical changes (like INSERT or UPDATE). 
+However, the WAL only contains data; it doesn't contain the full table "schema" or catalog at every point in time.
+The SnapBuild machinery is responsible for:
+<ul>
+    <li>Scanning the WAL to find the necessary information about running transactions.</li>
+    <li>Reconstructing what the system catalogs (the "metadata") looked like at a specific point in time so it can correctly interpret the data in the WAL.</li>
+    <li>Saving this reconstructed snapshot to a file in <code>$PGDATA/pg_replslot/slot_name/snapshots/</code></li>
+</ul>
+The SnapbuildSync wait happens when the database is performing an fsync() on these snapshot files to ensure they are safely written to stable storage.
+<pre>
+pgstat_report_wait_start(WAIT_EVENT_SNAPBUILD_SYNC);
+</pre>

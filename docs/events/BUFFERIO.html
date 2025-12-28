@@ -1,3 +1,24 @@
-<h2>IO:BufferIO</h2>
-Backends will be trying to clear the Buffers. High value indicates that there is not sufficient <code>shared_buffers</code>.<br/>
-Generally it is expected to have assoicated <code>DataFileRead</code> also
+<h2>IPC:BufferIO</h2>
+The BufferIO wait event indicates that a PostgreSQL backend process is waiting for buffer I/O operations to complete when multiple sessions are trying to concurrently access the same data pages in shared memory. This wait event is typically associated with read or write operations to the shared buffer cache.<br/>
+When a backend process needs to read or write data, it first checks if the required data pages are already present in the shared buffer cache. Same page might be needed by multiple backends concurrently.<br/>
+If the pages are not found in the cache (a cache miss), Some of the backend must fetch the data from disk, which involves I/O operations. During this time, the backend will enter the BufferIO wait state until the I/O operations are completed and the data is available in the shared buffers.<br/>
+Generally it is expected to have assoicated <code>DataFileRead</code> also.
+
+<h3>What it means and How it works?</h3>
+Each shared buffer has an associated I/O lock that triggers this wait event. The lock is released as soon as the page is successfully loaded into the shared buffer pool
+or written back to disk. If multiple backend processes attempt to access the same buffer simultaneously, they will be queued and will wait for the I/O operation to complete, leading to the BufferIO wait event.<br/>
+High occurrences of BufferIO wait events can indicate contention for shared buffers, which may lead to performance bottlenecks. This situation can arise when multiple sessions are trying to read or write to the same data pages concurrently, causing delays as they wait for the I/O operations to finish.<br/>
+
+if multiple backend processes needs the same page simultaneously, The system is coordinating to ensure the same page is read only once into shared buffers.
+Samely, when multiple backends are trying to write the same page, the system ensures that the page is written back to disk only once.<br/>
+This coordination helps to optimize I/O operations and reduce redundant reads/writes.<br/>
+
+In the write scenario, the BufferIO lock is held until the page is successfully written back to disk. During this time, any other backend processes that attempt to access the same buffer will be queued and will wait for the I/O operation to complete, leading to the BufferIO wait event.<br/>
+
+<h3>What causes high BufferIO waits?</h3>
+<ol>
+    <li>High Concurrency on Same Data Pages: When multiple sessions are trying to access the same data pages simultaneously, it can lead to contention and increased BufferIO waits.</li>
+    <li>Insufficient Shared Buffers: If the shared buffer pool is too small to accommodate the working set of data, it can lead to frequent cache misses and increased I/O operations, resulting in higher BufferIO waits.</li>
+    <li>Slow I/O Operations: If the underlying storage system is slow or experiencing high latency, it can cause BufferIO waits to increase.</li>
+    <li>Heavy Write Activity: When there is a high volume of write operations, especially on the same data pages, it can lead to increased BufferIO waits.</li>
+</ol>

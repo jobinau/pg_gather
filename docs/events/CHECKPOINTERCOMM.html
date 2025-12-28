@@ -1,0 +1,10 @@
+<h2>LWLock:CheckpointerComm</h2>
+This wait event is associated with an LWLock (lightweight lock) that coordinates communication between database processes and the checkpointer background process.
+When this wait appears, it typically indicates that a backend process is waiting to initiate or coordinate checkpoint activities with the main checkpointer process.
+<h3>Why this wait event occurs</h3>
+This wait event typically appears during operations that require synchronization with the checkpointing cycle. Common scenarios include:
+<ul>
+    <li>Manual Checkpoints: When a user executes the CHECKPOINT command manually, their session must wait for the background process to finish the task.</li>
+    <li>Buffer Management: During certain intensive I/O operations, a backend might need to ensure the Checkpointer has processed specific WAL records before proceeding.</li>
+    <li>Database Shutdown: When the database is shutting down, processes wait for the final checkpoint to complete to ensure data integrity.</li>
+</ul>

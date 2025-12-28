@@ -1,0 +1,5 @@
+<h2>IO: WALInitSync</h2>
+This wait event that occurs when the system is waiting for newly allocated WAL (Write-Ahead Log) files to be synchronized to disk during initialization.
+<br>The synchronization ensures durability and crash safety by guaranteeing that the zero-initialized WAL segment is physically present on disk, preventing potential corruption or partial writes in the event of a crash. 
+<br>This wait is most common during high write throughput or long-running transactions that span multiple WAL segments.
+<br>The WALInitSync wait event indicates that the system is currently performing this synchronization operation, which may involve waiting for I/O operations to complete.

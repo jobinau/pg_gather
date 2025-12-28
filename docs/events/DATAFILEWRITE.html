@@ -1,0 +1,13 @@
+<h2>DataFileWrite</h2>
+DataFileWrite is a PostgreSQL wait event that occurs when a backend process is waiting for a write operation to complete on a data file (e.g., heap or index files). <br>
+This typically happens during operations that modify table or index data, such as INSERT, UPDATE, DELETE, or VACUUM, when the system needs to flush dirty pages from shared buffers to disk.<br>
+This event is typically associated with the Checkpointer, the Background Writer, or a User Backend that is forced to perform a "direct" write.
+
+<h3>When to Investigate</h3>
+If DataFileWrite is a top wait event, it almost always points to storage throughput limits or aggressive writing.<br>
+Monitor the system's I/O performance metrics, such as disk latency and throughput, to identify potential bottlenecks.<br>
+<h3>What to Do</h3>
+<ol>
+    <li>Tune the bgwriter and Checkpointer related parameters</li>
+    <li>Consider using faster storage solutions (e.g., SSDs) if disk I/O is a bottleneck</li>
+</ol>

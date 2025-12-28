@@ -1,0 +1,11 @@
+<h2>IO:DataFileImmediateSync</h2>
+Process Waiting for an immediate synchronization of a relation data file to durable storage.
+similar to the standard DataFileSync event, But "Immediate" version, blocking request to the operating system to ensure all pending writes for a specific relation (table or index) are physically written to the drive.
+<h3>Why this wait event occurs</h3>
+This event is most commonly triggered by operations that need to ensure data integrity before finishing a structural change or a bulk operation. Common scenarios include:
+<li>
+    <li><b>Dropping or Truncating Tables:</b></li> When you run DROP TABLE or TRUNCATE, PostgreSQL must ensure that all pending writes for that file are flushed and synchronized before it can safely delete the file from the filesystem.
+    <li><b>Creating Indexes:</b></li> During large index builds (especially with CONCURRENTLY), the backend may force a sync of the newly created data file to ensure it is durable before marking the index as valid.
+    <li><b>Relation Extension:</b></li> If the database is rapidly extending files to accommodate a massive bulk load, it may occasionally trigger an immediate sync to stabilize the file state on disk.
+    <li><b>Checkpoint/Vacuum Interaction:</b></li> Occasionally, during the tail end of a cleanup process, a backend may perform an immediate sync to finalize a file that was heavily modified.
+</li>

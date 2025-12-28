@@ -1,0 +1,11 @@
+<h2>IO:SLRURead</h2>
+SLRURead is a PostgreSQL wait event that occurs when a backend process is waiting to read a page from a SLRU (Simple LRU) buffer structure on disk. 
+SLRUs are used internally by PostgreSQL to manage certain types of fixed-size, disk-backed data that benefit from a simple least-recently-used caching strategy.
+Common subsystems that use SLRUs include:
+<ul>
+    <li>Commit Log (CLOG) tracks transaction commit status,</li>
+    <li>Subtransaction Log (SUBTRANS) records parent-child transaction relationships,</li>
+    <li>MultiXact members and offsets used for shared row locks,</li>
+    <li>Serialized predicate lock (predicate locks for SERIALIZABLE isolation).</li>
+</ul>
+When a needed SLRU page isn’t in memory, PostgreSQL reads it from disk, triggering the SLRURead wait event.

@@ -1,0 +1,32 @@
+<h2>WalInsert</h2>
+This wait event occurs when a process is inserting WAL (Write-Ahead Logging) records into the WAL buffers.
+
+<h3>When Does WalInsert Occur?</h3>
+The WAL insert lock (implemented via WALInsertLock in PostgreSQL source code) is a lightweight lock that serializes access to the WAL buffer.<br>
+When a transaction needs to write to WAL (which is every data-modifying operation), following happens:
+<ol>
+    <li>Acquire the WAL insert lock for its specific insertion slot</li>
+    <li>Insert the WAL record into the WAL buffer</li>
+    <li>Release the WAL insert lock</li>
+</ol>
+The <code>WALInsert</code> wait event occurs when a backend process is waiting to acquire this lock, indicating contention at one of PostgreSQL's most critical serialization points.
+
+<h3>Common Strategies</h3>
+<ol>
+    <li>Stagger batch jobs to avoid concurrent peaks</li>
+    <li>Increase wal_buffers to accommodate bursts</li>
+    <li>Use UNLOGGED tables for intermediate results (when safe)</li>
+    <li>Implement queue-based processing to throttle writes</li>
+    <li>Remove and Build indexes only after bulk loads are complete</li>
+    <li>Use COPY FREEZE wherever possible, for initial data load</li>
+    <li>Increase maintenance_work_mem for index builds</li>
+    <li>Set synchronous_commit = off temporarily, expecially for bulk loads</li>
+    <li>Consider pg_bulkload extension for very large imports</li>
+</ol>
+<h3>Hardware considerations</h3>
+<ul>
+    <li>Use fast storage (NVMe SSDs) for WAL files to reduce write latency, The pg_wal directory should be on fastest storage possible</li>
+    <li>Ensure sufficient RAM to minimize swapping and improve overall performance</li>
+    <li>High clock speed and single core performance can help CPU handle high transaction rates efficiently</li>
+</ul>
+** Highly recommenedable to test the storage performance using fio or pg_test_fsync to ensure low latency and high IOPS for WAL writes. **

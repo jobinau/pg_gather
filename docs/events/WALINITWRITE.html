@@ -1,0 +1,10 @@
+<h2>IO:WALInitWrite</h2>
+When the system needs a new WAL segment and there are no old segments available to recycle, it must create a new one. During this process, PostgreSQL "initializes" the file by filling it with zeros. 
+The WALInitWrite event specifically tracks the time spent waiting for the disk write portion of this zero-filling process.
+<h3>How to Reduce WALInitWrite Waits</h3>
+<ul>
+    <li>Increase min_wal_size & max_wal_size: This encourages PostgreSQL to keep more "recycled" WAL files on hand, reducing the need to initialize new ones during peak traffic.</li>
+    <li>Check Disk Latency: Ensure your storage subsystem (SSD/NVMe) is performing within expected latency bounds.</li>
+    <li>Use a Dedicated WAL Volume: Placing the pg_wal directory on a separate, high-performance physical disk can prevent contention between data file I/O and log I/O.</li>
+    <li>Check for "Zero-fill" performance: On some modern storage/filesystems, zero-filling is very fast, but if you are on older hardware or specific cloud storage types, it can become a bottleneck.</li>
+</ul>

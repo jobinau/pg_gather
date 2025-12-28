@@ -1,0 +1,21 @@
+<h2>IPC:MessageQueueSend</h2>
+This waitevent occurs when a backend process is waiting to send a message to internal shared message queue, which isused for inter-process communication (IPC). 
+This commonly happens during parallel query execution, where multiple worker processes need to communicate with the main process.
+
+<h3>What it means</h3>
+This wait typically indicates that the receiving end of the message queue is temporarily full or not reading messages fast enough.
+<br> While brief waits are normal, sustained MessageQueueSend delays may suggest imbalanced workloads among parallel workers, a stalled receiver process, or resource contention.
+
+<h3>Common causes</h3>
+<ul>
+<li><b>High-Volume Parallel Data Transfer:</b>If the workers generate rows faster than the Leader can collect them and send them to the client, the shared memory queue fills up. The workers then enter the MessageQueueSend wait state until the Leader clears some space</li>
+<li><b>A Bottlenecked "Leader" Process</b>If the Leader process is busy with other tasks, it won't pull data from the queue quickly enough. This happens when:
+<ul>
+    <li>If the application is slow to receive data (as discussed in your previous question), the Leader gets stuck waiting to send data to the client, which in turn stops it from reading from the workers.</li>
+    <li>If the Leader has to perform a final, heavy sorting or merging operation on the data received from workers, it may stop reading from the queue while it processes the current batch</li>
+</ul>
+</li>
+<li><b>Insufficient dynamic_shared_memory_type</b>PostgreSQL uses dynamic shared memory to create these queues. If the operating system's shared memory settings (like huge_pages or the SHMMAX kernel limit) are misconfigured or exhausted, the communication between processes can become inefficient or "jittery," leading to synchronization waits
+</li>
+<li><b>Too Many Parallel Workers</b>If you have set max_parallel_workers_per_gather to a very high number, you might be creating "too many cooks in the kitchen."</li>
+</ul>

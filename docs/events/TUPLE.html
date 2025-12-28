@@ -24,3 +24,4 @@ Essentially, tuple is the "waiting room" for row-level locks when there is high 
     <li>Long-Running Transactions: Transactions that hold locks for extended periods can cause other transactions to wait.</li>
     <li>Inefficient Application Logic: Poorly designed application logic that frequently updates the same rows can increase contention.</li>
     <li>Massive batch updates:If a large batch job updates thousands of rows in a single transaction without committing, any other process trying to touch those same rows will be queued.</li>
+</ul>

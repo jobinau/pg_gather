@@ -1,0 +1,21 @@
+<h2>IPC:ArchiveCommand</h2>
+ArchiveCommand is a PostgreSQL wait event that occurs when the WAL archiver process is waiting for an external archive_command script or program to complete. 
+This happens during WAL archiving—typically on a primary server configured with archive_mode = on—when PostgreSQL executes the user-defined archive_command to copy completed WAL files to a safe archival location (e.g., for point-in-time recovery or backup). 
+The wait reflects the time spent blocked while the operating system runs the command and waits for it to finish. 
+<h3>Detect Problems</h3>
+This event appears briefly every time a WAL file is filled and archived successfully in a healthy system.
+However, if you observe prolonged or frequent waits on IPC:ArchiveCommand, it may indicate issues such as:
+<ul>
+<li>The archive_command is taking too long to execute, possibly due to network latency, slow storage, or inefficient command implementation.</li>
+<li>The archive destination is unreachable or experiencing problems, causing the command to hang or fail.</li>
+<li>Resource contention on the server running the archive_command, leading to delays in execution.</li>
+</ul>
+
+<h3>Troubleshooting Steps and Recommendations</h3>
+To troubleshoot IPC:ArchiveCommand waits, consider the following steps:
+<ul>
+<li>Test the archive command by manually executing it from the command line to ensure it works correctly and completes quickly.</li>
+<li>Check the archive destination performance and network connectivity</li>
+<li>Review system resources (CPU, memory, disk I/O) on the server running the archive_command to identify any bottlenecks.</li>
+<li>Use Better Tools: consider specialized tools like pgBackRest, which handle parallel uploads and retries more efficiently.</li>
+</ul>
