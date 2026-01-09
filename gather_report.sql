@@ -355,12 +355,12 @@ WHERE waits IS NOT NULL OR state != 'idle';
 
 \pset tableattr 'id="tblstmnt"'
 \C 'Top Statements'
-SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::bigint/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
-,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
-(select query "Statement",total_time::bigint
-, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
-,total_time::bigint/calls, DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) as avgtrank
-,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) ranksum
+ SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",round((total_time/calls)::numeric,2) "Avg.ExecTime","Avg.Reads","C.Hit%"
+,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM
+(select query "Statement",total_time
+,round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
+,round((total_time/calls)::numeric,2), DENSE_RANK() OVER (ORDER BY round((total_time/calls)::numeric,2) DESC) as avgtrank
+,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY round((total_time/calls)::numeric,2) DESC) ranksum
 ,shared_blks_read/calls "Avg.Reads",
 shared_blks_dirtied/calls "Avg.Dirty",
 shared_blks_written/calls "Avg.Write",
