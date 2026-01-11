@@ -19,7 +19,7 @@ ol { width: fit-content;}
 #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
-#dtls { left:100%; top: 4%; width: max-content; color: black; z-index: 4}
+#dtls { left:100%; top: 4%; width: max-content; max-width: 60vw; color: black; z-index: 4}
 @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 footer { text-align: center; padding: 3px; background-color:#d2f2ff}
@@ -359,12 +359,12 @@ WHERE waits IS NOT NULL OR state != 'idle';
 
 \pset tableattr 'id="tblstmnt"'
 \C 'Top Statements'
-SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::bigint/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
-,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
-(select query "Statement",total_time::bigint
-, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
-,total_time::bigint/calls, DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) as avgtrank
-,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) ranksum
+ SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",round((total_time/calls)::numeric,2) "Avg.ExecTime","Avg.Reads","C.Hit%"
+,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM
+(select query "Statement",total_time
+,round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
+,round((total_time/calls)::numeric,2), DENSE_RANK() OVER (ORDER BY round((total_time/calls)::numeric,2) DESC) as avgtrank
+,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY round((total_time/calls)::numeric,2) DESC) ranksum
 ,shared_blks_read/calls "Avg.Reads",
 shared_blks_dirtied/calls "Avg.Dirty",
 shared_blks_written/calls "Avg.Write",
@@ -538,7 +538,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     (WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_get_index GROUP BY indrelid)
     SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk)))
     FROM pg_get_class c LEFT JOIN pkuk ON pkuk.indrelid = c.reloid WHERE c.relkind IN ('r')) nokey,
-   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
+   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta
 ) r;
 %>
 
@@ -806,7 +806,7 @@ function checkfindings(){
   //if ( mgrver >= 15 && ( walcomprz == "off" || walcomprz == "on")) strfind += "<li>The <b>wal_compression is '" + walcomprz + "' on PG"+ mgrver +"</b>, consider a good compression method (lz4,zstd)</li>"
   if ( obj.clas.f3 > 50000 ) strfind += "<li>Currently <b>OID of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + "</b>. indicating the usage of temporary tables / High DDL activity </li>";
   if (obj.meta.f1 > 15728640){ //metadata more than 15MB
-    strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
+    strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f3 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
   }
   if (obj.tbsp !== null && obj.tbsp.length > 0){
     const result=obj.tbsp.map(function(item) { return item.tsname + ": " + item.location;}).join(", ");
@@ -825,6 +825,7 @@ function checkfindings(){
     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(sharedBuffers.val*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
  }
  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
+ //if (obj.meta.f2 < curdbsz) strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(curdbsz) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphan.html'> Details<a></li>"
   //update the findings section
   document.getElementById("finditem").innerHTML += strfind;
 
@@ -1349,6 +1350,7 @@ function checktabs(){
   const trs=document.getElementById("tabInfo").rows
   const len=trs.length;
   let bloatTabTot = 0; //Total bloated tables with more than 20% bloat
+  let TotTabIndSize=0; //Total Table + Index size
   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","No. Live Rows/Tuples","No. Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","Age of main relation","","","Number of Vacuums per day","","Size of TOAST and its index",
    "Age of TOAST","Age of Table & TOAST","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
@@ -1363,6 +1365,7 @@ function checktabs(){
     } else TabInd.title=bytesToSize(TabIndSize); 
     //Tab+Ind > 10GB
     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
+    TotTabIndSize += Number(TabIndSize);
     if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
     //Check vacuum frequncy
     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
@@ -1385,6 +1388,9 @@ function checktabs(){
       else if (tr.cells[19].innerText < 70) tr.cells[19].classList.add("lime");
      }
   }
+  var el=document.createElement("tfoot");
+  el.innerHTML = "<th colspan=6> Total Bloat = </th><th></th><th colspan=3> Total Size = "+ bytesToSize(TotTabIndSize) +" </th><th colspan=11></th>";
+  tab.appendChild(el);
 const endTime = new Date().getTime();
 obj.tabs.bloatTabNum = bloatTabTot;
 console.log("time taken for checktabs :" + (endTime - startTime));
@@ -1417,22 +1423,29 @@ function checkdbs(){
   setTitles(trs[0],["Database Name","","Avg. No. of commits per day","Avg. No. of Aborts/Rollbacks per day","Avg. DML Operations per day","Cache Hit Ratio (%)","Avg. No. Temp files generated per day","Avg Temp File Size in bytes per day","Database size in bytes","Age of unfrozen tuples in database"]);
   for(var i=1;i<len;i++){
     tr=trs[i];
-    if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
+    if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1){ 
+      tr.cells[0].classList.add("lime");
+      //Database size mismatch check
+      if (obj.meta.f2 < tr.cells[8].innerText){
+         strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(tr.cells[8].innerText) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphanfiles.html'> Details<a></li>"
+          tr.cells[8].classList.add("high"); tr.cells[8].title="Database size mismatch. Size of all objects is " + bytesToSize(obj.meta.f2) + ", but database size is " + bytesToSize(tr.cells[8].innerText) ;
+         }
+    }
     //High number of transaction aborts/rollbacks
     if(tr.cells[3].innerHTML > 4000){ tr.cells[3].classList.add("warn"); tr.cells[3].title = "High number of transaction aborts/rollbacks. Please inspect PostgreSQL logs"; 
      aborts.push(tr.cells[0].innerHTML)
      }
-    [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
+    [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); } });
     //More than 50GB temp generation per day. removing class even if it is not there is not causing any error
     if(tr.cells[7].innerHTML > 50000000000) {  
       tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
-      let str = " temp file generation per day!. It can cause I/O performance issues." 
+      let str = " temp file generation per day!. This can cause I/O performance issues. " 
       let param = params.find(p => p.param === "log_temp_files");
       if ( param && param["val"] == -1 ) { 
         param["suggest"] = "'100MB'"; 
         str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
       }else{
-        str += "log_temp_files is already enabled, Analyze the PostgreSQL logs to check the problematic SQL statements";
+        str += "log_temp_files is already enabled. Analyze the PostgreSQL logs to check the problematic SQL statements";
       }
       evalParam("log_temp_files");
       if (strtmp != "") strtmp+= ","
@@ -1548,6 +1561,7 @@ document.querySelectorAll("th").forEach(th => th.addEventListener("click", (() =
 /////############## Pop-up details box######################
 //Pop-up at DB info
 function dbsdtls(e){
+  let td = e.target;
   if (e.target.matches("tr td:first-child")){
   th = e.target.parentNode;  
   let o=th.cells[1].innerText.split(",");
@@ -1556,7 +1570,14 @@ function dbsdtls(e){
    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
    + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
-  }
+  }else{ // other than first cell
+if (td.tagName == "TH") return ""; //No popup for header cells
+let thIndex = td.cellIndex;
+let thVal = td.innerText;
+if ([2, 3, 4, 6, 9].includes(thIndex)) return formatNumber(thVal);
+else if ([7,8].includes(thIndex)) return bytesToSize(thVal) + "<br>" + td.title.replaceAll(". ", ".<br>");
+else return "";
+}
 }
 
 //Pop-up for Tables.
@@ -1601,22 +1622,14 @@ function tabInfodtls(e){
   }}
   return "<b>" + tr.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
 }else{ // other than first cell
- let tdSiblings = Array.from(tr.querySelectorAll("td"));
- let thIndex = tdSiblings.indexOf(td);
- //console.log("thIndex: " + thIndex);
- switch (thIndex) {
- case 7: //Rel size
- case 8: //Tot.Tab size
- case 9: //Tab+Ind size
- case 15: //Toast + Ind
-   return bytesToSize(tr.cells[thIndex].innerText);
- case 10:
- case 16:
- case 17:
-  return formatNumber(tr.cells[thIndex].innerText)
- default:
-   return "";
- }
+ //let tdSiblings = Array.from(tr.querySelectorAll("td"));
+ //let thIndex = tdSiblings.indexOf(td);
+if (td.tagName == "TH") return ""; //No popup for header cells
+let thIndex = td.cellIndex;
+let thVal = td.innerText;
+if ([7, 8, 9, 15].includes(thIndex)) return bytesToSize(thVal);
+else if ([4, 10, 16, 17].includes(thIndex)) return formatNumber(thVal);
+else return "";
 }
 }
 
@@ -1662,20 +1675,45 @@ if(tr.cells[1].innerText.length > 2){
 } else return "No connections"
 }}
 
+/*
 async function tblDBTimedtls(e){
   if (e.target.matches("tr td:first-child")){
   td = e.target;
   const htmlString = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000)
     .then(res => res.text())
     .then(htmlString => {
-      td.appendChild(genPopup( htmlString + "<h4><a href="+ docurl + "events/" + td.innerText.toUpperCase() +">🔗</a><h4>") );
+      if (td.matches(":hover")) //Check if the td is still being hovered
+        td.appendChild(genPopup( htmlString + "<h4><a href="+ docurl + "events/" + td.innerText.toUpperCase() +">🔗</a><h4>") );
     })
     .catch(error => {
       console.error("Error fetching wait events", error);
     });
     return;
   }
+}*/
+
+let hoverTimer;
+async function tblDBTimedtls(e) {
+  if (e.target.matches("tr td:first-child")) {
+    const td = e.target;
+    clearTimeout(hoverTimer); //Clear any existing timer to prevent multiple popups
+    hoverTimer = setTimeout(async () => { //Set a new timer for 500ms
+      if (!td.matches(":hover")) return; //Double-check if the mouse is still over the element before fetching
+      try {
+        const response = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000);
+        const htmlString = await response.text();
+        if (td.matches(":hover")) { //Final check: did the user move away while the network request was loading?
+          const popupContent = htmlString + "<h4><a href=" + docurl + "events/" + td.innerText.toUpperCase() + ">🔗</a><h4>";
+          td.appendChild(genPopup(popupContent));
+        }
+      } catch (error) {
+        console.error("Error fetching wait events", error);
+      }
+    }, 500); 
+    td.addEventListener("mouseleave", () => clearTimeout(hoverTimer), { once: true }); //Add a one-time listener to cancel the timer if the mouse leaves early
+  }
 }
+
 
 function tabPartdtls(e){
   if (e.target.matches("tr td:first-child")){
@@ -1939,13 +1977,13 @@ if (trs.length > 1){
   if(tr.cells[11].innerText > 50){
     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
   }
-  if(tr.cells[13].innerText > tr.cells[12].innerText){   //if Backends cleans more pages than BgWriter, we have a problem to address
+  if(tr.cells[13].innerText > tr.cells[12].innerText && tr.cells[13].innerText > 20 ){   //if client Backends cleans more pages than BgWriter and backend cleans more than 20% dirty pages, we have a problem to address
     tr.cells[12].classList.add("high"); tr.cells[12].title="Bgwriter should be cleaning more pages than backends.";
     if (tr.cells[13].innerText > 30){ tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends"; 
     strfind += "<li>High <b>memory pressure</b>. Consider increasing RAM and shared_buffers</li>"; }   //add to findings
     if(tr.cells[12].innerText < 20){  //if BgWriter cleans less than 20% dirty pages, we should consider to make it more aggressive.
       tr.cells[12].classList.add("high"); tr.cells[12].title+="Bgwriter is not efficient";
-      if(tr.cells[14].innerText > 30){
+      if(tr.cells[14].innerText > 30){ //if more than 30% of bgwriter runs are ending up in a halt
         tr.cells[14].classList.add("high"); tr.cells[14].title="bgwriter could run more frequently. reduce bgwriter_delay";
       }
       if(tr.cells[15].innerText > 10){
