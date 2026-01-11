@@ -81,7 +81,7 @@ Some DataFilePrefetch waits are normal and indicate the prefetch system is worki
 ## OidGen / OidGenLock
 Waiting to allocate a new OID. Ideally it should be really fast.
 If it takes time, It may indicates that  address space contention (32bit)
-Reperted that toast chucks which uses oid, when runs out of available oids, this wait event appears.
+It has been reported that toast chucks which uses oid, when runs out of available oids, this wait event appears.
 
 
 ## LockManager
@@ -117,7 +117,9 @@ If some application logic is using subtransactions (nested transactions), Every 
 If you’re seeing frequent and high SubtransBuffer waits, it’s a sign to investigate application logic and transaction patterns rather than just tuning database parameters
 
 ## SubtransSLRU
-This wait event occurs when a backend process is waiting to access or modify the subtransaction SLRU buffer, typically due to contention or I/O delays.
+A process is waiting to access a page in the Subtransaction Status Log (pg_subtrans). 
+This structure tracks the parent-child relationship of subtransactions (created via SAVEPOINT or PL/pgSQL EXCEPTION blocks).
+, typically due to contention or I/O delays.
 Subtransaction metadata, including parent transaction IDs and status, is stored in the pg_subtrans SLRU, a disk-based structure that tracks subtransaction relationships.
 SLRU (Simple Least Recently Used) is a caching mechanism in PostgreSQL for managing certain control data structures (like pg_subtrans, pg_clog, or pg_multixact). The SubtransSLRU specifically refers to the buffer used for subtransaction data.
 

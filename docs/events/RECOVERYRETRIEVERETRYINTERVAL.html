@@ -5,7 +5,8 @@
 </p>
 <h3>What causes it?</h3>
 <ul>
-    <li><b>The End of the WAL Stream</b>: This is the most common cause. When a standby has replayed every transaction log available on the primary and there is currently no new activity (the primary is idle), the standby will eventually timeout and enter this retry state.</li>
+    <li><b>The End of the WAL Stream</b>When a standby has replayed every transaction log available on the primary and there is currently no new activity (the primary is idle), the standby will eventually timeout and enter this retry state.</li>
+    <li><b>Missing WAL Files</b>: If a standby server is configured to retrieve WAL from a primary or archive, but the expected WAL file is missing or inaccessible, it will wait for RecoveryRetrieveRetryInterval before retrying.</li>
     <li><b>Connection Failures</b>: If the connection to the primary (streaming replication) is broken due to network issues, or if the primary server is down, the standby will attempt to reconnect. If it fails, it waits for the RecoveryRetrieveRetryInterval before the next attempt.</li>
     <li><b>Archive Delays</b>: If the standby is configured to restore WAL from an archive (like S3 or a network share via restore_command) and the expected next file isn't there yet, it will pause. This often happens if the primary hasn't finished "shipping" the latest 16MB segment.</li>
 </ul>
