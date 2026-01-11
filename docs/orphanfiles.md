@@ -1,4 +1,9 @@
 # Orphan files in PostgreSQL
+
+Orphan files are those files in PostgreSQL tablespaces (default, global and other locations) which don't have corresponding catalog entries.
+So PostgreSQL won't be aware that such file exists
+
+## What causes orphan files 
 Orphan files can come to existance due to verious reasons like
 * Crashes During Physical Operations
   * Failed VACUUM FULL or CLUSTER commands. These commands create a brand-new copy of a table. If the server crashes or runs out of disk space halfway through, the partially created file remains on disk, but the database catalogs still point to the old version.
@@ -15,8 +20,8 @@ Orphan files can come to existance due to verious reasons like
 * Accidentl file copy to PostgreSQL datadirectory or tablespace locations
   * Human errors can leave unwanted files inside data directory
  
-## Why it causes trouble
-* Orphan files can occupy considerable amount of time.
+## What problems it may cause
+* Orphan files can occupy considerable amount of size and can cause storage running out of space.
 * Once a orphan file gets generated, there is high chance that the same file gets copied to all the replica on rebuild operaton. system may start accumuating orphan files
 * Increases the Standby rebuild time
 * Affects the storage of the backup repository. Depends on how many full backups are retained.
