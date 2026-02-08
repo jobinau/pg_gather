@@ -1,0 +1,45 @@
+## Sample pg_hba.conf entries
+```
+local   all             all                                     peer
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             172.0.0.0/8            scram-sha-256
+host    all             all             ::1/128                 scram-sha-256
+local   replication     all                                     peer
+host    replication     all             127.0.0.1/32            scram-sha-256
+host    replication     all             ::1/128                 scram-sha-256
+#Shadowed by : local   replication     all
+local   replication     jobin,pgdba                             peer
+#Shadowed by : host    replication     all
+hostssl replication     all             127.0.0.1/32            scram-sha-256
+hostssl db1             all             10.18.18.18/32          scram-sha-256
+host    db1             all             10.18.18.18/32          scram-sha-256
+host    db1,db2         all             10.18.18.18/24          scram-sha-256
+host    db1             all             10.18.18.18/24          scram-sha-256
+host    db1             all             10.18.18.19/32          scram-sha-256
+host    db2             all             10.18.18.20/32          scram-sha-256
+host    db1             all             fd00:abcd:1234:2::/64   scram-sha-256
+host    db1             all             fd00:abcd:1234:2:1::/80 scram-sha-256
+host    db2             all             fd00:abcd:1234:2:2::/80 scram-sha-256
+``
+## Corresponding Insert statement
+```
+INSERT INTO public.pg_get_hba_rules VALUES (118, 'local', '{all}', '{postgres}', NULL, NULL, 'peer', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (123, 'local', '{all}', '{all}', NULL, NULL, 'peer', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (125, 'host', '{all}', '{all}', '127.0.0.1', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (126, 'host', '{all}', '{all}', '172.0.0.0', '255.0.0.0', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (128, 'host', '{all}', '{all}', '::1', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (131, 'local', '{replication}', '{all}', NULL, NULL, 'peer', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (132, 'host', '{replication}', '{all}', '127.0.0.1', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (133, 'host', '{replication}', '{all}', '::1', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (135, 'local', '{replication}', '{jobin,pgdba}', NULL, NULL, 'peer', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (137, 'hostssl', '{replication}', '{all}', '127.0.0.1', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (138, 'hostssl', '{db1}', '{all}', '10.18.18.18', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (139, 'host', '{db1}', '{all}', '10.18.18.18', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (140, 'host', '{db1,db2}', '{all}', '10.18.18.18', '255.255.255.0', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (141, 'host', '{db1}', '{all}', '10.18.18.18', '255.255.255.0', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (142, 'host', '{db1}', '{all}', '10.18.18.19', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (143, 'host', '{db2}', '{all}', '10.18.18.20', '255.255.255.255', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (144, 'host', '{db1}', '{all}', 'fd00:abcd:1234:2::', 'ffff:ffff:ffff:ffff::', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (145, 'host', '{db1}', '{all}', 'fd00:abcd:1234:2:1::', 'ffff:ffff:ffff:ffff:ffff::', 'scram-sha-256', NULL);
+INSERT INTO public.pg_get_hba_rules VALUES (146, 'host', '{db2}', '{all}', 'fd00:abcd:1234:2:2::', 'ffff:ffff:ffff:ffff:ffff::', 'scram-sha-256', NULL);
+```
