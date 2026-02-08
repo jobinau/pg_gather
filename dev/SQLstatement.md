@@ -325,7 +325,10 @@ SELECT
       AND ( (v.typ = s.typ) OR (v.typ = 'hostssl' AND s.typ = 'host') OR (v.typ = 'hostnossl' AND s.typ = 'host'))
       AND ( v.typ = 'local' OR (v.network_block IS NOT NULL AND s.network_block IS NOT NULL AND s.network_block >>= v.network_block) OR s.addr = 'all' )
       AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
-      AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By"
+      AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By",
+  CASE v."IP" WHEN 'IPv4' THEN (2::numeric ^ (32 - masklen(network_block)))::numeric(38,0) 
+  WHEN 'IPv6' THEN (2::numeric ^ (128 - masklen(network_block)))::numeric(38,0) ELSE NULL END
+  AS total_ips
 FROM rule_data v
 ORDER BY v.seq;
 ```

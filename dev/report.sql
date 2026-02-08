@@ -250,15 +250,18 @@ WITH rule_data AS ( SELECT seq, typ, db, usr, addr, s.prefix AS cidr_mask, mask,
   FROM pg_get_hba_rules
   LEFT JOIN LATERAL (
     SELECT i AS prefix FROM generate_series(0, 128) AS i WHERE netmask(set_masklen(addr::inet, i)) = mask::inet LIMIT 1 ) s ON TRUE )
-SELECT 
+SELECT
   v.seq AS "Line", v.typ AS "Type", v.db AS "Database", v.usr AS "User", v.addr AS "Address", v.cidr_mask AS "CIDR Mask",
-  v.mask AS "DDN/Binary Mask",  v."IP" AS "IP Ver.", v.method, v.err, v.network_block AS "Network Block",
+  v.mask AS "DDN/Binary Mask",  v."IP" AS "IP Ver.", v.method AS "Auth Method", v.err AS "Error", v.network_block AS "Network Block",
   ( SELECT string_agg(s.seq::text, ',')  FROM rule_data s
     WHERE s.seq < v.seq
       AND ( (v.typ = s.typ) OR (v.typ = 'hostssl' AND s.typ = 'host') OR (v.typ = 'hostnossl' AND s.typ = 'host'))
       AND ( v.typ = 'local' OR (v.network_block IS NOT NULL AND s.network_block IS NOT NULL AND s.network_block >>= v.network_block) OR s.addr = 'all' )
       AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
-      AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By"
+      AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By",
+  CASE v."IP" WHEN 'IPv4' THEN (2::numeric ^ (32 - masklen(network_block)))::numeric(38,0)
+  WHEN 'IPv6' THEN (2::numeric ^ (128 - masklen(network_block)))::numeric(38,0) ELSE NULL END
+  AS "No. of IPs"
 FROM rule_data v
 ORDER BY v.seq;
 
