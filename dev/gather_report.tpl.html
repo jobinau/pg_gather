@@ -244,40 +244,23 @@ FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
 \pset tableattr 'id="tblhba"'
-WITH rules AS (SELECT * FROM pg_get_hba_rules WHERE mask IS NOT NULL AND addr NOT IN ('all','samehost','samenet')),
-cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
- sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) cidr_mask
-FROM rules
-LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
-  ON family(addr::inet) = 4
-LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
-GROUP BY 1),
-rule_data AS (SELECT hba.seq ,typ ,db ,usr ,addr , cidr_mask , mask,
-CASE WHEN addr IN ('all','samehost','samenet') OR ( mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6'
- ELSE 'IPv'||family(addr::inet)
-END  "IP" ,method , err, (addr||'/'||cidr_mask)::inet network_block
-FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq)
-SELECT victim.seq "Line",victim.typ "Type",victim.db "Database",victim.usr "User",victim.addr "Address", victim.cidr_mask "CIDR Mask",victim.mask "DDN/Binary Mask" 
-  ,victim."IP" "IP Ver.",victim.Method,victim.err,victim.network_block "Network Block", string_agg(shadower.seq::text,',') "In shadow of"
- FROM rule_data AS victim
-LEFT JOIN rule_data AS shadower
-ON  shadower.seq < victim.seq
-    AND (
-     (victim.typ = 'local' AND shadower.typ = 'local')
-     OR (victim.typ = 'host' AND shadower.typ = 'host')
-     OR (victim.typ = 'hostssl' AND shadower.typ IN ('host', 'hostssl'))
-     OR (victim.typ = 'hostnossl' AND shadower.typ IN ('host', 'hostnossl'))
-    )
-    AND ( victim.typ = 'local'
-     OR ( victim.network_block IS NOT NULL  AND shadower.network_block IS NOT NULL AND shadower.network_block >>= victim.network_block )
-     OR shadower.addr = 'all'
-    )
-    AND (('replication' = ANY(victim.db) AND 'replication' = ANY(shadower.db) AND  victim.db <@ shadower.db)  OR
-        (NOT ('replication' = ANY(victim.db)) AND ( shadower.db = '{all}'  OR victim.db <@ shadower.db ) ))
-    AND (  shadower.usr = '{all}'  OR victim.usr <@ shadower.usr)
-GROUP BY 1,2,3,4,5,6,7,8,9,10,11
-ORDER BY 1;
-
+WITH rule_data AS ( SELECT seq, typ, db, usr, addr, s.prefix AS cidr_mask, mask,
+  CASE WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6' ELSE 'IPv'||family(addr::inet) END AS "IP",
+  method, err, set_masklen(addr::inet, s.prefix) AS network_block
+  FROM pg_get_hba_rules
+  LEFT JOIN LATERAL (
+    SELECT i AS prefix FROM generate_series(0, 128) AS i WHERE netmask(set_masklen(addr::inet, i)) = mask::inet LIMIT 1 ) s ON TRUE )
+SELECT 
+  v.seq AS "Line", v.typ AS "Type", v.db AS "Database", v.usr AS "User", v.addr AS "Address", v.cidr_mask AS "CIDR Mask",
+  v.mask AS "DDN/Binary Mask",  v."IP" AS "IP Ver.", v.method, v.err, v.network_block AS "Network Block",
+  ( SELECT string_agg(s.seq::text, ',')  FROM rule_data s
+    WHERE s.seq < v.seq
+      AND ( (v.typ = s.typ) OR (v.typ = 'hostssl' AND s.typ = 'host') OR (v.typ = 'hostnossl' AND s.typ = 'host'))
+      AND ( v.typ = 'local' OR (v.network_block IS NOT NULL AND s.network_block IS NOT NULL AND s.network_block >>= v.network_block) OR s.addr = 'all' )
+      AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
+      AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By"
+FROM rule_data v
+ORDER BY v.seq;
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -1172,7 +1155,7 @@ var paramDespatch = {
         if (Math.trunc(setval) == Math.trunc(t)){
           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
-           if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";
+           if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + " Database is out of all major compliances and under <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">high risk</b></a>";
           }
         }
       })  
@@ -1217,13 +1200,24 @@ var paramDespatch = {
       //Actual value need to be considering OLTP/OLAP workload
     }
   },
-  synchronous_commit: function(rowref){},
+  synchronous_commit: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "synchronous_commit");
+    let syncStnby = params.find(p => p.param === "synchronous_standby_names")
+    if (val.innerText == "on" && syncStnby !== undefined && syncStnby.val.trim().length > 0){
+      val.classList.remove("lime");
+      val.classList.add("warn"); 
+      val.title="synchronous_standby_names is set with synchronous_commit=on, resulting globally synchronous mode. This can cause session hangs, temporary stalls and poor performance. Allow specific sessions or transaction to opt-in for synchronous commit";
+      param["suggest"] = "local"; //local is the recommended value when synchronous_standby_names is set, to avoid globally synchronous mode
+    } else val.classList.add("lime");
+   },
   synchronous_standby_names: function(rowref){
     val=rowref.cells[1];
     let syncCommit = params.find(p => p.param === "synchronous_commit") 
     if (val.innerText.trim().length > 0 && syncCommit.val == "on"){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; 
       let param = params.find(p => p.param === "synchronous_standby_names");
       param["warn"] = "<b>synchronous_standby_names</b> is set and <b>synchronous_commit=on</b>, resulting globally synchronous mode. This can cause session hangs, temporary stalls and poor performance.<br/> Consider using asynchronous replication only if its unavoidable and with a limited scope. <a href='"+ docurl +"params/synchronous_standby_names.html'> Details<a>";
+      evalParam("synchronous_commit");  //Go back and evaluate synchronous_commit to update the warn and suggest values
     }
   },
   track_io_timing: function(rowref){
@@ -1427,7 +1421,7 @@ function checkdbs(){
       tr.cells[0].classList.add("lime");
       //Database size mismatch check
       if (obj.meta.f2 < tr.cells[8].innerText){
-         strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(tr.cells[8].innerText) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphanfiles.html'> Details<a></li>"
+         strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(tr.cells[8].innerText) + "</b>. This possibly indicates orphaned objects. <a href='"+ docurl +"orphanfiles.html'> Details<a></li>"
           tr.cells[8].classList.add("high"); tr.cells[8].title="Database size mismatch. Size of all objects is " + bytesToSize(obj.meta.f2) + ", but database size is " + bytesToSize(tr.cells[8].innerText) ;
          }
     }
@@ -1449,7 +1443,7 @@ function checkdbs(){
       }
       evalParam("log_temp_files");
       if (strtmp != "") strtmp+= ","
-      strtmp +=  tr.cells[7].title +"/day on "+tr.cells[0].innerHTML; 
+      strtmp +=  bytesToSize(tr.cells[7].innerText) +"/day on "+tr.cells[0].innerHTML; 
       tr.cells[7].title += str;
     }
     totdb=totdb+Number(tr.cells[8].innerText);
@@ -1507,7 +1501,7 @@ function checkhba(){
   tab=document.getElementById("tblhba");
   tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
   const trs=tab.rows
-  let shadowed=0; //Count of shadowed rules
+  let shadowed=0,errs=0; //Count of shadowed rules
   for (var i=1;i<trs.length;i++){
     tr=trs[i];
     if (!["::1","127.0.0.1","","samehost"].includes(tr.cells[4].innerText.trim()) && tr.cells[8].innerText.trim() != "reject" ){
@@ -1530,6 +1524,11 @@ function checkhba(){
           tr.cells[4].title="Avoid allowing connetions from all addresses"
       } else tr.cells[4].classList.add("lime")
     }
+    if (tr.cells[9].innerText.trim() != ""){
+      tr.cells[9].classList.add("high");
+      tr.title="Error in this rule. " + tr.cells[9].innerText.trim();
+      errs++;
+    }
     if(tr.cells[11].innerText.trim() != ""){
       tr.cells[11].classList.add("warn");
       tr.cells[0].classList.add("high");
@@ -1537,7 +1536,8 @@ function checkhba(){
       shadowed++;
     }
   }
-  if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules carfully and remove the shadowed ones</li>";
+  if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules for pg_hba carfully and remove the shadowed ones. Refer <a href=#tblhba>HBA rules</a> section</li>";
+  if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
 }
 
 //Sort logic

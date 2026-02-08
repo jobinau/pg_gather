@@ -19,10 +19,14 @@
 \echo #bottommenu { position: fixed; right: 0px; bottom: 0px; padding: 5px; border : 2px solid #AFAFFF; border-radius: 5px; z-index: 3}
 \echo #cur { font: 5em arial; position: absolute; color:brown; animation: vanish 2s ease forwards; z-index: 3 }  /*sort indicator*/
 \echo #dtls,#finditem,#paramtune,#menu { font-weight:initial;line-height:1.5em;position:absolute;background-color:#FAFFEA;border: 2px solid blue; border-radius: 5px; padding: 1em;box-shadow: 0px 20px 30px -10px grey; z-index: 2}
-\echo #dtls { left:100%; top: 4%; width: max-content; color: black; z-index: 4}
+\echo #dtls { left:100%; top: 4%; width: max-content; max-width: 60vw; color: black; z-index: 4}
 \echo @keyframes vanish { from { opacity: 1;} to {opacity: 0;} }
 \echo summary {  padding: 1rem; font: bold 1.2em arial;  cursor: pointer } 
 \echo footer { text-align: center; padding: 3px; background-color:#d2f2ff}
+\echo .bar-chart { display: flex; justify-content: space-between; align-items: flex-end; height: 300px; padding-bottom: 5px; gap: 10px; }
+\echo .bar-group { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; position: relative;}
+\echo .vbar { width: 80%; max-width: 100px; background-color: #3b82f6; border-radius: 4px 4px 0 0; position: relative;}
+\echo .vbar span { display: block;  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);}
 \echo </style>
 \H
 \pset footer off 
@@ -137,7 +141,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo <li><a href="#tblextn">Extensions</a></li>
 \echo <li><a href="#tblhba">Security-HBA rules</a>
 \echo <li><a href="#tblcs">Connection & Users</a></li>
-\echo <li><a href="#tableConten">Database Time</a></li>
+\echo <li><a href="#tblDBTime">Database Time</a></li>
 \echo <li><a href="#tblsess">Session Details</a></li>
 \echo <li><a href="#tblstmnt">Top Statements</a></li>
 \echo <li><a href="#tblreplstat">Replications</a></li>
@@ -157,7 +161,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \echo     <li><a href="#tblextn">Extensions</a></li>
 \echo     <li><a href="#tblhba">Security-HBA rules</a>
 \echo     <li><a href="#tblcs">Connection & Users</a></li>
-\echo     <li><a href="#tableConten">Database Time</a></li>
+\echo     <li><a href="#tblDBTime">Database Time</a></li>
 \echo     <li><a href="#tblsess">Session Details</a></li>
 \echo     <li><a href="#tblstmnt">Top Statements</a></li>
 \echo     <li><a href="#tblreplstat">Replications</a></li>
@@ -240,40 +244,23 @@ FROM pg_get_extension ext LEFT JOIN pg_get_roles ON extowner=pg_get_roles.oid
 LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
 \pset tableattr 'id="tblhba"'
-WITH rules AS (SELECT * FROM pg_get_hba_rules WHERE mask IS NOT NULL AND addr NOT IN ('all','samehost','samenet')),
-cidr AS (SELECT seq, COALESCE(sum((length(mask) - length(replace(mask, ip4mask.col1, ''))) / length(ip4mask.col1) * ip4mask.col2) ,
- sum((length(mask) - length(replace(mask, ip6mask.col1, ''))) / length(ip6mask.col1) * ip6mask.col2)) cidr_mask
-FROM rules
-LEFT JOIN (VALUES ('255',8),('254',7),('252',6),('248',5),('240',4),('224',3),('192',2),('128',1)) AS ip4mask (col1,col2)
-  ON family(addr::inet) = 4
-LEFT JOIN (VALUES ('8',1),('c',2),('e',3),('f',4)) AS ip6mask (col1,col2) ON family(addr::inet) = 6
-GROUP BY 1),
-rule_data AS (SELECT hba.seq ,typ ,db ,usr ,addr , cidr_mask , mask,
-CASE WHEN addr IN ('all','samehost','samenet') OR ( mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6'
- ELSE 'IPv'||family(addr::inet)
-END  "IP" ,method , err, (addr||'/'||cidr_mask)::inet network_block
-FROM  pg_get_hba_rules hba  LEFT JOIN cidr ON cidr.seq = hba.seq)
-SELECT victim.seq "Line",victim.typ "Type",victim.db "Database",victim.usr "User",victim.addr "Address", victim.cidr_mask "CIDR Mask",victim.mask "DDN/Binary Mask" 
-  ,victim."IP" "IP Ver.",victim.Method,victim.err,victim.network_block "Network Block", string_agg(shadower.seq::text,',') "In shadow of"
- FROM rule_data AS victim
-LEFT JOIN rule_data AS shadower
-ON  shadower.seq < victim.seq
-    AND (
-     (victim.typ = 'local' AND shadower.typ = 'local')
-     OR (victim.typ = 'host' AND shadower.typ = 'host')
-     OR (victim.typ = 'hostssl' AND shadower.typ IN ('host', 'hostssl'))
-     OR (victim.typ = 'hostnossl' AND shadower.typ IN ('host', 'hostnossl'))
-    )
-    AND ( victim.typ = 'local'
-     OR ( victim.network_block IS NOT NULL  AND shadower.network_block IS NOT NULL AND shadower.network_block >>= victim.network_block )
-     OR shadower.addr = 'all'
-    )
-    AND (('replication' = ANY(victim.db) AND 'replication' = ANY(shadower.db) AND  victim.db <@ shadower.db)  OR
-        (NOT ('replication' = ANY(victim.db)) AND ( shadower.db = '{all}'  OR victim.db <@ shadower.db ) ))
-    AND (  shadower.usr = '{all}'  OR victim.usr <@ shadower.usr)
-GROUP BY 1,2,3,4,5,6,7,8,9,10,11
-ORDER BY 1;
-
+WITH rule_data AS ( SELECT seq, typ, db, usr, addr, s.prefix AS cidr_mask, mask,
+  CASE WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6' ELSE 'IPv'||family(addr::inet) END AS "IP",
+  method, err, set_masklen(addr::inet, s.prefix) AS network_block
+  FROM pg_get_hba_rules
+  LEFT JOIN LATERAL (
+    SELECT i AS prefix FROM generate_series(0, 128) AS i WHERE netmask(set_masklen(addr::inet, i)) = mask::inet LIMIT 1 ) s ON TRUE )
+SELECT 
+  v.seq AS "Line", v.typ AS "Type", v.db AS "Database", v.usr AS "User", v.addr AS "Address", v.cidr_mask AS "CIDR Mask",
+  v.mask AS "DDN/Binary Mask",  v."IP" AS "IP Ver.", v.method, v.err, v.network_block AS "Network Block",
+  ( SELECT string_agg(s.seq::text, ',')  FROM rule_data s
+    WHERE s.seq < v.seq
+      AND ( (v.typ = s.typ) OR (v.typ = 'hostssl' AND s.typ = 'host') OR (v.typ = 'hostnossl' AND s.typ = 'host'))
+      AND ( v.typ = 'local' OR (v.network_block IS NOT NULL AND s.network_block IS NOT NULL AND s.network_block >>= v.network_block) OR s.addr = 'all' )
+      AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
+      AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By"
+FROM rule_data v
+ORDER BY v.seq;
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -317,7 +304,7 @@ CASE enc_method WHEN 'm' THEN 'MD5' WHEN 'S' THEN 'SCRAM' END "Enc",
 "Active","IdleInTrans","Idle","Total","SSL","NonSSL"
 FROM pg_get_roles LEFT JOIN rol ON pg_get_roles.rolname = rol.rolname;
 
-\pset tableattr 'id="tableConten" name="waits" style="clear: left" class="thidden"'
+\pset tableattr 'id="tblDBTime" name="waits" style="clear: left" class="thidden"'
 \C 'WaitEvents'
 SELECT COALESCE(wait_event,'CPU') "Event", NULL, count(*)::text "Event Count" FROM pg_pid_wait
 WHERE wait_event IS NULL OR wait_event NOT IN ('ArchiverMain','AutoVacuumMain','BgWriterHibernate','BgWriterMain','CheckpointerMain','LogicalApplyMain','LogicalLauncherMain','RecoveryWalStream','SysLoggerMain','WalReceiverMain','WalSenderMain',
@@ -355,12 +342,12 @@ WHERE waits IS NOT NULL OR state != 'idle';
 
 \pset tableattr 'id="tblstmnt"'
 \C 'Top Statements'
-SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",total_time::bigint/calls "Avg.ExecTime","Avg.Reads","C.Hit%" 
-,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM 
-(select query "Statement",total_time::bigint
-, round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
-,total_time::bigint/calls, DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) as avgtrank
-,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY total_time::bigint/calls DESC) ranksum
+ SELECT DENSE_RANK() OVER (ORDER BY ranksum) "Rank", "Statement",time_pct "DB.time%", calls "Execs",round((total_time/calls)::numeric,2) "Avg.ExecTime","Avg.Reads","C.Hit%"
+,"Avg.Dirty","Avg.Write","Avg.Temp(r)","Avg.Temp(w)" FROM
+(select query "Statement",total_time
+,round((100*total_time/sum(total_time) OVER ())::numeric,2) AS time_pct, DENSE_RANK() OVER (ORDER BY total_time DESC) AS tottrank,calls
+,round((total_time/calls)::numeric,2), DENSE_RANK() OVER (ORDER BY round((total_time/calls)::numeric,2) DESC) as avgtrank
+,DENSE_RANK() OVER (ORDER BY total_time DESC)+DENSE_RANK() OVER (ORDER BY round((total_time/calls)::numeric,2) DESC) ranksum
 ,shared_blks_read/calls "Avg.Reads",
 shared_blks_dirtied/calls "Avg.Dirty",
 shared_blks_written/calls "Avg.Write",
@@ -532,27 +519,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     (WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_get_index GROUP BY indrelid)
     SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk)))
     FROM pg_get_class c LEFT JOIN pkuk ON pkuk.indrelid = c.reloid WHERE c.relkind IN ('r')) nokey,
-   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),count(*))) FROM pg_get_rel) meta
+   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta
 ) r;
 
 \echo ver="32";
 \echo docurl="https://jobinau.github.io/pg_gather/";
 \echo meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo let eventMaps;
-\echo async function fetchJsonWithTimeout(url, timeout) {
-\echo     const controller = new AbortController();
-\echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
-\echo     try {
-\echo         const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
-\echo         clearTimeout(timeoutId);
-\echo         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
-\echo         else return await response.json();
-\echo     } catch (error) {
-\echo         clearTimeout(timeoutId);
-\echo         if (error.name === "AbortError")  throw new Error("Request timed out");
-\echo         else throw error;
-\echo     }
-\echo }
+\echo let colorMaps = new Map([["Activity","#00EE00"],["BufferPin","#8B0000"],["Client","#999999"],["CPU","#00CC00"],["Extension","#6B4226"],["IO","#0000CC"],["IPC","#FF9900"],["LWLock","#8B0000"],["Lock","#FF0000"],["Timeout","#FF00FF"]]);
 \echo mgrver="";
 \echo datadir="";
 \echo autovacuum_freeze_max_age = 0;
@@ -567,11 +541,39 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo let params = []
 \echo const canvas=document.createElement("canvas");
 \echo const canvascontext=canvas.getContext("2d");
+\echo async function fetchJsonWithTimeout(url, timeout) {
+\echo     const controller = new AbortController();
+\echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
+\echo     try {
+\echo         const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
+\echo         clearTimeout(timeoutId);
+\echo         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
+\echo         else return await response.json();
+\echo     } catch (error) {
+\echo         clearTimeout(timeoutId);
+\echo         if (error.name === "AbortError")  throw new Error("Request timed out");
+\echo         else throw error;
+\echo     }
+\echo }
+\echo async function fetchWithTimeout(url, timeout) {
+\echo     const controller = new AbortController();
+\echo     const timeoutId = setTimeout(() => controller.abort(), timeout);
+\echo     try {
+\echo         const response = await fetch(url + "?_=" + new Date().getDate(), { signal: controller.signal });
+\echo         clearTimeout(timeoutId);
+\echo         if (!response.ok)  throw new Error("HTTP error! status:" + response.status );
+\echo         else return await response;
+\echo     } catch (error) {
+\echo         clearTimeout(timeoutId);
+\echo         if (error.name === "AbortError")  throw new Error("Request timed out");
+\echo         else throw error;
+\echo     }
+\echo }
 \echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 \echo async function doAllChecks(){
 \echo   await fetchJsonWithTimeout(docurl + "meta.json",500).then(data => { meta = data; })
 \echo   .catch(error => { console.error("Error fetching JSON:", error); });
-\echo   try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 500));}
+\echo   try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 5000));}
 \echo   catch (error) { console.error("Error fetching wait events JSON:", error); eventMaps = new Map(); }
 \echo   console.log("Starting all checks");
 \echo   afterRenderingComplete(() => {  console.log("This runs after the current rendering is complete."); 
@@ -669,9 +671,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  let tmpstr = "";
 \echo  if (obj.sess.f7 < 4){ 
 \echo   strfind += "<li><b>The pg_gather data is collected by a user who don't have necessary privilege OR Content of the output file (out.txt) is copy-pasted destroying the TSV format</b><br/><b>1.</b>Please run the gather.sql as a privileged user (superuser, rds_superuser etc.) or some account with pg_monitor privilege and <b>2.</b> Please provide the output file as it is without copy-pasting</li>"
-\echo   document.getElementById("tableConten").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper privilege OR content of output file is copy-pasted. Please refer the Findings section";
-\echo   document.getElementById("tableConten").caption.innerHTML += "<br/>" + document.getElementById("tableConten").title
-\echo   document.getElementById("tableConten").classList.add("high");
+\echo   document.getElementById("tblDBTime").title="Waitevents data will be growsly incorrect because the pg_gather data is collected by a user who don't have proper privilege OR content of output file is copy-pasted. Please refer the Findings section";
+\echo   document.getElementById("tblDBTime").caption.innerHTML += "<br/>" + document.getElementById("tblDBTime").title
+\echo   document.getElementById("tblDBTime").classList.add("high");
 \echo  }
 \echo  if (obj.sess.f2 > 0) strfind += "<li><b>Found " + obj.sess.f2 + " session(s) in idle-in-transaction state</b>. This can cause poor concurrency. Details in <a href=#tblsess>Sessions</a> section. Consider improving the application code and design</li>";
 \echo  if (obj.cn.f1 > 0){
@@ -706,7 +708,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo    }
 \echo    if (tmpstr.length > 100 ){
 \echo     strfind += "<li>" + tmpstr + "</li>"
-\echo     document.getElementById("tableConten").tFoot.children[0].children[0].innerHTML += tmpstr
+\echo     document.getElementById("tblDBTime").tFoot.children[0].children[0].innerHTML += "<br/>" + tmpstr
 \echo    }
 \echo   }
 \echo  }
@@ -735,7 +737,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      else strfind += "</li>" }
 \echo   if ( obj.clas.f3 > 50000 ) strfind += "<li>Currently <b>OID of pg_class stands at " + Number(obj.clas.f3).toLocaleString("en-US") + "</b>. indicating the usage of temporary tables / High DDL activity </li>";
 \echo   if (obj.meta.f1 > 15728640){
-\echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f2 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
+\echo     strfind += "<li>" + "The catalog metadata is :<b>" + bytesToSize(obj.meta.f1) + " For " + obj.meta.f3 + " objects. </b><a href='"+ docurl +"catalogbloat.html'> Details<a></li>"
 \echo   }
 \echo   if (obj.tbsp !== null && obj.tbsp.length > 0){
 \echo     const result=obj.tbsp.map(function(item) { return item.tsname + ": " + item.location;}).join(", ");
@@ -891,6 +893,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       val.title="bgwriter_lru_maxpages is too low. Increase this to :" + param["suggest"];
 \echo     }
 \echo   },
+\echo   checkpoint_completion_target: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText < 0.7) { val.classList.add("warn"); val.title="Low checkpoint_completion_target can cause I/O spikes during checkpoints" ;
+\echo       let param = params.find(p => p.param === "checkpoint_completion_target");
+\echo       param["suggest"] = "0.9";
+\echo     }
+\echo   },
 \echo   checkpoint_timeout: function(rowref){
 \echo     val=rowref.cells[1];
 \echo     if(val.innerText < 1200) { val.classList.add("warn"); val.title="Too small gap between checkpoints"
@@ -939,6 +948,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let param = params.find(p => p.param === "jit");
 \echo     param["suggest"] = "off";
 \echo   }},
+\echo   log_hostname: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if (val.innerText == "on"){
+\echo     let param = params.find(p => p.param === "log_hostname");
+\echo     val.classList.add("warn"); val.title="Unless you are particular about logging the hostnames, better to turn this off to avoid DNS lookup overhead";
+\echo     param["suggest"] = "off";
+\echo     }},
 \echo   log_temp_files: function(rowref){
 \echo     val = val=rowref.cells[1];
 \echo     let param = params.find(p => p.param === "log_temp_files");
@@ -1064,7 +1080,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo         if (Math.trunc(setval) == Math.trunc(t)){
 \echo           if (t.split(".")[1] - setval.split(".")[1] > 0 ) { val.classList.add("warn"); val.title = t.split(".")[1] - setval.split(".")[1] + " Pending minor version udpate(s)."; 
 \echo            sver_ver["warn"] = "PostgreSQL <b>Version"+ val.innerText +"." + "</b>";
-\echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + "</b> <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">Understand the risk</a>";
+\echo            if (val.title.length > 0) sver_ver["warn"] += " <b>IMPORTANT: " + val.title + " Database is out of all major compliances and under <a href=https://why-upgrade.depesz.com/show?from="+setval+"&to="+t+">high risk</b></a>";
 \echo           }
 \echo         }
 \echo       })  
@@ -1108,9 +1124,25 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       tmout["suggest"] = "'4h'";
 \echo     }
 \echo   },
+\echo   synchronous_commit: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "synchronous_commit");
+\echo     let syncStnby = params.find(p => p.param === "synchronous_standby_names")
+\echo     if (val.innerText == "on" && syncStnby !== undefined && syncStnby.val.trim().length > 0){
+\echo       val.classList.remove("lime");
+\echo       val.classList.add("warn"); 
+\echo       val.title="synchronous_standby_names is set with synchronous_commit=on, resulting globally synchronous mode. This can cause session hangs, temporary stalls and poor performance. Allow specific sessions or transaction to opt-in for synchronous commit";
+\echo       param["suggest"] = "local";
+\echo     } else val.classList.add("lime");
+\echo    },
 \echo   synchronous_standby_names: function(rowref){
 \echo     val=rowref.cells[1];
-\echo     if (val.innerText.trim().length > 0){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; }
+\echo     let syncCommit = params.find(p => p.param === "synchronous_commit") 
+\echo     if (val.innerText.trim().length > 0 && syncCommit.val == "on"){ val.classList.add("warn"); val.title="Synchronous Standby can cause session hangs, and poor performance"; 
+\echo       let param = params.find(p => p.param === "synchronous_standby_names");
+\echo       param["warn"] = "<b>synchronous_standby_names</b> is set and <b>synchronous_commit=on</b>, resulting globally synchronous mode. This can cause session hangs, temporary stalls and poor performance.<br/> Consider using asynchronous replication only if its unavoidable and with a limited scope. <a href='"+ docurl +"params/synchronous_standby_names.html'> Details<a>";
+\echo       evalParam("synchronous_commit"); 
+\echo     }
 \echo   },
 \echo   track_io_timing: function(rowref){
 \echo     val=rowref.cells[1];
@@ -1187,6 +1219,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       param["suggest"] = "'1min'";
 \echo     }
 \echo   },
+\echo   zero_damaged_pages: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "zero_damaged_pages");
+\echo     if(val.innerText == "on") { val.classList.add("warn"); val.title="zero_damaged_pages should be off to avoid data corruption going unnoticed";
+\echo       param["suggest"] = "off";
+\echo       param["warn"] = "<b>zero_damaged_pages is 'on'</b>. This setting can lead to silent data loss by replacing corrupted pages with zeroed pages. It is strongly recommended to set this parameter to 'off' to ensure data integrity.";
+\echo     }
+\echo     }, 
 \echo   default : function(rowref) {} 
 \echo };
 \echo var evalParam = function(param,rowref = null) {
@@ -1217,6 +1257,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
 \echo   let bloatTabTot = 0;
+\echo   let TotTabIndSize=0;
 \echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","No. Live Rows/Tuples","No. Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
 \echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","Age of main relation","","","Number of Vacuums per day","","Size of TOAST and its index",
 \echo    "Age of TOAST","Age of Table & TOAST","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
@@ -1228,6 +1269,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if( TabIndSize > 2*TotTabSize && TotTabSize > 2000000 ){ TabInd.classList.add("warn"); TabInd.title="Indexes of : " + bytesToSize(TabIndSize-TotTabSize) + " is " + ((TabIndSize-TotTabSize)/TotTabSize).toFixed(2) + "x of Table " + bytesToSize(TotTabSize) + "\n Total : " + bytesToSize(TabIndSize)
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
+\echo     TotTabIndSize += Number(TabIndSize);
 \echo     if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
 \echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
 \echo     if (tr.cells[15].innerText > 10000) { 
@@ -1245,6 +1287,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       else if (tr.cells[19].innerText < 70) tr.cells[19].classList.add("lime");
 \echo      }
 \echo   }
+\echo   var el=document.createElement("tfoot");
+\echo   el.innerHTML = "<th colspan=6> Total Bloat = </th><th></th><th colspan=3> Total Size = "+ bytesToSize(TotTabIndSize) +" </th><th colspan=11></th>";
+\echo   tab.appendChild(el);
 \echo const endTime = new Date().getTime();
 \echo obj.tabs.bloatTabNum = bloatTabTot;
 \echo console.log("time taken for checktabs :" + (endTime - startTime));
@@ -1272,24 +1317,30 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   setTitles(trs[0],["Database Name","","Avg. No. of commits per day","Avg. No. of Aborts/Rollbacks per day","Avg. DML Operations per day","Cache Hit Ratio (%)","Avg. No. Temp files generated per day","Avg Temp File Size in bytes per day","Database size in bytes","Age of unfrozen tuples in database"]);
 \echo   for(var i=1;i<len;i++){
 \echo     tr=trs[i];
-\echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1) tr.cells[0].classList.add("lime");
+\echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1){ 
+\echo       tr.cells[0].classList.add("lime");
+\echo       if (obj.meta.f2 < tr.cells[8].innerText){
+\echo          strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(tr.cells[8].innerText) + "</b>. This possibly indicates orphaned objects. <a href='"+ docurl +"orphanfiles.html'> Details<a></li>"
+\echo           tr.cells[8].classList.add("high"); tr.cells[8].title="Database size mismatch. Size of all objects is " + bytesToSize(obj.meta.f2) + ", but database size is " + bytesToSize(tr.cells[8].innerText) ;
+\echo          }
+\echo     }
 \echo     if(tr.cells[3].innerHTML > 4000){ tr.cells[3].classList.add("warn"); tr.cells[3].title = "High number of transaction aborts/rollbacks. Please inspect PostgreSQL logs"; 
 \echo      aborts.push(tr.cells[0].innerHTML)
 \echo      }
-\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); tr.cells[num].title=bytesToSize(tr.cells[num].innerText) } });
+\echo     [7,8].forEach(function(num) {  if (tr.cells[num].innerText > 1048576) { if(tr.cells[num].classList.length < 1) tr.cells[num].classList.add("lime"); } });
 \echo     if(tr.cells[7].innerHTML > 50000000000) {  
 \echo       tr.cells[7].classList.remove("lime"); tr.cells[7].classList.add("warn"); 
-\echo       let str = " temp file generation per day!. It can cause I/O performance issues." 
+\echo       let str = " temp file generation per day!. This can cause I/O performance issues. " 
 \echo       let param = params.find(p => p.param === "log_temp_files");
 \echo       if ( param && param["val"] == -1 ) { 
 \echo         param["suggest"] = "'100MB'"; 
 \echo         str += "Consider setting log_temp_files=" + param["suggest"] + " to collect the problematic SQL statements to PostgreSQL logs";
 \echo       }else{
-\echo         str += "log_temp_files is already enabled, Analyze the PostgreSQL logs to check the problematic SQL statements";
+\echo         str += "log_temp_files is already enabled. Analyze the PostgreSQL logs to check the problematic SQL statements";
 \echo       }
 \echo       evalParam("log_temp_files");
 \echo       if (strtmp != "") strtmp+= ","
-\echo       strtmp +=  tr.cells[7].title +"/day on "+tr.cells[0].innerHTML; 
+\echo       strtmp +=  bytesToSize(tr.cells[7].innerText) +"/day on "+tr.cells[0].innerHTML; 
 \echo       tr.cells[7].title += str;
 \echo     }
 \echo     totdb=totdb+Number(tr.cells[8].innerText);
@@ -1339,7 +1390,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   tab=document.getElementById("tblhba");
 \echo   tab.caption.innerHTML="<span>HBA rules</span> analysis for security"
 \echo   const trs=tab.rows
-\echo   let shadowed=0;
+\echo   let shadowed=0,errs=0;
 \echo   for (var i=1;i<trs.length;i++){
 \echo     tr=trs[i];
 \echo     if (!["::1","127.0.0.1","","samehost"].includes(tr.cells[4].innerText.trim()) && tr.cells[8].innerText.trim() != "reject" ){
@@ -1361,6 +1412,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo           tr.cells[4].title="Avoid allowing connetions from all addresses"
 \echo       } else tr.cells[4].classList.add("lime")
 \echo     }
+\echo     if (tr.cells[9].innerText.trim() != ""){
+\echo       tr.cells[9].classList.add("high");
+\echo       tr.title="Error in this rule. " + tr.cells[9].innerText.trim();
+\echo       errs++;
+\echo     }
 \echo     if(tr.cells[11].innerText.trim() != ""){
 \echo       tr.cells[11].classList.add("warn");
 \echo       tr.cells[0].classList.add("high");
@@ -1368,7 +1424,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       shadowed++;
 \echo     }
 \echo   }
-\echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules carfully and remove the shadowed ones</li>";
+\echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules for pg_hba carfully and remove the shadowed ones. Refer <a href=#tblhba>HBA rules</a> section</li>";
+\echo   if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
 \echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
@@ -1387,6 +1444,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },50);
 \echo })));
 \echo function dbsdtls(e){
+\echo   let td = e.target;
 \echo   if (e.target.matches("tr td:first-child")){
 \echo   th = e.target.parentNode;  
 \echo   let o=th.cells[1].innerText.split(",");
@@ -1395,7 +1453,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
 \echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
 \echo    + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
-\echo   }
+\echo   }else{
+\echo if (td.tagName == "TH") return "";
+\echo let thIndex = td.cellIndex;
+\echo let thVal = td.innerText;
+\echo if ([2, 3, 4, 6, 9].includes(thIndex)) return formatNumber(thVal);
+\echo else if ([7,8].includes(thIndex)) return bytesToSize(thVal) + "<br>" + td.title.replaceAll(". ", ".<br>");
+\echo else return "";
+\echo }
 \echo }
 \echo function tabInfodtls(e){
 \echo   let td = e.target;
@@ -1434,21 +1499,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   }}
 \echo   return "<b>" + tr.cells[0].innerText + "</b><c>OID : " + o[0] + "</c><c>Schema : " + ns.nsname + "</c>" + str;
 \echo }else{
-\echo  let tdSiblings = Array.from(tr.querySelectorAll("td"));
-\echo  let thIndex = tdSiblings.indexOf(td);
-\echo  switch (thIndex) {
-\echo  case 7:
-\echo  case 8:
-\echo  case 9:
-\echo  case 15:
-\echo    return bytesToSize(tr.cells[thIndex].innerText);
-\echo  case 10:
-\echo  case 16:
-\echo  case 17:
-\echo   return formatNumber(tr.cells[thIndex].innerText)
-\echo  default:
-\echo    return "";
-\echo  }
+\echo if (td.tagName == "TH") return "";
+\echo let thIndex = td.cellIndex;
+\echo let thVal = td.innerText;
+\echo if ([7, 8, 9, 15].includes(thIndex)) return bytesToSize(thVal);
+\echo else if ([4, 10, 16, 17].includes(thIndex)) return formatNumber(thVal);
+\echo else return "";
 \echo }
 \echo }
 \echo function tblsessdtls(e){
@@ -1489,11 +1545,41 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str
 \echo } else return "No connections"
 \echo }}
-\echo function tableContendtls(e){
+\echo /*
+\echo async function tblDBTimedtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
-\echo   th = e.target.parentNode;  
-\echo   let str= "Wait Event information ";
-\echo   return str;
+\echo   td = e.target;
+\echo   const htmlString = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000)
+\echo     .then(res => res.text())
+\echo     .then(htmlString => {
+\echo       if (td.matches(":hover"))
+\echo         td.appendChild(genPopup( htmlString + "<h4><a href="+ docurl + "events/" + td.innerText.toUpperCase() +">🔗</a><h4>") );
+\echo     })
+\echo     .catch(error => {
+\echo       console.error("Error fetching wait events", error);
+\echo     });
+\echo     return;
+\echo   }
+\echo }*/
+\echo let hoverTimer;
+\echo async function tblDBTimedtls(e) {
+\echo   if (e.target.matches("tr td:first-child")) {
+\echo     const td = e.target;
+\echo     clearTimeout(hoverTimer);
+\echo     hoverTimer = setTimeout(async () => {
+\echo       if (!td.matches(":hover")) return;
+\echo       try {
+\echo         const response = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000);
+\echo         const htmlString = await response.text();
+\echo         if (td.matches(":hover")) {
+\echo           const popupContent = htmlString + "<h4><a href=" + docurl + "events/" + td.innerText.toUpperCase() + ">🔗</a><h4>";
+\echo           td.appendChild(genPopup(popupContent));
+\echo         }
+\echo       } catch (error) {
+\echo         console.error("Error fetching wait events", error);
+\echo       }
+\echo     }, 500); 
+\echo     td.addEventListener("mouseleave", () => clearTimeout(hoverTimer), { once: true });
 \echo   }
 \echo }
 \echo function tabPartdtls(e){
@@ -1525,6 +1611,24 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     else return "";
 \echo   }
 \echo }
+\echo function genPopup(str){
+\echo       var el = document.createElement("div");
+\echo       el.setAttribute("id", "dtls");
+\echo       el.setAttribute("align", "left");
+\echo       el.style.cssText += "left: 100%; top: 80%; margin-left: -4px;";
+\echo       /*if (td.align != "left") {
+\echo         el.style.cssText += "left: 100%; top: 80%";
+\echo       } else {
+\echo         computedStyle=window.getComputedStyle(td);
+\echo         canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
+\echo         el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
+\echo       }*/
+\echo       el.addEventListener("mouseleave", (event) => {
+\echo       if (!el.parentNode.contains(event.relatedTarget)) el.remove();
+\echo       })
+\echo       el.innerHTML= str;
+\echo       return el;
+\echo }
 \echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
 \echo     let str = ""
@@ -1533,22 +1637,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     if (typeof window[e.currentTarget.id + "dtls"] === "function") {
 \echo      str = window[e.currentTarget.id + "dtls"](e);  
 \echo     } 
-\echo     if ( str ) {
-\echo       var el = document.createElement("div");
-\echo       el.setAttribute("id", "dtls");
-\echo       el.setAttribute("align", "left");
-\echo       if (td.align != "left") {
-\echo         el.style.cssText += "left: 100%; top: 80%";
-\echo       } else {
-\echo         computedStyle=window.getComputedStyle(td);
-\echo         canvascontext.font = computedStyle.fontStyle + " " + computedStyle.fontWeight + " " + computedStyle.fontSize + " " + computedStyle.fontFamily;
-\echo         el.style.left=canvascontext.measureText(td.textContent).width+8+"px";
-\echo       }
-\echo       el.addEventListener("mouseleave", (event) => {
-\echo       if (!td.contains(event.relatedTarget)) el.remove();
-\echo       })
-\echo       el.innerHTML= str;
-\echo       td.appendChild(el); 
+\echo     if ( str && typeof(str) == "string" ) {
+\echo       td.appendChild(genPopup(str)); 
 \echo     }
 \echo   }, true);
 \echo   table.addEventListener("dblclick", function(event) {
@@ -1592,20 +1682,44 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo }
 \echo function checkdbtime(){
-\echo tab=document.getElementById("tableConten")
+\echo tab=document.getElementById("tblDBTime")
 \echo tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 \echo trs=tab.rows;
+\echo let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0}; 
 \echo let tempstr=""
+\echo let newElement;
 \echo if (trs.length > 1){ 
 \echo   maxevnt=Number(trs[1].cells[2].innerText);
 \echo   for (let tr of trs) {
+\echo    if (tr.rowIndex === 0) continue;
 \echo    evnts=tr.cells[2];
-\echo    if (evnts.innerText*1500/maxevnt > 1){ evnts.innerHTML += "<div class=bar></div>"; evnts.children[0].style.width = (evnts.innerText*1500/maxevnt).toFixed(1) + "px"; }
+\echo    counters[eventMaps.get(tr.cells[0].innerText.toUpperCase())] += evnts.innerText*1;
+\echo    if (evnts.innerText*1500/maxevnt > 1){ 
+\echo     const newBar = document.createElement("div"); 
+\echo     newBar.className = "bar";  
+\echo     newBar.style.width = (evnts.innerText * 1500 / maxevnt).toFixed(1) + "px"; 
+\echo     newBar.style.borderColor = colorMaps.get(eventMaps.get(tr.cells[0].innerText.toUpperCase()));
+\echo     evnts.appendChild(newBar);
+\echo   }
 \echo    if (tr.cells[0].innerText == "CPU" && evnts.innerText > 100)   tempstr = "CPU usage is equivalent to " + (evnts.innerText*1.2/2000).toFixed(1) + " CPU cores (approx). "
 \echo   }
-\echo   el=document.createElement("tfoot");
-\echo   el.innerHTML = "<th colspan='2'>"+ tempstr +" </th>";
-\echo   tab.appendChild(el);
+\echo   const totalEvents = Object.values(counters).reduce((sum, count) => sum + count, 0);  
+\echo   /*** BEGIN : Footer section creation ***/
+\echo   tf=document.createElement("tfoot");
+\echo   tf.innerHTML = "<tr><th colspan='2'>"+ tempstr +" </th></tr>";
+\echo   th=tf.children[0].children[0];
+\echo   th.innerHTML += "<div style=max-width:800px;margin:auto;background-color:white><h3>Wait-Event Catagory Chart</h3><div class=bar-chart></div></div>";
+\echo   let chartDiv=th.children[0].children[1];
+\echo   /**** Create vertical bars for each wait-event catagory as single html text. Then add it to "bar-chart" area created above ***/
+\echo   let htmlContent = "";
+\echo   for (const [key, value] of Object.entries(counters)) {
+\echo     if (value > 0){
+\echo       let percentage = Math.round((totalEvents > 0) ? ((value / totalEvents) * 100) : 0);
+\echo       htmlContent += "<div class=bar-group><div class=vbar style=height:" + percentage +"%;background-color:"+ colorMaps.get(key) +"><span>" + percentage + "%</span></div><div class=bar-label>" + key + "</div></div>"
+\echo     }
+\echo   }
+\echo   chartDiv.innerHTML = htmlContent; 
+\echo   tab.appendChild(tf); 
 \echo }else {
 \echo   tab.tBodies[0].innerHTML="No Wait Event information or CPU usage information is available, Probably the PostgreSQL is completely idle or data collection failed"
 \echo }
@@ -1684,7 +1798,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if(tr.cells[11].innerText > 50){
 \echo     tr.cells[11].classList.add("high"); tr.cells[11].title="Checkpointer is taking high load of cleaning dirty buffers";
 \echo   }
-\echo   if(tr.cells[13].innerText > tr.cells[12].innerText){  
+\echo   if(tr.cells[13].innerText > tr.cells[12].innerText && tr.cells[13].innerText > 20 ){  
 \echo     tr.cells[12].classList.add("high"); tr.cells[12].title="Bgwriter should be cleaning more pages than backends.";
 \echo     if (tr.cells[13].innerText > 30){ tr.cells[13].classList.add("high"); tr.cells[13].title="too many dirty pages cleaned by backends"; 
 \echo     strfind += "<li>High <b>memory pressure</b>. Consider increasing RAM and shared_buffers</li>"; }  
@@ -1748,7 +1862,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      }
 \echo     });
 \echo     [14,15].forEach(function(num){  if(row.cells[num].innerText > 20) row.cells[num].classList.add("warn"); });
-\echo     if (row.cells[13].innerText == "f" || row.cells[2].innerText == "") {
+\echo     if ((obj.primary && (row.cells[13].innerText == "f" || row.cells[2].innerText == "")) || (!obj.primary && row.cells[13].innerText == "f" && row.cells[14].innerText > 1000 )) {
 \echo       row.cells[8].classList.add("high");
 \echo       row.cells[8].title="Abandoned replication slot";
 \echo       document.getElementById("finditem").innerHTML += "<li> Abandoned replication slot : <b>" +  row.cells[8].innerText + "</b> found. This can cause unwanted WAL retention" ;
