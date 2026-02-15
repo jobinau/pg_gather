@@ -87,34 +87,46 @@ CREATE UNLOGGED TABLE history.pg_get_db (
     stats_reset timestamp with time zone
 );
 
-CREATE UNLOGGED TABLE history.pg_get_block (
-    collect_ts timestamp with time zone,
-    blocked_pid integer,
-    blocked_user text,
-    blocked_client_addr text,
-    blocked_client_hostname text,
-    blocked_application_name text,
-    blocked_wait_event_type text,
-    blocked_wait_event text,
-    blocked_statement text,
-    blocked_xact_start timestamp with time zone,
-    blocking_pid integer,
-    blocking_user text,
-    blocking_user_addr text,
-    blocking_client_hostname text,
-    blocking_application_name text,
-    blocking_wait_event_type text,
-    blocking_wait_event text,
-    statement_in_blocking_process text,
-    blocking_xact_start timestamp with time zone
+CREATE UNLOGGED TABLE history.pg_get_rel (
+    relid oid,
+    relnamespace oid,
+    blks bigint,
+    n_live_tup bigint,
+    n_dead_tup bigint,
+    n_tup_ins bigint,
+    n_tup_upd bigint,
+    n_tup_del bigint,
+    n_tup_hot_upd bigint,
+    rel_size bigint,
+    tot_tab_size bigint,
+    tab_ind_size bigint,
+    rel_age bigint,
+    last_vac timestamp with time zone,
+    last_anlyze timestamp with time zone,
+    vac_nos bigint,
+    lastuse timestamp with time zone,
+    dpart char COLLATE "C"
 );
 
+CREATE UNLOGGED TABLE history.pg_get_index (
+    collect_ts timestamp with time zone,
+    indexrelid oid,
+    indrelid oid,
+    indisunique boolean,
+    indisprimary boolean,
+    indisvalid boolean,
+    numscans bigint,
+    size bigint,
+    lastuse timestamp with time zone
+);
 
 CREATE UNLOGGED TABLE history.pg_get_pidblock(
   collect_ts timestamp with time zone,
   victim_pid int,
   blocking_pids int[]
 );
+
+
 
 CREATE UNLOGGED TABLE history.pg_replication_stat (
     collect_ts timestamp with time zone,

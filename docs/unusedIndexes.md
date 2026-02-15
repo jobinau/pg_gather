@@ -45,3 +45,58 @@ i.indisunique, i.indisprimary,pg_stat_user_indexes.idx_scan "Index usage", tstin
     LEFT JOIN pg_class tst ON t.reltoastrelid = tst.oid
     LEFT JOIN pg_stat_all_indexes tstind ON tst.oid = tstind.relid;
 ```
+
+## Unused Index in a Cluster
+Indexes which are not used on Primary might be used on Standbies / Replicas.
+pg_gather history schema can be used for conducting a detailed study.
+Following steps can be performed on the database where final analysis and report generation is done.
+### Step 1. Create history schema, if not existing
+```
+psql -f 
+```
+### Step 2. Import/download the data collection from standby (Just like single instance)
+```
+psql -X -f gather_schema.sql -f standby1.tsv
+```
+
+### Step 3. MERGE the index information to the history schema
+```SQL
+MERGE INTO history.pg_get_index AS target
+USING pg_get_index AS source
+ON target.indexrelid = source.indexrelid
+WHEN MATCHED THEN
+    UPDATE SET
+        lastuse = GREATEST(source.lastuse, target.lastuse),
+        numscans = COALESCE(target.numscans, 0) + COALESCE(source.numscans, 0),
+        collect_ts = NOW()
+WHEN NOT MATCHED THEN
+    INSERT (collect_ts, indexrelid, indrelid, indisunique, indisprimary, indisvalid, numscans, size, lastuse)
+    VALUES ( NOW(), source.indexrelid, source.indrelid, source.indisunique, source.indisprimary, source.indisvalid,
+        COALESCE(source.numscans, 0), source.size,    source.lastuse
+    );
+```
+### Step 4. Do steps 2 and 3 for every standby.
+
+### Step 5. Import/Download the data collection from Primary (Just like single instance)
+```
+psql -X -f gather_schema.sql -f primary.tsv
+```
+### Step 6. MERGE the index information from history schema back
+```SQL
+MERGE INTO pg_get_index AS target
+USING history.pg_get_index AS source
+ON target.indexrelid = source.indexrelid
+WHEN MATCHED THEN
+    UPDATE SET
+        numscans = COALESCE(target.numscans, 0) + COALESCE(source.numscans, 0),
+        lastuse = GREATEST(source.lastuse, target.lastuse)
+WHEN NOT MATCHED THEN
+    INSERT ( indexrelid, indrelid, indisunique, indisprimary, indisvalid, numscans, size, lastuse )
+    VALUES ( source.indexrelid, source.indrelid, source.indisunique, source.indisprimary, source.indisvalid, 
+    COALESCE(source.numscans, 0), source.size, source.lastuse
+    );
+```
+### Step 7. Generate the pg_gather report as usual
+```
+psql -X -f gather_report.sql > out.html
+```
