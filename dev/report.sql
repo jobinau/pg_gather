@@ -538,6 +538,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo totCPU=4; 
 \echo totMem=8; 
 \echo wrkld="";
+\echo let trnsTimout=900;
 \echo flsys= "";
 \echo let blokers = []
 \echo let blkvictims = []
@@ -785,6 +786,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   totCPU = document.getElementById("cpus").value;
 \echo   wrkld = document.getElementById("wrkld").value;
 \echo   flsys = document.getElementById("flsys").value;
+\echo   trnsTimout = (wrkld === "oltp") ? 900 :
+\echo             (wrkld === "olap") ? 18000 :
+\echo             (wrkld === "mixed") ? 3600 : 900;
 \echo   checkpars();
 \echo   let reccomandations = document.getElementById("paramtune").children[1];
 \echo   let reccos = "";
@@ -859,9 +863,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   archive_command : function(rowref) {
 \echo     val=rowref.cells[1];
 \echo     if (obj.params !== null && obj.params.f1 !== null && obj.params.f1.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
-\echo     else if (val.innerText.includes("barman")){ strfind += "<li><b>Use of Barman is detected</b>. Please be aware of the possible risks, if <code>rsync</code> is used as backup_method. <a href='"+ docurl +"barman.html'> Details<a></li>"; }
+\echo     else if (val.innerText.includes("barman")){ val.title = "<b>Use of Barman is detected</b>. Please be aware of the possible risks, if <code>rsync</code> is used as backup_method. <a href='"+ docurl +"barman.html'> Details<a>"; }
 \echo     else if (val.innerText.includes("cp ") || val.innerText.includes("rsync ")) { val.classList.add("warn"); strfind +="<li><b>Use of 'cp'/'rsync' command is detected in archive_commnad</b>, which is highly discouraged. Please use reliable backup tools for WAL archiving.<a href='"+ docurl +"cp.html'> Details<a></li></li>" }
 \echo     else if (val.innerText.length < 5) {val.classList.add("warn"); val.title="A valid archive_command is expected for WAL archiving, unless archive library is used" ; }
+\echo     if (val.title.length > 0) { strfind += "<li>" + val.title + "</li>"; }
 \echo   },
 \echo   autovacuum : function(rowref) {
 \echo     val=rowref.cells[1];
@@ -909,6 +914,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       let param = params.find(p => p.param === "checkpoint_timeout");
 \echo       param["suggest"] = "1800";
 \echo     }
+\echo   },
+\echo   client_connection_check_interval :function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "client_connection_check_interval");
+\echo     param["suggest"] = "'" + trnsTimout/60 + "s'";
+\echo     if(val.innerText == 0) { val.classList.add("warn"); val.title="It is highly recommended to set this to a value between 10 and 60 seconds to detect dead connections and prevent connection pool exhaustion" ;}
 \echo   },
 \echo   data_directory: function(rowref){
 \echo     datadir=val.innerText;
@@ -1120,11 +1131,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   },
 \echo   statement_timeout : function(rowref){
 \echo     val=rowref.cells[1];
-\echo     if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.indexOf("/") < 0 ){
-\echo       rowref.cells[3].innerText= "default"; val.innerText="0";
-\echo       val.classList.add("warn"); val.title="It is important to set a value globally to avoid long running sessions and associated problems"
+\echo     if( val.innerText == 0 ){
 \echo       let tmout = params.find(p => p.param === "statement_timeout");
-\echo       tmout["suggest"] = "'4h'";
+\echo       tmout["suggest"] = "'" + Math.round(trnsTimout / 2) + "s'";
+\echo       val.classList.add("warn"); val.title="It is important to set a value globally to avoid long running sessions and associated problems. Please see the the parameter recommendation section"
 \echo     }
 \echo   },
 \echo   synchronous_commit: function(rowref){
@@ -1154,6 +1164,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       let param = params.find(p => p.param === "track_io_timing");
 \echo       param["suggest"] = "on";
 \echo     }
+\echo   },
+\echo   transaction_timeout: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "transaction_timeout");
+\echo     param["suggest"] = "'" + trnsTimout + "s'";
+\echo     if(val.innerText == 0) { val.classList.add("warn"); val.title="Avoid disabling transaction_timeout to prevent hangs, sometimes cascaded hangs";}
 \echo   },
 \echo   wal_compression: function(rowref){
 \echo     val=rowref.cells[1]; val.classList.add("lime");

@@ -551,6 +551,7 @@ totdb=0; //total DB size
 totCPU=4;  //total number of CPUs, Minimum 4 is assumed, unless modified by the user using the input box in the html
 totMem=8;  //total memory in GB, Minimum 8GB is assumed, unless modified by the user using the input box in the html
 wrkld=""; //workload type (OLTP, OLAP etc.)
+let trnsTimout=900; //transaction timeout value in s, set based on wrkld. Default 15 minutes (OLTP)
 flsys= ""; //filesystem type (rglr vs cow)
 //Prepare the list of blockers and Victims
 let blokers = []
@@ -844,6 +845,9 @@ function getreccomendation(){
   totCPU = document.getElementById("cpus").value;
   wrkld = document.getElementById("wrkld").value;
   flsys = document.getElementById("flsys").value;
+  trnsTimout = (wrkld === "oltp") ? 900 : //15 minutes for OLTP (900s)
+            (wrkld === "olap") ? 18000 : //5 hours for OLAP, 1 hour for Mixed
+            (wrkld === "mixed") ? 3600 : 900; // 1 hour for mixed, 15 minutes default
   checkpars();
   let reccomandations = document.getElementById("paramtune").children[1];
   let reccos = "";
@@ -984,6 +988,12 @@ var paramDespatch = {
       let param = params.find(p => p.param === "checkpoint_timeout");
       param["suggest"] = "1800";
     }
+  },
+  client_connection_check_interval :function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "client_connection_check_interval");
+    param["suggest"] = "'" + trnsTimout/60 + "s'";
+    if(val.innerText == 0) { val.classList.add("warn"); val.title="It is highly recommended to set this to a value between 10 and 60 seconds to detect dead connections and prevent connection pool exhaustion" ;}
   },
   data_directory: function(rowref){
     datadir=val.innerText;
@@ -1195,12 +1205,10 @@ var paramDespatch = {
   },
   statement_timeout : function(rowref){
     val=rowref.cells[1];
-    if(rowref.cells[3].innerText == "session" && rowref.cells[4].innerText.indexOf("/") < 0 ){
-      rowref.cells[3].innerText= "default"; val.innerText="0";
-      val.classList.add("warn"); val.title="It is important to set a value globally to avoid long running sessions and associated problems"
+    if( val.innerText == 0 ){
       let tmout = params.find(p => p.param === "statement_timeout");
-      tmout["suggest"] = "'4h'";
-      //Actual value need to be considering OLTP/OLAP workload
+      tmout["suggest"] = "'" + Math.round(trnsTimout / 2) + "s'";
+      val.classList.add("warn"); val.title="It is important to set a value globally to avoid long running sessions and associated problems. Please see the the parameter recommendation section"
     }
   },
   synchronous_commit: function(rowref){
@@ -1230,6 +1238,12 @@ var paramDespatch = {
       let param = params.find(p => p.param === "track_io_timing");
       param["suggest"] = "on";
     }
+  },
+  transaction_timeout: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "transaction_timeout");
+    param["suggest"] = "'" + trnsTimout + "s'";
+    if(val.innerText == 0) { val.classList.add("warn"); val.title="Avoid disabling transaction_timeout to prevent hangs, sometimes cascaded hangs";}
   },
   wal_compression: function(rowref){
     val=rowref.cells[1]; val.classList.add("lime"); //walcomprz = val.innerText; highlight and update the global variable
