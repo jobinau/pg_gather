@@ -9,7 +9,6 @@ SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 
  ( :SERVER_VERSION_NUM >= 170000 ) AS pg17, ( :SERVER_VERSION_NUM >= 180000 ) AS pg18, ( current_database() != 'template1' ) as fullgather \gset
 
 \set QUIET on
-SET statement_timeout=180000;
 \t on
 \x off
 \a
@@ -108,18 +107,13 @@ FROM pg_database d) TO stdin;
 --Starting fullgather section
 \if :fullgather
 
---Users / Roles, 
-\echo COPY pg_get_roles(oid,rolname,rolsuper,rolreplication,rolconnlimit,enc_method) FROM stdin;
-COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,left(rolpassword,1) enc_method from pg_authid WHERE rolcanlogin) TO stdout;
-\if :ERROR
-COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,NULL FROM pg_roles WHERE rolcanlogin) TO stdout;
-\endif
-\echo '\\.'
-
 --pg_settings
 \echo COPY pg_get_confs (name,setting,unit,source) FROM stdin;
 COPY ( SELECT name,setting,unit,coalesce(sourcefile,source) FROM pg_settings) TO stdin;
 \echo '\\.'
+
+--Set statement_timeout before running any heavier statements 
+SET statement_timeout=180000;
 
 --pg_file_settings
 \echo COPY pg_get_file_confs (sourcefile,name,setting,applied,error) FROM stdin;
@@ -129,6 +123,14 @@ COPY ( SELECT sourcefile,name,setting,applied,error FROM pg_file_settings) TO st
 --pg_db_role_setting
 \echo COPY pg_get_db_role_confs (db,setrole,config) FROM stdin;
 COPY ( SELECT setdatabase,setrole,setconfig FROM pg_db_role_setting) TO stdin;
+\echo '\\.'
+
+--Users / Roles, 
+\echo COPY pg_get_roles(oid,rolname,rolsuper,rolreplication,rolconnlimit,enc_method) FROM stdin;
+COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,left(rolpassword,1) enc_method from pg_authid WHERE rolcanlogin) TO stdout;
+\if :ERROR
+COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,NULL FROM pg_roles WHERE rolcanlogin) TO stdout;
+\endif
 \echo '\\.'
 
 --Major tables and indexes in current db
