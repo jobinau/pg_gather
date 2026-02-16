@@ -6,7 +6,7 @@ Unused indexes cause severe penalties in the system: It slow down DML operations
 
 Following SQL statement can be used against the database where the pg_gather data is imported.
 
-```
+```sql
 SELECT  ns.nsname AS "Schema",ci.relname as "Index", ct.relname AS "Table", ptab.relname "TOAST of Table",
 indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
  FROM pg_get_index i
@@ -21,7 +21,7 @@ indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fe
 
 ## From database 
 Following SQL statement can be used agains the target database 
-```
+```sql
 SELECT n.nspname AS schema,relid::regclass as table, indexrelid::regclass as index, indisunique, indisprimary
     FROM pg_stat_user_indexes
     JOIN pg_index i USING (indexrelid)
@@ -30,7 +30,7 @@ SELECT n.nspname AS schema,relid::regclass as table, indexrelid::regclass as ind
 WHERE idx_scan = 0;
 ```
 OR more detailed (TOAST and TOAST index)
-```
+```sql
 SELECT n.nspname AS schema,t.relname "table", c.relname as index, tst.relname "TOAST",
 tst.oid "TOAST ID 1",
 tstind.relid "TOAST ID 2",
@@ -52,7 +52,7 @@ pg_gather history schema can be used for conducting a detailed study.
 Following steps can be performed on the database where final analysis and report generation is done.
 ### Step 1. Create history schema, if not existing
 ```
-psql -f 
+psql -f history_schema.sql
 ```
 ### Step 2. Import/download the data collection from standby (Just like single instance)
 ```
