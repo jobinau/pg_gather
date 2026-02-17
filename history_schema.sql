@@ -15,7 +15,8 @@ CREATE UNLOGGED TABLE IF NOT EXISTS history.pg_gather (
     timeline int,
     systemid bigint,
     snapshot pg_snapshot,
-    current_wal pg_lsn
+    current_wal pg_lsn,
+    bindir text
 );
 
 
@@ -67,6 +68,8 @@ CREATE UNLOGGED TABLE history.pg_get_db (
     collect_ts timestamp with time zone,
     datid oid,
     datname text,
+    encod text,
+    colat text,
     xact_commit bigint,
     xact_rollback bigint,
     blks_fetch bigint,
@@ -161,12 +164,15 @@ CREATE UNLOGGED TABLE history.pg_get_io(
     obj char(1), -- 'bulkread=R, bulkwrite=W'
     context char(1),
     reads bigint,
+    read_bytes numeric,
     read_time float8,
     writes bigint,
+    write_bytes numeric,
     write_time float8,
     writebacks bigint,
     writeback_time float8,
     extends bigint,
+    extend_bytes numeric,
     extend_time float8,
     op_bytes bigint,
     hits bigint,
