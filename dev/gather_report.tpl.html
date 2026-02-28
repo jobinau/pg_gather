@@ -31,7 +31,7 @@ footer { text-align: center; padding: 3px; background-color:#d2f2ff}
 <% \H
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
-SELECT setting::int >= 170000 AS pg17, setting::int >= 180000 AS pg18 FROM pg_get_confs WHERE name = 'server_version_num' \gset
+SELECT sum(read_bytes) IS NOT NULL AS pg18 FROM pg_get_io \gset
 SELECT min(min) AS reset_ts FROM 
 (SELECT min(stats_reset) FROM pg_get_io
 UNION
@@ -530,12 +530,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 %>
 
 //pg_gather version
-ver="32";
+ver="33";
 //Global object to hold json values passed from the SQL analysis
 //obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
-meta={"pgvers":["14.21","15.16","16.12","17.8","18.2"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+meta={"pgvers":["14.22","15.17","16.13","17.9","18.3"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 let eventMaps; //Global variable to hold wait event mappings
 //CONST Color map for all known wait event categories. Default is brown which is part of CSS
 let colorMaps = new Map([["Activity","#00EE00"],["BufferPin","#8B0000"],["Client","#999999"],["CPU","#00CC00"],["Extension","#6B4226"],["IO","#0000CC"],["IPC","#FF9900"],["LWLock","#8B0000"],["Lock","#FF0000"],["Timeout","#FF00FF"]]);
@@ -1440,7 +1440,7 @@ function checkdbs(){
     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1){ 
       tr.cells[0].classList.add("lime");
       //Database size mismatch check
-      if (obj.meta.f2 < tr.cells[8].innerText){
+      if (obj?.meta?.f2 != null && obj.meta.f2 < tr.cells[8].innerText){
          strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(tr.cells[8].innerText) + "</b>. This possibly indicates orphaned objects. <a href='"+ docurl +"orphanfiles.html'> Details<a></li>"
           tr.cells[8].classList.add("high"); tr.cells[8].title="Database size mismatch. Size of all objects is " + bytesToSize(obj.meta.f2) + ", but database size is " + bytesToSize(tr.cells[8].innerText) ;
          }
@@ -1871,7 +1871,7 @@ function checkdbtime(){
 tab=document.getElementById("tblDBTime")
 tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 trs=tab.rows;
-let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0};  //Object to hold counters for each event type
+let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0,"Other": 0};  //Object to hold counters for each event type
 let tempstr=""
 let newElement;
 if (trs.length > 1){ 
@@ -1879,8 +1879,14 @@ if (trs.length > 1){
   for (let tr of trs) {
    if (tr.rowIndex === 0) continue; //skip header row completely and continue to next iteration
    evnts=tr.cells[2];
-   //console.log("Event :" + tr.cells[0].innerText + " Event Type :" + eventMaps.get(tr.cells[0].innerText.toUpperCase()) + " Color code" + colorMaps.get(eventMaps.get(tr.cells[0].innerText.toUpperCase())));
-   counters[eventMaps.get(tr.cells[0].innerText.toUpperCase())] += evnts.innerText*1;
+
+   const eventType = eventMaps.get(tr.cells[0].innerText.toUpperCase());
+   if (eventType in counters) {
+     counters[eventType] += Number(evnts.innerText);
+   } else {
+     counters["Other"] += Number(evnts.innerText);
+     console.warn("Unknown event type for:", tr.cells[0].innerText);
+   } 
    if (evnts.innerText*1500/maxevnt > 1){ 
     const newBar = document.createElement("div");  //create a new div element for the horizontal bar graph.
     newBar.className = "bar";   //Assign class name for styling
