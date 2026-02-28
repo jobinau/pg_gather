@@ -2,7 +2,7 @@
 ---- For Revision History : https://github.com/jobinau/pg_gather/releases
 \echo '--**** THIS IS A TSV FORMATED FILE. PLEASE DONT COPY-PASTE OR SAVE USING TEXT EDITORS. Because formatting can be lost and file becomes corrupt  ****--'
 \echo '\\r'
-\set ver 32
+\set ver 33
 \echo '\\set ver ':ver
 --Detect PG versions and type of gathering
 SELECT ( :SERVER_VERSION_NUM > 120000 ) AS pg12, ( :SERVER_VERSION_NUM > 130000 ) AS pg13, ( :SERVER_VERSION_NUM > 140000 ) AS pg14, ( :SERVER_VERSION_NUM >= 160000 ) AS pg16,
@@ -66,13 +66,10 @@ do $$ BEGIN  RAISE '***** FATAL : MINIMUM PSQL VERSION 11 IS EXPECTED : PLEASE V
 \echo '\\.'
 
 BEGIN;
+\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 PREPARE pidevents AS
 SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE (state != 'idle' OR state IS NULL) AND pid != pg_backend_pid();
-\o /dev/null
-SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
-\o
-\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
-\gexec
+SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g \gexec
 DEALLOCATE pidevents;
 END;
 \echo '\\.'
@@ -317,13 +314,10 @@ FROM pg_stat_io WHERE backend_type NOT LIKE 's%'
 
 --Active session (again)
 BEGIN;
+\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
 PREPARE pidevents AS
 SELECT pid || E'\t' || COALESCE(wait_event,'\N') FROM pg_stat_get_activity(NULLIF(pg_sleep(0.01)::text,'')::INT) WHERE (state != 'idle' OR state IS NULL) AND pid != pg_backend_pid();
-\o /dev/null
-SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g;
-\o
-\echo COPY pg_pid_wait (pid,wait_event) FROM stdin;
-\gexec
+SELECT 'EXECUTE pidevents;' FROM generate_series(1,1000) g \gexec
 END;
 \echo '\\.'
 
