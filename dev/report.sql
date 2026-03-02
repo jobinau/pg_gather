@@ -31,7 +31,7 @@
 \H
 \pset footer off 
 SET max_parallel_workers_per_gather = 0;
-SELECT setting::int >= 170000 AS pg17, setting::int >= 180000 AS pg18 FROM pg_get_confs WHERE name = 'server_version_num' \gset
+SELECT sum(read_bytes) IS NOT NULL AS pg18 FROM pg_get_io \gset
 SELECT min(min) AS reset_ts FROM 
 (SELECT min(stats_reset) FROM pg_get_io
 UNION
@@ -245,11 +245,12 @@ LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 
 \pset tableattr 'id="tblhba"'
 WITH rule_data AS ( SELECT seq, typ, db, usr, addr, s.prefix AS cidr_mask, mask,
-  CASE WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6' ELSE 'IPv'||family(addr::inet) END AS "IP",
-  method, err, set_masklen(addr::inet, s.prefix) AS network_block
-  FROM pg_get_hba_rules
-  LEFT JOIN LATERAL (
-    SELECT i AS prefix FROM generate_series(0, 128) AS i WHERE netmask(set_masklen(addr::inet, i)) = mask::inet LIMIT 1 ) s ON TRUE )
+    CASE WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6' ELSE 'IPv' || family(addr::inet) 
+    END AS "IP",  method, err, CASE  WHEN addr IN ('all','samehost','samenet') THEN NULL ELSE set_masklen(addr::inet, s.prefix) END AS network_block
+FROM pg_get_hba_rules
+LEFT JOIN LATERAL (
+    SELECT i AS prefix  FROM generate_series(0, 128) AS i 
+    WHERE addr NOT IN ('all','samehost','samenet') AND mask IS NOT NULL AND netmask(set_masklen(addr::inet, i)) = mask::inet LIMIT 1 ) s ON TRUE )
 SELECT
   v.seq AS "Line", v.typ AS "Type", v.db AS "Database", v.usr AS "User", v.addr AS "Address", v.cidr_mask AS "CIDR Mask",
   v.mask AS "DDN/Binary Mask",  v."IP" AS "IP Ver.", v.method AS "Auth Method", v.err AS "Error", v.network_block AS "Network Block",
@@ -525,9 +526,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
    (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta
 ) r;
 
-\echo ver="32";
+\echo ver="33";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["14.20","15.15","16.11","17.7","18.1"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo meta={"pgvers":["14.22","15.17","16.13","17.9","18.3"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo let eventMaps;
 \echo let colorMaps = new Map([["Activity","#00EE00"],["BufferPin","#8B0000"],["Client","#999999"],["CPU","#00CC00"],["Extension","#6B4226"],["IO","#0000CC"],["IPC","#FF9900"],["LWLock","#8B0000"],["Lock","#FF0000"],["Timeout","#FF00FF"]]);
 \echo mgrver="";
@@ -863,10 +864,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   archive_command : function(rowref) {
 \echo     val=rowref.cells[1];
 \echo     if (obj.params !== null && obj.params.f1 !== null && obj.params.f1.length > 0) { val.classList.add("warn"); val.title="archive_command won't be in-effect, because archive_library : " + obj.arclib + " is specified"  }
-\echo     else if (val.innerText.includes("barman")){ val.title = "<b>Use of Barman is detected</b>. Please be aware of the possible risks, if <code>rsync</code> is used as backup_method. <a href='"+ docurl +"barman.html'> Details<a>"; }
+\echo     else if (val.innerText.includes("barman")){ strfind += "<li><b>Use of Barman is detected</b>. Please be aware of the possible risks, if <code>rsync</code> is used as backup_method. <a href='"+ docurl +"barman.html'> Details<a></li>"; }
 \echo     else if (val.innerText.includes("cp ") || val.innerText.includes("rsync ")) { val.classList.add("warn"); strfind +="<li><b>Use of 'cp'/'rsync' command is detected in archive_commnad</b>, which is highly discouraged. Please use reliable backup tools for WAL archiving.<a href='"+ docurl +"cp.html'> Details<a></li></li>" }
 \echo     else if (val.innerText.length < 5) {val.classList.add("warn"); val.title="A valid archive_command is expected for WAL archiving, unless archive library is used" ; }
-\echo     if (val.title.length > 0) { strfind += "<li>" + val.title + "</li>"; }
 \echo   },
 \echo   autovacuum : function(rowref) {
 \echo     val=rowref.cells[1];
@@ -1276,6 +1276,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const trs=document.getElementById("tabInfo").rows
 \echo   const len=trs.length;
 \echo   let bloatTabTot = 0;
+\echo   let bloatTotSize = 0;
 \echo   let TotTabIndSize=0;
 \echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","No. Live Rows/Tuples","No. Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
 \echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","Age of main relation","","","Number of Vacuums per day","","Size of TOAST and its index",
@@ -1289,6 +1290,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
 \echo     TotTabIndSize += Number(TabIndSize);
+\echo     if (tr.cells[3].innerText >0 && TabIndSize > 0) { bloatTotSize += TabIndSize * (tr.cells[3].innerText / 100) }
 \echo     if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
 \echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
 \echo     if (tr.cells[15].innerText > 10000) { 
@@ -1307,7 +1309,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo      }
 \echo   }
 \echo   var el=document.createElement("tfoot");
-\echo   el.innerHTML = "<th colspan=6> Total Bloat = </th><th></th><th colspan=3> Total Size = "+ bytesToSize(TotTabIndSize) +" </th><th colspan=11></th>";
+\echo   el.innerHTML = "<th colspan=6> Total Bloat Estimate = "+ bytesToSize(bloatTotSize) +" </th><th></th><th colspan=3> Total Size = "+ bytesToSize(TotTabIndSize) +" </th><th colspan=11></th>";
 \echo   tab.appendChild(el);
 \echo const endTime = new Date().getTime();
 \echo obj.tabs.bloatTabNum = bloatTabTot;
@@ -1338,7 +1340,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     tr=trs[i];
 \echo     if(obj.dbts !== null && tr.cells[0].innerHTML == obj.dbts.f1){ 
 \echo       tr.cells[0].classList.add("lime");
-\echo       if (obj.meta.f2 < tr.cells[8].innerText){
+\echo       if (obj?.meta?.f2 != null && obj.meta.f2 < tr.cells[8].innerText){
 \echo          strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(tr.cells[8].innerText) + "</b>. This possibly indicates orphaned objects. <a href='"+ docurl +"orphanfiles.html'> Details<a></li>"
 \echo           tr.cells[8].classList.add("high"); tr.cells[8].title="Database size mismatch. Size of all objects is " + bytesToSize(obj.meta.f2) + ", but database size is " + bytesToSize(tr.cells[8].innerText) ;
 \echo          }
@@ -1704,7 +1706,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab=document.getElementById("tblDBTime")
 \echo tab.caption.innerHTML="<span>DB Server Time</span> - Wait-events, CPU time and Delays (<a href="+docurl+"waitevents.html>Reference</a>)"
 \echo trs=tab.rows;
-\echo let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0}; 
+\echo let counters = {"Activity": 0,"BufferPin": 0,"Client": 0,"CPU": 0,"Extension": 0,"IO": 0,"IPC": 0,"LWLock": 0,"Lock": 0,"Timeout": 0,"Other": 0}; 
 \echo let tempstr=""
 \echo let newElement;
 \echo if (trs.length > 1){ 
@@ -1712,7 +1714,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   for (let tr of trs) {
 \echo    if (tr.rowIndex === 0) continue;
 \echo    evnts=tr.cells[2];
-\echo    counters[eventMaps.get(tr.cells[0].innerText.toUpperCase())] += evnts.innerText*1;
+\echo    const eventType = eventMaps.get(tr.cells[0].innerText.toUpperCase());
+\echo    if (eventType in counters) {
+\echo      counters[eventType] += Number(evnts.innerText);
+\echo    } else {
+\echo      counters["Other"] += Number(evnts.innerText);
+\echo      console.warn("Unknown event type for:", tr.cells[0].innerText);
+\echo    } 
 \echo    if (evnts.innerText*1500/maxevnt > 1){ 
 \echo     const newBar = document.createElement("div"); 
 \echo     newBar.className = "bar";  
