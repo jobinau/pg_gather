@@ -7,8 +7,13 @@ Scan and collect the minimal amount of data needed to identify potential problem
   
 Everything is SQL-only, leveraging the built-in features of psql, the command-line utility of PostgreSQL
 
-**Supported PostgreSQL Versions** :  10, 11, 12, 13, 14, 15, 16, 17 & 18
-**Older versions** : For PostgeSQL 9.6 and older, Please refer the [documentation page](docs/oldversions.md)
+Data collection is possible with following minimum criteria  
+**PostgreSQL Server Versions** :  10, 11, 12, 13, 14, 15, 16, 17 & 18.  
+(**Older versions** : For PostgeSQL 9.6 and older, Please refer the [documentation page](docs/oldversions.md).)  
+**Minimum PostgreSQL Client (`psql`) Version** : 11
+
+Collected data can be analyzed on a PostgreSQL 16 or above which supports modern analytical functions.
+
 
 # Highlights
 1. **Secure by Open :** Simple, Transperent, Fully auditable code.  
