@@ -261,7 +261,7 @@ SELECT
       AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
       AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By",
   CASE v."IP" WHEN 'IPv4' THEN (2::numeric ^ (32 - masklen(network_block)))::numeric(38,0)
-  WHEN 'IPv6' THEN (2::numeric ^ (128 - masklen(network_block)))::numeric(38,0) ELSE NULL END
+  WHEN 'IPv6' THEN (2::numeric ^ (128 - masklen(network_block)))::NUMERIC(40,0) ELSE NULL END
   AS "No. of IPs"
 FROM rule_data v
 ORDER BY v.seq;
