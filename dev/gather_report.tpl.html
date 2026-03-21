@@ -246,7 +246,7 @@ LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 \pset tableattr 'id="tblhba"'
 WITH rule_data AS ( SELECT seq, typ, db, usr, addr, s.prefix AS cidr_mask, mask,
     CASE WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6' ELSE 'IPv' || family(addr::inet) 
-    END AS "IP",  method, err, CASE  WHEN addr IN ('all','samehost','samenet') THEN NULL ELSE set_masklen(addr::inet, s.prefix) END AS network_block
+    END AS "IP",  method, err, CASE  WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN NULL ELSE set_masklen(addr::inet, s.prefix) END AS network_block
 FROM pg_get_hba_rules
 LEFT JOIN LATERAL (
     SELECT i AS prefix  FROM generate_series(0, 128) AS i 
@@ -261,7 +261,7 @@ SELECT
       AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
       AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By",
   CASE v."IP" WHEN 'IPv4' THEN (2::numeric ^ (32 - masklen(network_block)))::numeric(38,0)
-  WHEN 'IPv6' THEN (2::numeric ^ (128 - masklen(network_block)))::numeric(38,0) ELSE NULL END
+  WHEN 'IPv6' THEN trunc(2::numeric ^ (128 - masklen(network_block))) ELSE NULL END
   AS "No. of IPs"
 FROM rule_data v
 ORDER BY v.seq;
