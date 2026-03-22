@@ -628,7 +628,8 @@ async function doAllChecks(){
   checktabPart();
   checkindex();
   checkextn();
-  checkhba();
+  try {checkhba();}
+  catch (error) { console.error("Error checking HBA (checkhba()):", error); }
   checkstmnts();
   checkchkpntbgwrtr();
   checkfindings();
