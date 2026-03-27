@@ -702,7 +702,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo    strfind += "</ul></b></li>";
 \echo  }
 \echo  if (obj.crash !== null) strfind += "<li>Detected a <b>suspected crash / unclean shutdown around : " + obj.crash + ".</b> Please check the PostgreSQL logs</li>"
-\echo  if (obj.nokey.f1 > 0) strfind += "<li><b>"+ obj.nokey.f1 +" Tables without Primary Key</b> and <b>"+ obj.nokey.f2 +" Tables without niether Primary key nor Unique keys</b> found. Please refer <a href='"+ docurl +"pkuk.html'>Details</a></li>";
+\echo  if (obj.nokey.f1 > 0) strfind += "<li><b>"+ obj.nokey.f1 +" Tables without Primary Key</b> and <b>"+ obj.nokey.f2 +" Tables without neither Primary key nor Unique keys</b> found. Please refer <a href='"+ docurl +"pkuk.html'>Details</a></li>";
 \echo  if (obj.netdlay.f1 > 10) {
 \echo    if (obj.netdlay.f1 / obj.netdlay.f2 * 100 > 20 ){ strfind += "<li> There are <b>"+ obj.netdlay.f3 +" Sessions with considerable Net/Delays</b>"
 \echo    tmpstr = "Total <a href='"+ docurl +"NetDelay.html'>Net/Delay<a>"

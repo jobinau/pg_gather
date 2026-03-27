@@ -14,7 +14,7 @@ Following are some of the benefits
 
 # Tables without PK and UKs
 ## From pg_gather data.
-```
+```sql
 WITH idx AS (SELECT indrelid, string_agg(ci.relname,',') FILTER (WHERE indisprimary) primarykey,  
   string_agg(ci.relname,chr(10)) FILTER (WHERE indisunique AND NOT indisprimary) uniquekey
 , string_agg(ci.relname,chr(10)) FILTER (WHERE NOT indisunique AND NOT indisprimary) index
@@ -27,7 +27,7 @@ FROM pg_get_class c LEFT JOIN idx ON c.reloid = idx.indrelid WHERE c.relkind IN 
 AND primarykey IS NULL AND uniquekey IS NULL;
 ```
 ## Directly from database
-```
+```sql
 WITH idx AS (SELECT indrelid, string_agg(ci.relname,',') FILTER (WHERE indisprimary) primarykey,  
   string_agg(ci.relname,chr(10)) FILTER (WHERE indisunique AND NOT indisprimary) uniquekey
 , string_agg(ci.relname,chr(10)) FILTER (WHERE NOT indisunique AND NOT indisprimary) index
