@@ -40,6 +40,7 @@ do
     /^COPY pg_get_extension/, /^\\\./d  #-do-
     /^COPY pg_get_hba_rules/, /^\\\./d  #-do-
     /^COPY pg_get_prep_xacts/, /^\\\./d  #-do-
+    /^COPY pg_get_shmem/, /^\\\./d  #-do-
     /^COPY pg_get_statements/, /^\\\./d  #-do-
     /^COPY pg_get_ns/, /^\\\./d  #-do-
     /^[[:space:]]*$/d

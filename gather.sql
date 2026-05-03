@@ -247,6 +247,12 @@ COPY (select line_number,type,database,user_name,address,netmask,auth_method,err
 COPY (select transaction,gid,prepared FROM pg_prepared_xact()) TO stdout;
 \echo '\\.'
 
+\if :pg14
+\echo COPY pg_get_shmem(name,allocated_size) FROM stdin;
+COPY (SELECT coalesce(name,'Free Memory'), allocated_size FROM pg_shmem_allocations WHERE SIZE > 2097152) TO stdout;
+\echo '\\.'
+\endif
+
 --End fullgather, started before pg_get_roles (line: 102)
 \endif
 

@@ -60,7 +60,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
  tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting),
- connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, connstr  FROM pg_srvr)
+ connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, REPLACE(connstr, '|', ': ') AS connstr  FROM pg_srvr)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','Server build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
@@ -265,6 +265,9 @@ SELECT
   AS "No. of IPs"
 FROM rule_data v
 ORDER BY v.seq;
+
+\pset tableattr 'id="tblshmem"'
+SELECT name,allocated_size FROM pg_get_shmem ORDER BY 2 DESC;
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -630,6 +633,7 @@ async function doAllChecks(){
   checkextn();
   try {checkhba();}
   catch (error) { console.error("Error checking HBA (checkhba()):", error); }
+  checkshmem();
   checkstmnts();
   checkchkpntbgwrtr();
   checkfindings();
@@ -951,6 +955,13 @@ var paramDespatch = {
       let param = params.find(p => p.param === "autovacuum");
       param["warn"] = "<b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"params/autovacuum.html'>Details</a>";
       param["suggest"] = "on";
+    }
+  },
+  autovacuum_vacuum_cost_delay: function(rowref) {
+    val=rowref.cells[1];
+    if(val.innerText > 20 || val.innerText == 0) { val.classList.add("warn"); val.title="Better to specify this with a value between 2 and 20 milliseconds" ;
+      let param = params.find(p => p.param === "autovacuum_vacuum_cost_delay");
+      param["suggest"] = "2";
     }
   },
   autovacuum_max_workers : function(rowref) {
@@ -1561,6 +1572,13 @@ function checkhba(){
   if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
 }
 
+function checkshmem(){
+  tab=document.getElementById("tblshmem");
+  tab.caption.innerHTML="<span>Top Shared Memory</span>"
+  console.log("Shared Memory Allocations : " + (tab.rows.length - 1));
+}
+
+
 //Sort logic
 const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
@@ -1579,8 +1597,9 @@ document.querySelectorAll("th").forEach(th => th.addEventListener("click", (() =
   },50);
 })));
 
-/////############## Pop-up details box######################
-//Pop-up at DB info
+/////############## Pop-up for each HTML table######################
+//Just a helper function with name <tablename>+dtls. This function will be called from a generic event listener like : document.querySelectorAll(".thidden, #tbliostat, #tblshmem").forEach(table =>
+//Toward the "End of popup box" (line 1800+)
 function dbsdtls(e){
   let td = e.target;
   if (e.target.matches("tr td:first-child")){
@@ -1768,6 +1787,14 @@ function tbliostatdtls(e){
   //return td.innerText;
 }
 
+function tblshmemdtls(e){
+  let td = e.target;
+  let columnIndex = td.cellIndex;
+  if (td.matches("tr th")) return td.title; //if the target is a th element, return the title attribute
+  if (td.innerText > 0) return bytesToSize(td.innerText) + " allocated";
+  else return "";
+}
+
 function genPopup(str){
       var el = document.createElement("div");
       el.setAttribute("id", "dtls");
@@ -1788,7 +1815,7 @@ function genPopup(str){
 }
 
 //Event listener for mouseenter for tables. This will create pop-up details box
-document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
+document.querySelectorAll(".thidden, #tbliostat, #tblshmem").forEach(table => {
   table.addEventListener("mouseenter", (e) => {
     let str = ""
     const td = e.target;
@@ -1834,6 +1861,7 @@ elem.onmouseover = function() { document.getElementById("menu").style.display = 
 elem.onclick = function() { document.getElementById("menu").style.display = "none"; }
 elem.onmouseout = function() { document.getElementById("menu").style.display = "none"; }
 //################End of popup box##########################
+
 
 //############## Copy SQL text to clibboard on double click ########################
 document.querySelectorAll("#tblsess tr td:nth-child(6) , #tblstmnt tr td:nth-child(2)").forEach(td => td.addEventListener("dblclick", (() => {
