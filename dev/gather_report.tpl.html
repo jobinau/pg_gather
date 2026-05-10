@@ -528,7 +528,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     (WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_get_index GROUP BY indrelid)
     SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk)))
     FROM pg_get_class c LEFT JOIN pkuk ON pkuk.indrelid = c.reloid WHERE c.relkind IN ('r')) nokey,
-   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta
+   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta,
+   (WITH param AS ( SELECT MAX(setting) FILTER (WHERE name = 'max_connections')::INT AS max_connections,
+      MAX(setting) FILTER (WHERE name = 'max_locks_per_transaction')::INT AS max_locks_per_transaction,
+      MAX(setting) FILTER (WHERE name = 'server_version_num')::INT AS server_version_num 
+    FROM pg_settings  WHERE name IN ('max_connections', 'max_locks_per_transaction')),
+    fastpath AS (SELECT CASE WHEN server_version_num >= 180000 THEN max_locks_per_transaction ELSE 16 END AS fastpath_locks FROM param),
+    pidlocks AS (SELECT pid, COUNT(*) AS lock_count, count(*) FILTER (WHERE relation IS NOT NULL) AS obj_locks FROM pg_get_locks GROUP BY pid)
+    SELECT jsonb_build_object('max_possible_locks', MAX(param.max_connections*param.max_locks_per_transaction) , 'total_locks', sum(lock_count), 
+        'object_locks', sum(obj_locks), 'pids_holding_locks', count(*), 'max_locks_by_a_pid', max(lock_count), 'fastpath_locks_per_pid', MAX(fastpath.fastpath_locks))
+    FROM pidlocks, param,fastpath) locks
 ) r;
 %>
 
@@ -817,11 +826,14 @@ function checkfindings(){
  if ( sharedBuffers?.val > 2097152 && hugePages?.val !=  "on" ){
     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(sharedBuffers.val*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
  }
+ if (obj.locks.total_locks > 200 && obj.locks.max_possible_locks > 200) {
+  const highAlert = (obj.locks.total_locks * 10 > obj.locks.max_possible_locks) ? "<b>Which is high</b>" : ""; 
+  strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b> currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
+  }
  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
  //if (obj.meta.f2 < curdbsz) strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(curdbsz) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphan.html'> Details<a></li>"
   //update the findings section
   document.getElementById("finditem").innerHTML += strfind;
-
 }
 
 function checkconns(){

@@ -112,6 +112,11 @@ COPY ( SELECT name,setting,unit,coalesce(sourcefile,source) FROM pg_settings) TO
 --Set statement_timeout before running any heavier statements 
 SET statement_timeout=180000;
 
+--pg_locks
+\echo COPY pg_get_locks (pid,relation) FROM stdin;
+COPY ( SELECT pid,relation FROM pg_locks) TO stdin;
+\echo '\\.'
+
 --pg_file_settings
 \echo COPY pg_get_file_confs (sourcefile,name,setting,applied,error) FROM stdin;
 COPY ( SELECT sourcefile,name,setting,applied,error FROM pg_file_settings) TO stdin;
