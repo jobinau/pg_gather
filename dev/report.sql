@@ -60,7 +60,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
  tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting),
- connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, connstr  FROM pg_srvr)
+ connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, REPLACE(connstr, '|', ': ') AS connstr  FROM pg_srvr)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','Server build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
@@ -265,6 +265,9 @@ SELECT
   AS "No. of IPs"
 FROM rule_data v
 ORDER BY v.seq;
+
+\pset tableattr 'id="tblshmem"'
+SELECT name,allocated_size FROM pg_get_shmem ORDER BY 2 DESC;
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -523,7 +526,16 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     (WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_get_index GROUP BY indrelid)
     SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk)))
     FROM pg_get_class c LEFT JOIN pkuk ON pkuk.indrelid = c.reloid WHERE c.relkind IN ('r')) nokey,
-   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta
+   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta,
+   (WITH param AS ( SELECT MAX(setting) FILTER (WHERE name = 'max_connections')::INT AS max_connections,
+      MAX(setting) FILTER (WHERE name = 'max_locks_per_transaction')::INT AS max_locks_per_transaction,
+      MAX(setting) FILTER (WHERE name = 'server_version_num')::INT AS server_version_num 
+    FROM pg_settings  WHERE name IN ('max_connections', 'max_locks_per_transaction')),
+    fastpath AS (SELECT CASE WHEN server_version_num >= 180000 THEN max_locks_per_transaction ELSE 16 END AS fastpath_locks FROM param),
+    pidlocks AS (SELECT pid, COUNT(*) AS lock_count, count(*) FILTER (WHERE relation IS NOT NULL) AS obj_locks FROM pg_get_locks GROUP BY pid)
+    SELECT jsonb_build_object('max_possible_locks', MAX(param.max_connections*param.max_locks_per_transaction) , 'total_locks', sum(lock_count), 
+        'object_locks', sum(obj_locks), 'pids_holding_locks', count(*), 'max_locks_by_a_pid', max(lock_count), 'fastpath_locks_per_pid', MAX(fastpath.fastpath_locks))
+    FROM pidlocks, param,fastpath) locks
 ) r;
 
 \echo ver="33";
@@ -600,6 +612,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   checkextn();
 \echo   try {checkhba();}
 \echo   catch (error) { console.error("Error checking HBA (checkhba()):", error); }
+\echo   checkshmem();
 \echo   checkstmnts();
 \echo   checkchkpntbgwrtr();
 \echo   checkfindings();
@@ -761,6 +774,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if ( sharedBuffers?.val > 2097152 && hugePages?.val !=  "on" ){
 \echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(sharedBuffers.val*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
 \echo  }
+\echo  if (obj.locks.total_locks > 200 && obj.locks.max_possible_locks > 200) {
+\echo   const highAlert = (obj.locks.total_locks * 10 > obj.locks.max_possible_locks) ? "<b>Which is high</b>" : ""; 
+\echo   strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b>currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
+\echo   }
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo }
@@ -876,6 +893,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       let param = params.find(p => p.param === "autovacuum");
 \echo       param["warn"] = "<b>Autovacuum is disabled</b>. This prevents essential maintenance, and can cause bloat and performance issues. Please enable autovacuum. <a href='"+ docurl +"params/autovacuum.html'>Details</a>";
 \echo       param["suggest"] = "on";
+\echo     }
+\echo   },
+\echo   autovacuum_vacuum_cost_delay: function(rowref) {
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText > 20 || val.innerText == 0) { val.classList.add("warn"); val.title="Better to specify this with a value between 2 and 20 milliseconds" ;
+\echo       let param = params.find(p => p.param === "autovacuum_vacuum_cost_delay");
+\echo       param["suggest"] = "2";
 \echo     }
 \echo   },
 \echo   autovacuum_max_workers : function(rowref) {
@@ -1449,6 +1473,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules for pg_hba carfully and remove the shadowed ones. Refer <a href=#tblhba>HBA rules</a> section</li>";
 \echo   if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
 \echo }
+\echo function checkshmem(){
+\echo   tab=document.getElementById("tblshmem");
+\echo   tab.caption.innerHTML="<span>Top Shared Memory</span>"
+\echo   console.log("Shared Memory Allocations : " + (tab.rows.length - 1));
+\echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll("th").forEach(th => th.addEventListener("click", (() => {
@@ -1633,6 +1662,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     else return "";
 \echo   }
 \echo }
+\echo function tblshmemdtls(e){
+\echo   let td = e.target;
+\echo   let columnIndex = td.cellIndex;
+\echo   if (td.matches("tr th")) return td.title;
+\echo   if (td.innerText > 0) return bytesToSize(td.innerText) + " allocated";
+\echo   else return "";
+\echo }
 \echo function genPopup(str){
 \echo       var el = document.createElement("div");
 \echo       el.setAttribute("id", "dtls");
@@ -1651,7 +1687,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       el.innerHTML= str;
 \echo       return el;
 \echo }
-\echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
+\echo document.querySelectorAll(".thidden, #tbliostat, #tblshmem").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
 \echo     let str = ""
 \echo     const td = e.target;
