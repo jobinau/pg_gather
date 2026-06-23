@@ -175,7 +175,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <% \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist),
+r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -190,24 +191,54 @@ LEFT JOIN pg_get_inherits inh ON r.relid = inh.inhrelid
 LEFT JOIN pg_get_class inhp ON inh.inhparent = inhp.reloid
 LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan, count(indexrelid) FILTER (WHERE indisprimary) pk,  
    count(indexrelid) FILTER (WHERE indisunique) uk, indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
+LEFT JOIN (SELECT relation,string_agg(DISTINCT pid::text, '; ') AS pidlist FROM pg_get_locks WHERE relation IS NOT NULL
+  GROUP BY relation) AS lks ON lks.relation = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
 \pset tableattr 'id="tabPart" class="thidden"'
-WITH ptables AS ( SELECT p.relname , p.relkind, i.inhparent, i.inhrelid
-FROM pg_get_class p LEFT JOIN pg_get_inherits i ON i.inhparent = p.reloid
-WHERE p.relkind in ('p','r'))
-SELECT  p.relname "Partitioned Table", CONCAT(any_value(c.relname) FILTER (WHERE dpart = 't'),',',any_value(r.n_live_tup) FILTER (WHERE dpart='t')) "Default Partition Name, Count",
- 'Native-Declarative' "Partitioning Type",  count(r.relid) "Partitions", sum(r.tot_tab_size) "tot_tab_size" , sum(r.tab_ind_size) "tab_ind_size",
-  round(max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100 ,1) "Fetch Prune %" 
-FROM ptables p LEFT JOIN pg_get_rel r ON p.inhrelid = r.relid 
- LEFT JOIN pg_get_class c ON p.inhrelid = c.reloid
-WHERE p.relkind = 'p' GROUP BY 1
-UNION ALL
-SELECT  p.relname ,',', 'Inheritance' , count(r.relid) "Partitions", sum(r.tot_tab_size) ,
-  sum(r.tab_ind_size), max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100
-FROM ptables p JOIN pg_get_rel r ON p.inhrelid = r.relid
- JOIN pg_get_class c ON p.inhrelid = c.reloid
-WHERE p.relkind = 'r' GROUP BY 1;
+WITH ptables AS ( 
+    -- Added p.reloid to easily track parent tables across joins
+    SELECT p.relname, p.relkind, p.reloid, i.inhparent, i.inhrelid
+    FROM pg_get_class p 
+    LEFT JOIN pg_get_inherits i ON i.inhparent = p.reloid
+    WHERE p.relkind IN ('p', 'r')
+),
+family_locks AS (
+    -- Tracks distinct locks matching either the parent OID or child OIDs
+    SELECT 
+        p.reloid,
+        string_agg(DISTINCT l.pid::text, '; ') AS pidlist
+    FROM ptables p
+    JOIN pg_get_locks l ON (l.relation = p.reloid OR l.relation = p.inhrelid)
+    GROUP BY p.reloid
+)
+SELECT  
+    p.relname "Partitioned Table", 
+    CASE p.relkind 
+        WHEN 'p' THEN 
+            CONCAT(
+                any_value(p.reloid), ',',
+                any_value(c.relname) FILTER (WHERE dpart = 't'), ',',
+                any_value(r.n_live_tup) FILTER (WHERE dpart='t'), ',',
+                any_value(fl.pidlist)
+            )
+        ELSE 
+            CONCAT(any_value(p.reloid),',,,', any_value(fl.pidlist))
+    END "Default Partition Name, Count",
+    CASE p.relkind 
+        WHEN 'p' THEN 'Native-Declarative' 
+        ELSE 'Inheritance' 
+    END "Partitioning Type",  
+    COUNT(r.relid) "Partitions", 
+    SUM(r.tot_tab_size) "tot_tab_size", 
+    SUM(r.tab_ind_size) "tab_ind_size",
+    ROUND(MAX(c.blocks_fetched) / SUM(NULLIF(c.blocks_fetched, 0)) * 100, 1) "Fetch Prune %"
+FROM ptables p 
+LEFT JOIN pg_get_rel r ON p.inhrelid = r.relid
+LEFT JOIN pg_get_class c ON p.inhrelid = c.reloid
+LEFT JOIN family_locks fl ON fl.reloid = p.reloid
+WHERE p.relkind = 'p' OR (p.relkind = 'r' AND p.inhrelid IS NOT NULL) --Eliminates standalone unpartitioned tables
+GROUP BY p.relname, p.relkind;
 
 \pset tableattr 'id="IndInfo"'
 SELECT n.nsname "Schema",ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
@@ -1047,7 +1078,10 @@ var paramDespatch = {
   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
   idle_session_timeout:function(rowref){ 
     val=rowref.cells[1]; 
-    if (val.innerText > 0) { val.classList.add("warn"); val.title="It is dangerous to use idle_session_timeout. Avoid using this" }
+    if (val.innerText > 0) { val.classList.add("warn"); val.title="It is dangerous to use idle_session_timeout. Avoid using this"; 
+      let param = params.find(p => p.param === "idle_session_timeout");
+      param["suggest"] = "0";
+    }
   },
   idle_in_transaction_session_timeout: function(rowref){ 
     val=rowref.cells[1]; 
@@ -1663,7 +1697,8 @@ function tabInfodtls(e){
     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[12]).toString()); 
     str += "<c>Tablespace : " + o[12] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
   }
-  if (o[13] !== null ) str += "<c>Current Settings : " + o[13] + "</c>";
+  if (typeof o[13] === "string" && o[13].length > 0 ) str += "<c>Current Settings : " + o[13] + "</c>";
+  if (typeof o[14] === "string" && o[14].length > 0 ) str += "<c>"+ o[14].split(";").filter(x => x.trim()).length +" Pids : " + o[14] + "</c>";
   if(o[2] > 0 || vac/days > 50){
     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>" //Refer FILLFACTOR in sqlstatement.md
@@ -1772,9 +1807,11 @@ function tabPartdtls(e){
   th = e.target.parentNode;
   let o=th.cells[1].innerText.split(",");
   let str = "";
-  if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
-  else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found<c>";
-  if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
+  if (o[0]) str += "<c>Parent OID: " + o[0] + "</c>";
+  if (o[1]) str += "<c>Default Parittion :" + o[1] + "</c>";
+  else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found</c>";
+  if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition</c>";
+  if (o[3] && o[3].length>0) str += "<c>"+ o[3].split(";").filter(x => x.trim()).length +" Pids : " + o[3] + "</c>";
   return str;
   }
 }
