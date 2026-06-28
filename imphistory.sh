@@ -31,6 +31,7 @@ do
     /^COPY pg_get_confs/, /^\\\./d   # -do-
     /^COPY pg_get_file_confs/, /^\\\./d  #-do-
     /^COPY pg_get_class/, /^\\\./d  #-do-
+    /^COPY pg_get_am/, /^\\\./d  #-do-
     /^COPY pg_get_index/, /^\\\./d  #-do-
     /^COPY pg_get_rel/, /^\\\./d  #-do-
     /^COPY pg_tab_bloat/, /^\\\./d  #-do-

@@ -2,7 +2,7 @@
 \set QUIET 1
 \echo **Dropping pg_gather tables**
 set client_min_messages=ERROR;
-DROP TABLE IF EXISTS pg_gather, pg_get_activity, pg_get_class, pg_get_confs, pg_get_file_confs, pg_get_db_role_confs, pg_get_db, pg_get_index,pg_get_tablespace, 
+DROP TABLE IF EXISTS pg_gather, pg_get_activity, pg_get_class, pg_get_am, pg_get_confs, pg_get_file_confs, pg_get_db_role_confs, pg_get_db, pg_get_index,pg_get_tablespace, 
   pg_get_rel, pg_get_inherits, pg_srvr, pg_get_pidblock, pg_get_locks, pg_pid_wait, pg_replication_stat, pg_get_wal,pg_get_shmem, pg_get_io, pg_archiver_stat, pg_tab_bloat, 
   pg_get_toast, pg_get_statements, pg_get_bgwriter, pg_get_roles, pg_get_extension, pg_get_slots, pg_get_hba_rules, pg_get_ns, pg_gather_end, pg_get_prep_xacts;
 
@@ -150,6 +150,7 @@ CREATE UNLOGGED TABLE pg_get_db_role_confs( --pg_db_role_setting
 CREATE UNLOGGED TABLE pg_get_class (
     reloid oid,
     relname text,
+    relam oid,
     relkind char(1),
     relnamespace oid,
     relfilenode oid,
@@ -158,6 +159,11 @@ CREATE UNLOGGED TABLE pg_get_class (
     reloptions text[],
     blocks_fetched bigint,
     blocks_hit bigint
+);
+
+CREATE UNLOGGED TABLE pg_get_am (
+    amoid oid,
+    amname text
 );
 
 CREATE UNLOGGED TABLE pg_get_tablespace(
@@ -349,5 +355,7 @@ CREATE UNLOGGED TABLE pg_get_prep_xacts(
  gid text,
  prepared timestamptz
 );
+
+INSERT INTO pg_get_am (amoid,amname) VALUES (2,'heap'),(403,'btree'),(405,'hash'),(783,'gist'),(2742,'gin'),(4000,'spgist'),(3580,'brin');
 
 \set QUIET 0

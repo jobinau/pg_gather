@@ -136,8 +136,13 @@ COPY (SELECT oid,rolname,rolsuper,rolreplication,rolconnlimit,NULL FROM pg_roles
 \echo '\\.'
 
 --Major tables and indexes in current db
-\echo COPY pg_get_class (reloid,relname,relkind,relnamespace,relfilenode,reltablespace,relpersistence,reloptions,blocks_fetched,blocks_hit) FROM stdin;
-COPY (SELECT oid,relname,relkind,relnamespace,relfilenode,reltablespace,relpersistence,reloptions,pg_stat_get_blocks_fetched(oid),pg_stat_get_blocks_hit(oid) FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
+\echo COPY pg_get_class (reloid,relname,relam,relkind,relnamespace,relfilenode,reltablespace,relpersistence,reloptions,blocks_fetched,blocks_hit) FROM stdin;
+COPY (SELECT oid,relname,relam,relkind,relnamespace,relfilenode,reltablespace,relpersistence,reloptions,pg_stat_get_blocks_fetched(oid),pg_stat_get_blocks_hit(oid) FROM pg_class WHERE relnamespace NOT IN (SELECT oid FROM pg_namespace WHERE nspname in ('pg_catalog','information_schema'))) TO stdin;
+\echo '\\.'
+
+--Access Method info
+\echo COPY pg_get_am (amoid,amname) FROM stdin;
+COPY (SELECT oid,amname FROM pg_am WHERE oid > 16384) TO stdin;
 \echo '\\.'
 
 --Index info
