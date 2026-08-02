@@ -147,11 +147,11 @@ COPY (SELECT oid,amname FROM pg_am WHERE oid > 16384) TO stdin;
 
 --Index info
 \if :pg16
-\echo COPY pg_get_index(indexrelid,indrelid,indisunique,indisprimary,indisvalid,numscans,size,lastuse) FROM stdin;
-COPY (SELECT indexrelid,indrelid,indisunique,indisprimary,indisvalid, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid),pg_stat_get_lastscan(indexrelid) from pg_index) TO stdin;
+\echo COPY pg_get_index(indexrelid,indrelid,indnatts,indisunique,indisprimary,indisvalid,numscans,size,lastuse) FROM stdin;
+COPY (SELECT indexrelid,indrelid,indnatts,indisunique,indisprimary,indisvalid, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid),pg_stat_get_lastscan(indexrelid) from pg_index) TO stdin;
 \else
-\echo COPY pg_get_index(indexrelid,indrelid,indisunique,indisprimary,indisvalid,numscans,size) FROM stdin;
-COPY (SELECT indexrelid,indrelid,indisunique,indisprimary,indisvalid, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid) from pg_index) TO stdin;
+\echo COPY pg_get_index(indexrelid,indrelid,indnatts,indisunique,indisprimary,indisvalid,numscans,size) FROM stdin;
+COPY (SELECT indexrelid,indrelid,indnatts,indisunique,indisprimary,indisvalid, pg_stat_get_numscans(indexrelid),pg_table_size(indexrelid) from pg_index) TO stdin;
 \endif
 \echo '\\.'
 

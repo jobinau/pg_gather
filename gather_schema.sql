@@ -180,6 +180,7 @@ CREATE UNLOGGED TABLE pg_get_inherits(
 CREATE UNLOGGED TABLE pg_get_index (
     indexrelid oid,
     indrelid oid,
+    indnatts smallint,
     indisunique boolean,
     indisprimary boolean,
     indisvalid boolean,
