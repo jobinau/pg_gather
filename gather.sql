@@ -181,26 +181,39 @@ COPY (SELECT oid,spcname,pg_tablespace_location(oid) FROM pg_tablespace WHERE oi
 \echo '\\.'
 
 --Bloat estimate on a 64bit machine with PG version above 9.0.
-\echo COPY pg_tab_bloat(table_oid,est_pages) FROM stdin;
-COPY ( SELECT
-table_oid, 
---cc.relname AS tablename, cc.relpages,
-CEIL((cc.reltuples*((datahdr+ma- (CASE WHEN datahdr%ma=0 THEN ma ELSE datahdr%ma END))+nullhdr2+4))/(bs-20::float)) AS est_pages
-FROM (
-SELECT
-    ma,bs,table_oid,
-    (datawidth+(hdr+ma-(case when hdr%ma=0 THEN ma ELSE hdr%ma END)))::numeric AS datahdr,
-    (maxfracsum*(nullhdr+ma-(case when nullhdr%ma=0 THEN ma ELSE nullhdr%ma END))) AS nullhdr2
-FROM (
-    SELECT s.starelid as table_oid ,23 AS hdr, 8 AS ma, 8192 AS bs, SUM((1-stanullfrac)*stawidth) AS datawidth, MAX(stanullfrac) AS maxfracsum,
-    23 +( SELECT 1+count(*)/8  FROM pg_statistic s2 WHERE stanullfrac<>0 AND s.starelid = s2.starelid ) AS nullhdr
-    FROM pg_statistic s 
-    GROUP BY 1,2
-) AS foo
-) AS rs
-JOIN pg_class cc ON cc.oid = rs.table_oid
-JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_schema' 
-) TO stdout;
+--\echo COPY pg_tab_bloat(table_oid,est_pages) FROM stdin;
+--COPY ( SELECT
+--table_oid, 
+----cc.relname AS tablename, cc.relpages,
+--CEIL((cc.reltuples*((datahdr+ma- (CASE WHEN datahdr%ma=0 THEN ma ELSE datahdr%ma END))+nullhdr2+4))/(bs-20::float)) AS est_pages
+--FROM (
+--SELECT
+--    ma,bs,table_oid,
+--    (datawidth+(hdr+ma-(case when hdr%ma=0 THEN ma ELSE hdr%ma END)))::numeric AS datahdr,
+--    (maxfracsum*(nullhdr+ma-(case when nullhdr%ma=0 THEN ma ELSE nullhdr%ma END))) AS nullhdr2
+--FROM (
+--    SELECT s.starelid as table_oid ,23 AS hdr, 8 AS ma, 8192 AS bs, SUM((1-stanullfrac)*stawidth) AS datawidth, MAX(stanullfrac) AS maxfracsum,
+--    23 +( SELECT 1+count(*)/8  FROM pg_statistic s2 WHERE stanullfrac<>0 AND s.starelid = s2.starelid ) AS nullhdr
+--    FROM pg_statistic s 
+--    GROUP BY 1,2
+--) AS foo
+--) AS rs
+--JOIN pg_class cc ON cc.oid = rs.table_oid
+--JOIN pg_namespace nn ON cc.relnamespace = nn.oid AND nn.nspname <> 'information_schema' 
+--) TO stdout;
+--\echo '\\.'
+
+--Stats for Bloat estimation
+\set ERROR true
+\echo COPY pg_get_relstats (relid, attcount, any_null, tpl_data_size) FROM stdin;
+COPY (SELECT starelid, count(*), bool_or(stanullfrac > 0), sum((1 - stanullfrac)*stawidth)
+  FROM pg_statistic WHERE stainherit = false AND starelid >= 16384 GROUP BY 1) TO stdout;
+\if :ERROR
+COPY (SELECT (quote_ident(schemaname) || '.' || quote_ident(tablename))::regclass::oid,
+       count(*), bool_or(coalesce(null_frac, 0) > 0), sum((1 - coalesce(null_frac, 0)) * coalesce(avg_width, 0))
+  FROM pg_stats WHERE inherited = false  AND schemaname NOT IN ('pg_catalog', 'information_schema')
+GROUP BY schemaname, tablename) TO stdout;
+\endif
 \echo '\\.'
 
 --TOAST info
