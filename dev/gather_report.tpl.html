@@ -40,6 +40,41 @@ UNION
 SELECT stats_reset FROM pg_get_wal
 UNION
 SELECT stats_reset FROM pg_get_bgwriter) a \gset
+SELECT NOT EXISTS (SELECT 1 FROM public.pg_tab_bloat) AS should_insert \gset
+\if :should_insert
+WITH const AS (
+  SELECT (SELECT setting::numeric FROM public.pg_get_confs WHERE name = 'block_size') AS bs
+)
+INSERT INTO public.pg_tab_bloat (table_oid, est_pages)
+SELECT relid,
+       (ceil(reltuples / (size_per_block/tpl_size)) + toastpages)::bigint AS est_pages
+FROM (
+  SELECT
+    relid, reltuples, toastpages, bs,
+    bs - 24 AS size_per_block,
+    (4 + tpl_hdr_size + tpl_data_size + 16
+      - CASE WHEN tpl_hdr_size % 8 = 0 THEN 8 ELSE tpl_hdr_size % 8 END
+      - CASE WHEN ceil(tpl_data_size)::int % 8 = 0 THEN 8 ELSE ceil(tpl_data_size)::int % 8 END
+    ) AS tpl_size
+  FROM (
+    SELECT
+      b.relid,
+      r.n_live_tup AS reltuples,
+      coalesce(tr.blks, 0) AS toastpages,
+      const.bs,
+      23 + CASE WHEN b.any_null THEN (7 + b.attcount) / 8 ELSE 0 END AS tpl_hdr_size,
+      b.tpl_data_size
+    FROM pg_get_relstats b
+    JOIN public.pg_get_class c   ON c.reloid = b.relid
+    JOIN public.pg_get_rel r     ON r.relid = c.reloid
+    LEFT JOIN public.pg_get_toast t ON t.relid = c.reloid
+    LEFT JOIN public.pg_get_rel tr  ON tr.relid = t.toastid
+    CROSS JOIN const
+    WHERE c.relkind IN ('r', 'm')
+      AND r.blks >= 0
+  ) s
+) s2;
+\endif
 %>
 <h1>
   <svg width="10em" viewBox="0 0 140 80">
@@ -176,7 +211,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
 concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist),
-r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+r.relnamespace "NS", CASE WHEN (r.blks + coalesce(rt.blks, 0)) > tb.est_pages THEN (r.blks + coalesce(rt.blks, 0) - tb.est_pages)*100/(r.blks + coalesce(rt.blks, 0)) ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -241,11 +276,14 @@ WHERE p.relkind = 'p' OR (p.relkind = 'r' AND p.inhrelid IS NOT NULL) --Eliminat
 GROUP BY p.relname, p.relkind;
 
 \pset tableattr 'id="IndInfo"'
-SELECT n.nsname "Schema",ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
-  FROM pg_get_index i 
-  JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
-  JOIN pg_get_class ci ON i.indexrelid = ci.reloid
-  LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
+SELECT n.nsname "Schema", ct.relname AS "Table", ci.relname as "Index",
+       indisunique as "UK?", indisprimary as "PK?", numscans as "Scans", size,
+       ci.blocks_fetched "Fetch", ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%",
+       to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
+FROM pg_get_index i
+JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
+JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
 ORDER BY size DESC LIMIT 10000;
 
 \pset tableattr 'id="params"'
@@ -645,7 +683,7 @@ function afterRenderingComplete(callback) { requestAnimationFrame(() => {  reque
 
 //function to check the parameters and display the findings, called from DOMContentLoaded event listner below.
 async function doAllChecks(){
-  await fetchJsonWithTimeout(docurl + "meta.json",500).then(data => { meta = data; })
+  await fetchJsonWithTimeout(docurl + "meta.json",2000).then(data => { meta = data; })
   .catch(error => { console.error("Error fetching JSON:", error); }); // there was an error
 
   try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 5000));} //convert the fetched json array to Map
