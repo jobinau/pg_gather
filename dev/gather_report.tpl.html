@@ -66,7 +66,7 @@ FROM (
       b.tpl_data_size
     FROM pg_get_relstats b
     JOIN public.pg_get_class c   ON c.reloid = b.relid
-    JOIN public.pg_get_rel r     ON r.relid = c.reloid
+    JOIN public.pg_get_rel r     ON r.relid = c.reloid AND r.n_live_tup > 0
     LEFT JOIN public.pg_get_toast t ON t.relid = c.reloid
     LEFT JOIN public.pg_get_rel tr  ON tr.relid = t.toastid
     CROSS JOIN const
@@ -210,7 +210,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <% \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist),
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist,',',rs.attcount,',',ROUND(rs.tpl_data_size ::numeric,1)),
 r.relnamespace "NS", CASE WHEN (r.blks + coalesce(rt.blks, 0)) > tb.est_pages THEN (r.blks + coalesce(rt.blks, 0) - tb.est_pages)*100/(r.blks + coalesce(rt.blks, 0)) ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
@@ -228,6 +228,7 @@ LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numsca
    count(indexrelid) FILTER (WHERE indisunique) uk, indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
 LEFT JOIN (SELECT relation,string_agg(DISTINCT pid::text, '; ') AS pidlist FROM pg_get_locks WHERE relation IS NOT NULL
   GROUP BY relation) AS lks ON lks.relation = r.relid
+LEFT JOIN pg_get_relstats rs ON rs.relid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
 \pset tableattr 'id="tabPart" class="thidden"'
@@ -1737,6 +1738,8 @@ function tabInfodtls(e){
   }
   if (typeof o[13] === "string" && o[13].length > 0 ) str += "<c>Current Settings : " + o[13] + "</c>";
   if (typeof o[14] === "string" && o[14].length > 0 ) str += "<c>"+ o[14].split(";").filter(x => x.trim()).length +" Pids : " + o[14] + "</c>";
+  if (o[15] && o[15].length > 0) str += "<c>Columns : " + o[15] + "</c>";
+  if (o[16] != null) str += "<c> Tuple datasize : " + o[16] + " bytes</c>";
   if(o[2] > 0 || vac/days > 50){
     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>" //Refer FILLFACTOR in sqlstatement.md
