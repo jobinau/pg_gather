@@ -1,5 +1,8 @@
 <h2>WALWrite</h2>
-<p>The WALWrite event occurs when a backend process is waiting for the PostgreSQL WAL buffers to be written out to the operating system's write cache.</p>
+<p>The WALWrite event occurs when a backend process is waiting for the PostgreSQL WAL buffers to be written out to the operating system's write cache.<br>
+ A backend waiting on WALWrite (LWLock) isn't necessarily doing I/O itself — it's waiting for another backend's write/flush to finish, because only one backend can hold WALWriteLock at a time.<br> 
+High waits here indicate lock contention on the WAL write path
+</p>
 <h3>The Difference Between WALWrite and WALSync</h3>
 <b>WALWrite:</b> Waiting for the data to be moved from PostgreSQL's internal buffers to the OS kernel buffer.<br/>
 <b>WALSync:</b> Waiting for the OS to move the data to be from the OS kernel buffer to the physical disk.
