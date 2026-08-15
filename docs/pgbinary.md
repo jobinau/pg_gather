@@ -1,6 +1,13 @@
 # PostgreSQL Binaries
 The integrity of PostgreSQL binaries (executables and libraries) is fundamental to the security and stability of your database system. Compromised or improperly managed binaries can expose your system to significant risks, ranging from unpredictable crashes to critical data breaches.
 
+### Relevance to `pg_gather`
+While `pg_gather` is a SQL-only tool and cannot directly verify the checksums of the files on your disk, it can provide critical information to help you detect anomalies:
+* **Version Mismatch**: The `gather.sql` script reports the exact PostgreSQL version string. If this doesn't match your expected/documented version, it may indicate an unauthorized update or an incorrect installation.
+* **Binary Path**: The script reports the `BINDIR`. Ensuring this points to the expected official installation path is a key step in verifying system integrity.
+
+If you suspect that the binaries on your host are not the ones provided by your official package manager, you should investigate the system configuration and package integrity using OS-specific tools (e.g., `rpm -V` or `debsums`) rather than relying solely on the database itself.
+
 ## Potential Risks and Vulnerabilities 🛡️
 #### **1. Malicious Tampering**  
 A malicious actor could create and distribute tampered PostgreSQL binary packages. Installing such a package could install backdoors, granting them unauthorized access to your system and critical data.
@@ -11,10 +18,10 @@ $ pg_config --libs
 -lpgcommon -lpgport -lselinux -lzstd -llz4 -lxslt -lxml2 -lpam -lssl -lcrypto -lgssapi_krb5 -lz -lreadline -lm -lnuma
 ```
 #### **3. Unintended Library Loading**  
-The system might accidentally link to or load libraries from unintended locations (for instance, due to an incorrectly configured LD_LIBRARY_PATH). This can jeopardize system security by loading insecure or incompatible code, leading to unpredictable behavior.
+The system might accidentally link to or load libraries from unintended locations (for instance, due to an incorrectly configured `LD_LIBRARY_PATH`). This can jeopardize system security by loading insecure or incompatible code, leading to unpredictable behavior.
 
 #### **4. Dangers of Manual Installation**  
-Manual installations (e.g., compiling from source) without a package manager (like rpm or deb) lack a robust mechanism to verify binary integrity and manage dependencies. This can lead to several severe problems:
+Manual installations (e.g., compiling from source) without a package manager (like `rpm` or `deb`) lack a robust mechanism to verify binary integrity and manage dependencies. This can lead to several severe problems:
 
 **Library Mismatches:** System libraries might be updated to versions that are incompatible with your specific PostgreSQL build, causing issues like assertion failures or segmentation faults (crashes).
     
@@ -30,5 +37,5 @@ Only download packages from the official PostgreSQL repositories or your trusted
 #### **3. Enforce a "No Manual Installation" Policy**
 On production systems, avoid compiling from source or installing from unofficial archives unless there is a compelling and documented reason. Any manual installation attempt should be treated as a notable event that requires explicit approval and review.
 
-#### **4.  Maintain Local Mirrors for Air-Gapped Systems**
+#### **4. Maintain Local Mirrors for Air-Gapped Systems**
 For systems without internet access, create and maintain a local, trusted mirror of the official PostgreSQL repositories. This allows you to manage installations and updates securely and consistently in an isolated environment.
