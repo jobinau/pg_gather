@@ -40,6 +40,41 @@ UNION
 SELECT stats_reset FROM pg_get_wal
 UNION
 SELECT stats_reset FROM pg_get_bgwriter) a \gset
+SELECT NOT EXISTS (SELECT 1 FROM public.pg_tab_bloat) AS should_insert \gset
+\if :should_insert
+WITH const AS (
+  SELECT (SELECT setting::numeric FROM public.pg_get_confs WHERE name = 'block_size') AS bs
+)
+INSERT INTO public.pg_tab_bloat (table_oid, est_pages)
+SELECT relid,
+       (ceil(reltuples / (size_per_block/tpl_size)) + toastpages)::bigint AS est_pages
+FROM (
+  SELECT
+    relid, reltuples, toastpages, bs,
+    bs - 24 AS size_per_block,
+    (4 + tpl_hdr_size + tpl_data_size + 16
+      - CASE WHEN tpl_hdr_size % 8 = 0 THEN 8 ELSE tpl_hdr_size % 8 END
+      - CASE WHEN ceil(tpl_data_size)::int % 8 = 0 THEN 8 ELSE ceil(tpl_data_size)::int % 8 END
+    ) AS tpl_size
+  FROM (
+    SELECT
+      b.relid,
+      r.n_live_tup AS reltuples,
+      coalesce(tr.blks, 0) AS toastpages,
+      const.bs,
+      23 + CASE WHEN b.any_null THEN (7 + b.attcount) / 8 ELSE 0 END AS tpl_hdr_size,
+      b.tpl_data_size
+    FROM pg_get_relstats b
+    JOIN public.pg_get_class c   ON c.reloid = b.relid
+    JOIN public.pg_get_rel r     ON r.relid = c.reloid AND r.n_live_tup > 0
+    LEFT JOIN public.pg_get_toast t ON t.relid = c.reloid
+    LEFT JOIN public.pg_get_rel tr  ON tr.relid = t.toastid
+    CROSS JOIN const
+    WHERE c.relkind IN ('r', 'm')
+      AND r.blks >= 0
+  ) s
+) s2;
+\endif
 
 \echo <h1>
 \echo   <svg width="10em" viewBox="0 0 140 80">
@@ -60,7 +95,7 @@ SELECT (SELECT count(*) > 1 FROM pg_srvr WHERE connstr ilike 'You%') AS conlines
 SELECT * FROM 
 (WITH conf AS (SELECT CASE WHEN :'tzone' = '' THEN (SELECT setting FROM pg_get_confs WHERE name='log_timezone') ELSE :'tzone' END AS setting),
  tz AS ( SELECT set_config('timezone',COALESCE(name,'UTC'),false) AS val FROM conf LEFT JOIN pg_timezone_names  ON pg_timezone_names.name = conf.setting),
- connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, connstr  FROM pg_srvr)
+ connstrs AS ( SELECT ROW_NUMBER() OVER () AS row_num, COUNT(*) OVER () AS total_rows, REPLACE(connstr, '|', ': ') AS connstr  FROM pg_srvr)
 SELECT  UNNEST(ARRAY ['Collected At','Collected By','Server build', 'Last Startup','In recovery?','Client','Server','Last Reload','Latest xid','Oldest xid ref','Current LSN','Time Line','WAL file','System','PG Bin Dir.']) AS pg_gather,
         UNNEST(ARRAY [CONCAT(collect_ts::text,' (',TZ.val,')'),usr,ver, pg_start_ts::text ||' ('|| collect_ts-pg_start_ts || ')',recovery::text,client::text,server::text,reload_ts::text || ' ('|| collect_ts-reload_ts || ')',
         pg_snapshot_xmax(snapshot)::text,pg_snapshot_xmin(snapshot)::text,current_wal::text,timeline::text || ' (Hex:' ||  upper(to_hex(timeline)) || ')',  lpad(upper(to_hex(timeline)),8,'0')||substring(pg_walfile_name(current_wal) from 9 for 16),
@@ -81,7 +116,7 @@ SELECT 'Client build' as col1, connstr AS col2 FROM connstrs WHERE row_num = tot
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat)
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat,',',locprovider)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -175,7 +210,8 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions),r.relnamespace "NS", CASE WHEN r.blks > 999 AND r.blks > tb.est_pages THEN (r.blks-tb.est_pages)*100/r.blks ELSE NULL END "Bloat%",
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist,',',rs.attcount,',',ROUND(rs.tpl_data_size ::numeric,1)),
+r.relnamespace "NS", CASE WHEN (r.blks + coalesce(rt.blks, 0)) > tb.est_pages THEN (r.blks + coalesce(rt.blks, 0) - tb.est_pages)*100/(r.blks + coalesce(rt.blks, 0)) ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
 ct.relname "Toast name",rt.tab_ind_size "Toast + Ind" ,rt.rel_age "Toast Age",GREATEST(r.rel_age,rt.rel_age) "Max age",
@@ -190,31 +226,65 @@ LEFT JOIN pg_get_inherits inh ON r.relid = inh.inhrelid
 LEFT JOIN pg_get_class inhp ON inh.inhparent = inhp.reloid
 LEFT JOIN (SELECT count(indexrelid) totind,count(indexrelid)FILTER( WHERE numscans=0 ) ind0scan, count(indexrelid) FILTER (WHERE indisprimary) pk,  
    count(indexrelid) FILTER (WHERE indisunique) uk, indrelid FROM pg_get_index GROUP BY indrelid ) AS isum ON isum.indrelid = r.relid
+LEFT JOIN (SELECT relation,string_agg(DISTINCT pid::text, '; ') AS pidlist FROM pg_get_locks WHERE relation IS NOT NULL
+  GROUP BY relation) AS lks ON lks.relation = r.relid
+LEFT JOIN pg_get_relstats rs ON rs.relid = r.relid
 ORDER BY r.tab_ind_size DESC LIMIT 10000;
 
 \pset tableattr 'id="tabPart" class="thidden"'
-WITH ptables AS ( SELECT p.relname , p.relkind, i.inhparent, i.inhrelid
-FROM pg_get_class p LEFT JOIN pg_get_inherits i ON i.inhparent = p.reloid
-WHERE p.relkind in ('p','r'))
-SELECT  p.relname "Partitioned Table", CONCAT(any_value(c.relname) FILTER (WHERE dpart = 't'),',',any_value(r.n_live_tup) FILTER (WHERE dpart='t')) "Default Partition Name, Count",
- 'Native-Declarative' "Partitioning Type",  count(r.relid) "Partitions", sum(r.tot_tab_size) "tot_tab_size" , sum(r.tab_ind_size) "tab_ind_size",
-  round(max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100 ,1) "Fetch Prune %" 
-FROM ptables p LEFT JOIN pg_get_rel r ON p.inhrelid = r.relid 
- LEFT JOIN pg_get_class c ON p.inhrelid = c.reloid
-WHERE p.relkind = 'p' GROUP BY 1
-UNION ALL
-SELECT  p.relname ,',', 'Inheritance' , count(r.relid) "Partitions", sum(r.tot_tab_size) ,
-  sum(r.tab_ind_size), max(c.blocks_fetched)/sum(NULLIF(c.blocks_fetched,0))*100
-FROM ptables p JOIN pg_get_rel r ON p.inhrelid = r.relid
- JOIN pg_get_class c ON p.inhrelid = c.reloid
-WHERE p.relkind = 'r' GROUP BY 1;
+WITH ptables AS ( 
+    -- Added p.reloid to easily track parent tables across joins
+    SELECT p.relname, p.relkind, p.reloid, i.inhparent, i.inhrelid
+    FROM pg_get_class p 
+    LEFT JOIN pg_get_inherits i ON i.inhparent = p.reloid
+    WHERE p.relkind IN ('p', 'r')
+),
+family_locks AS (
+    -- Tracks distinct locks matching either the parent OID or child OIDs
+    SELECT 
+        p.reloid,
+        string_agg(DISTINCT l.pid::text, '; ') AS pidlist
+    FROM ptables p
+    JOIN pg_get_locks l ON (l.relation = p.reloid OR l.relation = p.inhrelid)
+    GROUP BY p.reloid
+)
+SELECT  
+    p.relname "Partitioned Table", 
+    CASE p.relkind 
+        WHEN 'p' THEN 
+            CONCAT(
+                any_value(p.reloid), ',',
+                any_value(c.relname) FILTER (WHERE dpart = 't'), ',',
+                any_value(r.n_live_tup) FILTER (WHERE dpart='t'), ',',
+                any_value(fl.pidlist)
+            )
+        ELSE 
+            CONCAT(any_value(p.reloid),',,,', any_value(fl.pidlist))
+    END "Default Partition Name, Count",
+    CASE p.relkind 
+        WHEN 'p' THEN 'Native-Declarative' 
+        ELSE 'Inheritance' 
+    END "Partitioning Type",  
+    COUNT(r.relid) "Partitions", 
+    SUM(r.tot_tab_size) "tot_tab_size", 
+    SUM(r.tab_ind_size) "tab_ind_size",
+    ROUND(MAX(c.blocks_fetched) / SUM(NULLIF(c.blocks_fetched, 0)) * 100, 1) "Fetch Prune %"
+FROM ptables p 
+LEFT JOIN pg_get_rel r ON p.inhrelid = r.relid
+LEFT JOIN pg_get_class c ON p.inhrelid = c.reloid
+LEFT JOIN family_locks fl ON fl.reloid = p.reloid
+WHERE p.relkind = 'p' OR (p.relkind = 'r' AND p.inhrelid IS NOT NULL) --Eliminates standalone unpartitioned tables
+GROUP BY p.relname, p.relkind;
 
 \pset tableattr 'id="IndInfo"'
-SELECT n.nsname "Schema",ct.relname AS "Table", ci.relname as "Index",indisunique as "UK?",indisprimary as "PK?",numscans as "Scans",size,ci.blocks_fetched "Fetch",ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%", to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
-  FROM pg_get_index i 
-  JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
-  JOIN pg_get_class ci ON i.indexrelid = ci.reloid
-  LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
+SELECT n.nsname "Schema", ct.relname AS "Table", ci.relname as "Index",
+       indisunique as "UK?", indisprimary as "PK?", numscans as "Scans", size,
+       ci.blocks_fetched "Fetch", ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%",
+       to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
+FROM pg_get_index i
+JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
+JOIN pg_get_class ci ON i.indexrelid = ci.reloid
+LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
 ORDER BY size DESC LIMIT 10000;
 
 \pset tableattr 'id="params"'
@@ -246,7 +316,7 @@ LEFT JOIN pg_get_ns ON extnamespace = nsoid;
 \pset tableattr 'id="tblhba"'
 WITH rule_data AS ( SELECT seq, typ, db, usr, addr, s.prefix AS cidr_mask, mask,
     CASE WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN 'IPv4,IPv6' ELSE 'IPv' || family(addr::inet) 
-    END AS "IP",  method, err, CASE  WHEN addr IN ('all','samehost','samenet') THEN NULL ELSE set_masklen(addr::inet, s.prefix) END AS network_block
+    END AS "IP",  method, err, CASE  WHEN addr IN ('all','samehost','samenet') OR (mask IS NULL AND addr IS NOT NULL) THEN NULL ELSE set_masklen(addr::inet, s.prefix) END AS network_block
 FROM pg_get_hba_rules
 LEFT JOIN LATERAL (
     SELECT i AS prefix  FROM generate_series(0, 128) AS i 
@@ -261,10 +331,13 @@ SELECT
       AND ( ('replication' = ANY(v.db) AND 'replication' = ANY(s.db) AND v.db <@ s.db) OR (NOT ('replication' = ANY(v.db)) AND (s.db = '{all}' OR v.db <@ s.db)))
       AND (s.usr = '{all}' OR v.usr <@ s.usr) ) AS "Shadowed By",
   CASE v."IP" WHEN 'IPv4' THEN (2::numeric ^ (32 - masklen(network_block)))::numeric(38,0)
-  WHEN 'IPv6' THEN (2::numeric ^ (128 - masklen(network_block)))::NUMERIC(40,0) ELSE NULL END
+  WHEN 'IPv6' THEN trunc(2::numeric ^ (128 - masklen(network_block))) ELSE NULL END
   AS "No. of IPs"
 FROM rule_data v
 ORDER BY v.seq;
+
+\pset tableattr 'id="tblshmem"'
+SELECT name,allocated_size FROM pg_get_shmem ORDER BY 2 DESC;
 
 \pset tableattr 'id="tblcs" class="lineblk thidden"'
 WITH db_role AS (SELECT 
@@ -477,6 +550,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (WITH maxmxid AS (SELECT max(mxidage) FROM pg_get_db),
   topdbmx AS (SELECT array_agg(datname),maxmxid.max FROM pg_get_db JOIN maxmxid ON pg_get_db.mxidage=maxmxid.max AND pg_get_db.mxidage > 1000 GROUP BY 2)
   SELECT to_jsonb(ROW(array_agg,max)) FROM topdbmx) AS mxiddbs,
+  (SELECT jsonb_build_object('libcs',count(locprovider) FILTER (WHERE locprovider = 'c')) from pg_get_db) AS glibc,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns) AS ns,
   (SELECT json_agg(pg_get_tablespace) FROM pg_get_tablespace) AS tbsp,
   (SELECT to_jsonb((extract (EPOCH FROM (collect_ts - last_archived_time)), pg_wal_lsn_diff( current_wal,
@@ -523,12 +597,21 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
     (WITH pkuk AS (SELECT indrelid,bool_or(indisprimary) pk,bool_or(indisunique) uk FROM pg_get_index GROUP BY indrelid)
     SELECT to_jsonb(ROW(COUNT(*) FILTER (WHERE pkuk.pk IS NULL OR NOT pkuk.pk), COUNT(*) FILTER (WHERE pkuk.uk IS NULL OR NOT pkuk.uk)))
     FROM pg_get_class c LEFT JOIN pkuk ON pkuk.indrelid = c.reloid WHERE c.relkind IN ('r')) nokey,
-   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta
+   (SELECT to_jsonb(ROW(sum(tab_ind_size) FILTER (WHERE relid < 16384),sum(tab_ind_size),count(*))) FROM pg_get_rel) meta,
+   (WITH param AS ( SELECT MAX(setting) FILTER (WHERE name = 'max_connections')::INT AS max_connections,
+      MAX(setting) FILTER (WHERE name = 'max_locks_per_transaction')::INT AS max_locks_per_transaction,
+      MAX(setting) FILTER (WHERE name = 'server_version_num')::INT AS server_version_num 
+    FROM pg_settings  WHERE name IN ('max_connections', 'max_locks_per_transaction')),
+    fastpath AS (SELECT CASE WHEN server_version_num >= 180000 THEN max_locks_per_transaction ELSE 16 END AS fastpath_locks FROM param),
+    pidlocks AS (SELECT pid, COUNT(*) AS lock_count, count(*) FILTER (WHERE relation IS NOT NULL) AS obj_locks FROM pg_get_locks GROUP BY pid)
+    SELECT jsonb_build_object('max_possible_locks', MAX(param.max_connections*param.max_locks_per_transaction) , 'total_locks', sum(lock_count), 
+        'object_locks', sum(obj_locks), 'pids_holding_locks', count(*), 'max_locks_by_a_pid', max(lock_count), 'fastpath_locks_per_pid', MAX(fastpath.fastpath_locks))
+    FROM pidlocks, param,fastpath) locks
 ) r;
 
 \echo ver="33";
 \echo docurl="https://jobinau.github.io/pg_gather/";
-\echo meta={"pgvers":["14.22","15.17","16.13","17.9","18.3"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+\echo meta={"pgvers":["14.24","15.19","16.15","17.11","18.6"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 \echo let eventMaps;
 \echo let colorMaps = new Map([["Activity","#00EE00"],["BufferPin","#8B0000"],["Client","#999999"],["CPU","#00CC00"],["Extension","#6B4226"],["IO","#0000CC"],["IPC","#FF9900"],["LWLock","#8B0000"],["Lock","#FF0000"],["Timeout","#FF00FF"]]);
 \echo mgrver="";
@@ -576,7 +659,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo }
 \echo function afterRenderingComplete(callback) { requestAnimationFrame(() => {  requestAnimationFrame(callback);  }); }
 \echo async function doAllChecks(){
-\echo   await fetchJsonWithTimeout(docurl + "meta.json",500).then(data => { meta = data; })
+\echo   await fetchJsonWithTimeout(docurl + "meta.json",2000).then(data => { meta = data; })
 \echo   .catch(error => { console.error("Error fetching JSON:", error); });
 \echo   try {eventMaps = new Map(await fetchJsonWithTimeout(docurl + "waitevents.json", 5000));}
 \echo   catch (error) { console.error("Error fetching wait events JSON:", error); eventMaps = new Map(); }
@@ -598,7 +681,9 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   checktabPart();
 \echo   checkindex();
 \echo   checkextn();
-\echo   checkhba();
+\echo   try {checkhba();}
+\echo   catch (error) { console.error("Error checking HBA (checkhba()):", error); }
+\echo   checkshmem();
 \echo   checkstmnts();
 \echo   checkchkpntbgwrtr();
 \echo   checkfindings();
@@ -760,7 +845,12 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if ( sharedBuffers?.val > 2097152 && hugePages?.val !=  "on" ){
 \echo     strfind += "<li><b>IMPORTANT : Enabling and enforcing huge_pages is essential for stability and reliability</b>. Especially when the system has shared_buffers of <b>"+ bytesToSize(sharedBuffers.val*8192) +"</b>.</b><a href='"+ docurl +"params/huge_pages.html'>Details<a></li>"
 \echo  }
+\echo  if (obj.locks.total_locks > 200 && obj.locks.max_possible_locks > 200) {
+\echo   const highAlert = (obj.locks.total_locks * 10 > obj.locks.max_possible_locks) ? "<b>Which is high</b>" : ""; 
+\echo   strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b> currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
+\echo   }
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
+\echo  if (obj.glibc.libcs > 0) strfind += "<li>Detected <a href=#dbs><b>"+ obj.glibc.libcs +"  databases with glibc as default collation provider</b></a>. This could have considerable overhead <a href='"+ docurl +"glibc.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo }
 \echo function checkconns(){
@@ -877,6 +967,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       param["suggest"] = "on";
 \echo     }
 \echo   },
+\echo   autovacuum_vacuum_cost_delay: function(rowref) {
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText > 20 || val.innerText == 0) { val.classList.add("warn"); val.title="Better to specify this with a value between 2 and 20 milliseconds" ;
+\echo       let param = params.find(p => p.param === "autovacuum_vacuum_cost_delay");
+\echo       param["suggest"] = "2";
+\echo     }
+\echo   },
 \echo   autovacuum_max_workers : function(rowref) {
 \echo     val=rowref.cells[1];
 \echo     if(val.innerText > 3) { val.classList.add("warn"); val.title="High number of workers causes each workers to run slower because of the cost limit" ;
@@ -948,7 +1045,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   hot_standby_feedback: function(rowref){ val=rowref.cells[1]; val.classList.add("lime"); },
 \echo   idle_session_timeout:function(rowref){ 
 \echo     val=rowref.cells[1]; 
-\echo     if (val.innerText > 0) { val.classList.add("warn"); val.title="It is dangerous to use idle_session_timeout. Avoid using this" }
+\echo     if (val.innerText > 0) { val.classList.add("warn"); val.title="It is dangerous to use idle_session_timeout. Avoid using this"; 
+\echo       let param = params.find(p => p.param === "idle_session_timeout");
+\echo       param["suggest"] = "0";
+\echo     }
 \echo   },
 \echo   idle_in_transaction_session_timeout: function(rowref){ 
 \echo     val=rowref.cells[1]; 
@@ -1448,6 +1548,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules for pg_hba carfully and remove the shadowed ones. Refer <a href=#tblhba>HBA rules</a> section</li>";
 \echo   if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
 \echo }
+\echo function checkshmem(){
+\echo   tab=document.getElementById("tblshmem");
+\echo   tab.caption.innerHTML="<span>Top Shared Memory</span>"
+\echo   console.log("Shared Memory Allocations : " + (tab.rows.length - 1));
+\echo }
 \echo const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
 \echo const comparer = (idx, asc) => (a, b) => ((v1, v2) =>   v1 !== "" && v2 !== "" && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2))(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
 \echo document.querySelectorAll("th").forEach(th => th.addEventListener("click", (() => {
@@ -1473,7 +1578,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return "<b>" + th.cells[0].innerText + "</b>" + str + 
 \echo    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
 \echo    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
-\echo    + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
+\echo    + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + " - " + (o[8] ? { c: "Glibc", i: "ICU Lib", b: "Built-In" }[o[8]] : "") + "</c>";
 \echo   }else{
 \echo if (td.tagName == "TH") return "";
 \echo let thIndex = td.cellIndex;
@@ -1509,7 +1614,10 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[12]).toString()); 
 \echo     str += "<c>Tablespace : " + o[12] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
 \echo   }
-\echo   if (o[13] !== null ) str += "<c>Current Settings : " + o[13] + "</c>";
+\echo   if (typeof o[13] === "string" && o[13].length > 0 ) str += "<c>Current Settings : " + o[13] + "</c>";
+\echo   if (typeof o[14] === "string" && o[14].length > 0 ) str += "<c>"+ o[14].split(";").filter(x => x.trim()).length +" Pids : " + o[14] + "</c>";
+\echo   if (o[15] && o[15].length > 0) str += "<c>Columns : " + o[15] + "</c>";
+\echo   if (o[16] != null) str += "<c> Tuple datasize : " + o[16] + " bytes</c>";
 \echo   if(o[2] > 0 || vac/days > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
 \echo   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>"
@@ -1608,9 +1716,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   th = e.target.parentNode;
 \echo   let o=th.cells[1].innerText.split(",");
 \echo   let str = "";
-\echo   if (o[0]) str += "<c>Default Parittion :" + o[0] + "<c>";
-\echo   else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found<c>";
-\echo   if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition<c>"
+\echo   if (o[0]) str += "<c>Parent OID: " + o[0] + "</c>";
+\echo   if (o[1]) str += "<c>Default Parittion :" + o[1] + "</c>";
+\echo   else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found</c>";
+\echo   if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition</c>";
+\echo   if (o[3] && o[3].length>0) str += "<c>"+ o[3].split(";").filter(x => x.trim()).length +" Pids : " + o[3] + "</c>";
 \echo   return str;
 \echo   }
 \echo }
@@ -1632,6 +1742,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     else return "";
 \echo   }
 \echo }
+\echo function tblshmemdtls(e){
+\echo   let td = e.target;
+\echo   let columnIndex = td.cellIndex;
+\echo   if (td.matches("tr th")) return td.title;
+\echo   if (td.innerText > 0) return bytesToSize(td.innerText) + " allocated";
+\echo   else return "";
+\echo }
 \echo function genPopup(str){
 \echo       var el = document.createElement("div");
 \echo       el.setAttribute("id", "dtls");
@@ -1650,7 +1767,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       el.innerHTML= str;
 \echo       return el;
 \echo }
-\echo document.querySelectorAll(".thidden, #tbliostat").forEach(table => {
+\echo document.querySelectorAll(".thidden, #tbliostat, #tblshmem").forEach(table => {
 \echo   table.addEventListener("mouseenter", (e) => {
 \echo     let str = ""
 \echo     const td = e.target;

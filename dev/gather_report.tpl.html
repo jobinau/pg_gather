@@ -116,7 +116,7 @@ SELECT 'Client build' as col1, connstr AS col2 FROM connstrs WHERE row_num = tot
 \pset tableattr 'id="dbs" class="thidden"'
 \C ''
 WITH cts AS (SELECT COALESCE(collect_ts,(SELECT max(state_change) FROM pg_get_activity)) AS c_ts FROM pg_gather)
-SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat)
+SELECT datname "DB Name",concat(tup_inserted/days,',',tup_updated/days,',',tup_deleted/days,',',to_char(COALESCE(pg_get_db.stats_reset,:'reset_ts'),'YYYY-MM-DD HH24-MI-SS'),',',datid,',',mxidage,',',encod,',',colat,',',locprovider)
 ,xact_commit/days "Avg.Commits",xact_rollback/days "Avg.Rollbacks",(tup_inserted+tup_updated+tup_deleted)/days "Avg.DMLs", CASE WHEN blks_fetch > 0 THEN blks_hit*100/blks_fetch ELSE NULL END  "Cache hit ratio"
 ,temp_files/days "Avg.Temp Files",temp_bytes/days "Avg.Temp Bytes",db_size "DB size",age "Age"
 FROM pg_get_db
@@ -552,6 +552,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (WITH maxmxid AS (SELECT max(mxidage) FROM pg_get_db),
   topdbmx AS (SELECT array_agg(datname),maxmxid.max FROM pg_get_db JOIN maxmxid ON pg_get_db.mxidage=maxmxid.max AND pg_get_db.mxidage > 1000 GROUP BY 2)
   SELECT to_jsonb(ROW(array_agg,max)) FROM topdbmx) AS mxiddbs,
+  (SELECT jsonb_build_object('libcs',count(locprovider) FILTER (WHERE locprovider = 'c')) from pg_get_db) AS glibc,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns) AS ns,
   (SELECT json_agg(pg_get_tablespace) FROM pg_get_tablespace) AS tbsp,
   (SELECT to_jsonb((extract (EPOCH FROM (collect_ts - last_archived_time)), pg_wal_lsn_diff( current_wal,
@@ -617,7 +618,7 @@ ver="33";
 //obj={};
 docurl="https://jobinau.github.io/pg_gather/";
 //Currently supported PostgreSQL versions, Extensions
-meta={"pgvers":["14.22","15.17","16.13","17.9","18.3"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
+meta={"pgvers":["14.24","15.19","16.15","17.11","18.6"],"commonExtn":["plpgsql","pg_stat_statements","pg_repack"],"riskyExtn":["citus","tds_fdw","pglogical"]};
 let eventMaps; //Global variable to hold wait event mappings
 //CONST Color map for all known wait event categories. Default is brown which is part of CSS
 let colorMaps = new Map([["Activity","#00EE00"],["BufferPin","#8B0000"],["Client","#999999"],["CPU","#00CC00"],["Extension","#6B4226"],["IO","#0000CC"],["IPC","#FF9900"],["LWLock","#8B0000"],["Lock","#FF0000"],["Timeout","#FF00FF"]]);
@@ -901,6 +902,7 @@ function checkfindings(){
   strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b> currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
   }
  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
+ if (obj.glibc.libcs > 0) strfind += "<li>Detected <a href=#dbs><b>"+ obj.glibc.libcs +"  databases with glibc as default collation provider</b></a>. This could have considerable overhead <a href='"+ docurl +"glibc.html'>Details</a></li>";
  //if (obj.meta.f2 < curdbsz) strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(curdbsz) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphan.html'> Details<a></li>"
   //update the findings section
   document.getElementById("finditem").innerHTML += strfind;
@@ -1694,7 +1696,7 @@ function dbsdtls(e){
   return "<b>" + th.cells[0].innerText + "</b>" + str + 
    "<c> Inserts per day : " + o[0] + "</c><c>Updates per day : " + o[1] + "</c><c>Deletes per day : " 
    + o[2] + "</c><c>Stats Reset : " + o[3] + "</c><c>DB oid(dbid) :" + o[4] + "</c><c>Multi Txn Id Age :" + o[5] + "</c>" 
-   + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + "</c>";
+   + "<c>Encoding : " + o[6] + "</c><c>Collation : " + o[7] + " - " + (o[8] ? { c: "Glibc", i: "ICU Lib", b: "Built-In" }[o[8]] : "") + "</c>";
   }else{ // other than first cell
 if (td.tagName == "TH") return ""; //No popup for header cells
 let thIndex = td.cellIndex;

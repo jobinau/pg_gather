@@ -75,10 +75,13 @@ END;
 \echo '\\.'
 
 --Database level info
-\echo COPY pg_get_db (datid,datname,encod,colat,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age,mxidage,stats_reset) FROM stdin;
-COPY (SELECT d.oid, d.datname, 
-pg_encoding_to_char(d.encoding) AS encoding, 
-d.datcollate AS collate, 
+\echo COPY pg_get_db (datid,datname,encod,colat,locprovider,xact_commit,xact_rollback,blks_fetch,blks_hit,tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,temp_files,temp_bytes,deadlocks,blk_read_time,blk_write_time,db_size,age,mxidage,stats_reset) FROM stdin;
+COPY (SELECT d.oid, d.datname, pg_encoding_to_char(d.encoding) AS encoding, d.datcollate AS collate, 
+\if :pg16
+d.datlocprovider AS locprovider,
+\else
+NULL AS locprovider,
+\endif
 pg_stat_get_db_xact_commit(d.oid) AS xact_commit,
 pg_stat_get_db_xact_rollback(d.oid) AS xact_rollback,
 pg_stat_get_db_blocks_fetched(d.oid) AS blks_fetch,

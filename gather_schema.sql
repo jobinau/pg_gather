@@ -96,6 +96,7 @@ CREATE UNLOGGED TABLE pg_get_db (
     datname text,
     encod text,
     colat text,
+    locprovider text,
     xact_commit bigint,
     xact_rollback bigint,
     blks_fetch bigint,
