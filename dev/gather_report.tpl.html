@@ -901,6 +901,8 @@ function checkfindings(){
   const highAlert = (obj.locks.total_locks * 10 > obj.locks.max_possible_locks) ? "<b>Which is high</b>" : ""; 
   strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b> currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
   }
+ if (mgrver > 18 && obj.locks.max_locks_by_a_pid > 64) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 64 locks per session. check <a href='"+ docurl +"max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
+ else if (mgrver <= 18 && obj.locks.max_locks_by_a_pid > 16) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 16 locks per session in PG version " + mgrver + ". Please consider upgrading to PG 18+ and check <a href='"+ docurl +"max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
  if (obj.glibc.libcs > 0) strfind += "<li>Detected <a href=#dbs><b>"+ obj.glibc.libcs +"  databases with glibc as default collation provider</b></a>. This could have considerable overhead <a href='"+ docurl +"glibc.html'>Details</a></li>";
  //if (obj.meta.f2 < curdbsz) strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(curdbsz) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphan.html'> Details<a></li>"
@@ -1181,6 +1183,15 @@ var paramDespatch = {
       }
     } else if (val.innerText > 500) val.classList.add("warn")
       else val.classList.add("lime")
+  },
+  max_locks_per_transaction: function(rowref){
+    val=rowref.cells[1];
+    let param = params.find(p => p.param === "max_locks_per_transaction");
+    if (obj.locks.max_locks_by_a_pid > 512 && val.innerText < 1024) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 1024"; param["suggest"] = "1024"; }
+    else if (obj.locks.max_locks_by_a_pid > 256 && val.innerText < 512) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 512"; param["suggest"] = "512"; }
+    else if (obj.locks.max_locks_by_a_pid > 128 && val.innerText < 256) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 256"; param["suggest"] = "256"; }
+    else if (obj.locks.max_locks_by_a_pid > 64 && val.innerText < 128) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 128"; param["suggest"] = "128"; }
+    else { val.classList.remove("warn"); val.classList.add("lime"); delete param["suggest"]; }
   },
   max_standby_archive_delay: function(rowref){
     val=rowref.cells[1];
