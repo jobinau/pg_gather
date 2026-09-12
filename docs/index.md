@@ -66,10 +66,10 @@ This script may take over 20 seconds to run because it contains sleeps/delays. W
 ## Notes:</a> 
    1. **Heroku** and similar DaaS hostings impose very high restrictions on collecting performance data. Queries on views like `pg_statistics` may produce errors during data collection, but these errors can be ignored.
    2. **MS Windows** users!, 
-   Client tools like [pgAdmin](https://www.pgadmin.org/) include `psql`, which can be used to run `pg_gather` against local or remote databases.
+   Client tools like [pgAdmin](https://www.pgadmin.org/) include `psql`. The `psql` can be located inside the `runtime` directory within the installation directory, which can be used to run `pg_gather` against local or remote databases.
    For example:  
    ```
-     "C:\Program Files\pgAdmin 4\v4\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.tsv
+     "C:\Program Files\pgAdmin\runtime\psql.exe" -h pghost -U postgres -f gather.sql > out.tsv
    ```
    3. **AWS Aurora** offers a "PostgreSQL-compatible" database. However, it is not a true PostgreSQL database, even though it looks like one. Therefore, you should do the following to the `gather.sql` script to replace any unapplicable lines with "NULL".
    ```
