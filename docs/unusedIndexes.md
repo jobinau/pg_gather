@@ -31,7 +31,7 @@ SELECT ns.nsname AS "Schema", ci.relname AS "Index", ct.relname AS "Table", ptab
  JOIN pg_get_class ci ON i.indexrelid = ci.reloid
  LEFT JOIN pg_get_toast tst ON ct.reloid = tst.toastid
  LEFT JOIN pg_get_class ptab ON tst.relid = ptab.reloid
- WHERE (tst.relid IS NULL OR ptab.reloid IS NOT NULL) --Drops TOAST indexes of catalog tables
+ WHERE (tst.relid IS NULL OR ptab.reloid IS NOT NULL) --Exclude TOAST indexes of catalog tables
    AND i.numscans = 0                                 --Remove this line to list every index
  ORDER BY i.size DESC;
 ```

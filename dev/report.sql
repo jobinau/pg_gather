@@ -210,7 +210,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist,',',rs.attcount,',',ROUND(rs.tpl_data_size ::numeric,1)),
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.relam,',',c.reltablespace,',',array_to_string(c.reloptions,';'),',',lks.pidlist,',',rs.attcount,',',ROUND(rs.tpl_data_size ::numeric,1)),
 r.relnamespace "NS", CASE WHEN (r.blks + coalesce(rt.blks, 0)) > tb.est_pages THEN (r.blks + coalesce(rt.blks, 0) - tb.est_pages)*100/(r.blks + coalesce(rt.blks, 0)) ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
@@ -553,6 +553,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (SELECT jsonb_build_object('libcs',count(locprovider) FILTER (WHERE locprovider = 'c')) from pg_get_db) AS glibc,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns) AS ns,
   (SELECT json_agg(pg_get_tablespace) FROM pg_get_tablespace) AS tbsp,
+  (SELECT json_agg(pg_get_am) FROM pg_get_am) AS am,
   (SELECT to_jsonb((extract (EPOCH FROM (collect_ts - last_archived_time)), pg_wal_lsn_diff( current_wal,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )
   , last_archived_wal, last_archived_time::text || ' (' || CASE WHEN EXTRACT(EPOCH FROM(collect_ts - last_archived_time)) < 0 THEN 'Right Now'::text ELSE (collect_ts - last_archived_time)::text END  || ')'))
@@ -849,6 +850,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const highAlert = (obj.locks.total_locks * 10 > obj.locks.max_possible_locks) ? "<b>Which is high</b>" : ""; 
 \echo   strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b> currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
 \echo   }
+\echo  if (mgrver > 18 && obj.locks.max_locks_by_a_pid > 64) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 64 locks per session. check <a href='"+ docurl +"params/max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
+\echo  else if (mgrver <= 18 && obj.locks.max_locks_by_a_pid > 16) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 16 locks per session in PG version " + mgrver + ". Please consider upgrading to PG 18+ and check <a href='"+ docurl +"params/max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
 \echo  if (obj.glibc.libcs > 0) strfind += "<li>Detected <a href=#dbs><b>"+ obj.glibc.libcs +"  databases with glibc as default collation provider</b></a>. This could have considerable overhead <a href='"+ docurl +"glibc.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
@@ -1107,6 +1110,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       }
 \echo     } else if (val.innerText > 500) val.classList.add("warn")
 \echo       else val.classList.add("lime")
+\echo   },
+\echo   max_locks_per_transaction: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     let param = params.find(p => p.param === "max_locks_per_transaction");
+\echo     if (obj.locks.max_locks_by_a_pid > 512 && val.innerText < 1024) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 1024"; param["suggest"] = "1024"; }
+\echo     else if (obj.locks.max_locks_by_a_pid > 256 && val.innerText < 512) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 512"; param["suggest"] = "512"; }
+\echo     else if (obj.locks.max_locks_by_a_pid > 128 && val.innerText < 256) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 256"; param["suggest"] = "256"; }
+\echo     else if (obj.locks.max_locks_by_a_pid > 64 && val.innerText < 128) { val.classList.add("warn"); val.title="max_locks_per_transaction is low for the current workload. Consider increasing it to at least 128"; param["suggest"] = "128"; }
+\echo     else { val.classList.remove("warn"); val.classList.add("lime"); delete param["suggest"]; }
 \echo   },
 \echo   max_standby_archive_delay: function(rowref){
 \echo     val=rowref.cells[1];
@@ -1373,11 +1385,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   const startTime =new Date().getTime();
 \echo   tab=document.getElementById("tabInfo")
 \echo   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB. <a href="+ docurl +"tableinfo.html>🗎</a>"; 
-\echo   const trs=document.getElementById("tabInfo").rows
+\echo   const trs=tab.rows
 \echo   const len=trs.length;
+\echo   const days = obj.dbts.f4;
 \echo   let bloatTabTot = 0;
 \echo   let bloatTotSize = 0;
 \echo   let TotTabIndSize=0;
+\echo   let amid = obj.am.find(el => el.amname === "tde_heap")?.amoid ?? null;
 \echo   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","No. Live Rows/Tuples","No. Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
 \echo   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","Age of main relation","","","Number of Vacuums per day","","Size of TOAST and its index",
 \echo    "Age of TOAST","Age of Table & TOAST","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
@@ -1390,22 +1404,24 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     } else TabInd.title=bytesToSize(TabIndSize); 
 \echo     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
 \echo     TotTabIndSize += Number(TabIndSize);
-\echo     if (tr.cells[3].innerText >0 && TabIndSize > 0) { bloatTotSize += TabIndSize * (tr.cells[3].innerText / 100) }
-\echo     if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
-\echo     if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
-\echo     if (tr.cells[15].innerText > 10000) { 
-\echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
-\echo       if (tr.cells[15].innerText > 10737418240) tr.cells[15].classList.add("warn")
+\echo     let o=tr.cells[1].textContent.split(",");
+\echo     if (o[12] == amid) { tr.cells[0].textContent += " 🔐" }
+\echo     if (tr.cells[3].textContent >0 && TabIndSize > 0) { bloatTotSize += TabIndSize * (tr.cells[3].textContent / 100) }
+\echo     if (tr.cells[3].textContent > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
+\echo     if (tr.cells[13].textContent / days > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].textContent / days) + "/day"; }
+\echo     if (tr.cells[15].textContent > 10000) { 
+\echo       tr.cells[15].title=bytesToSize(Number(tr.cells[15].textContent)); 
+\echo       if (tr.cells[15].textContent > 10737418240) tr.cells[15].classList.add("warn")
 \echo       else tr.cells[15].classList.add("lime")
 \echo     }
 \echo     aged(tr.cells[10]);
 \echo     aged(tr.cells[16]);
 \echo     aged(tr.cells[17]);
-\echo     if (tr.cells[18].innerText / obj.dbts.f4 > 262144 ){ 
+\echo     if (tr.cells[18].textContent / days > 262144 ){ 
 \echo       tr.cells[18].classList.add("lime"); 
-\echo       tr.cells[18].title="High Utilization : " + bytesToSize(Math.round(tr.cells[18].innerText * 8192 / obj.dbts.f4)) + "/day"; 
-\echo       if(tr.cells[19].innerText < 40 ){ tr.cells[19].classList.add("warn"); tr.cells[19].title="Poor cache hit ratio, Results in high DiskReads"; }
-\echo       else if (tr.cells[19].innerText < 70) tr.cells[19].classList.add("lime");
+\echo       tr.cells[18].title="High Utilization : " + bytesToSize(Math.round(tr.cells[18].textContent * 8192 / days)) + "/day"; 
+\echo       if(tr.cells[19].textContent < 40 ){ tr.cells[19].classList.add("warn"); tr.cells[19].title="Poor cache hit ratio, Results in high DiskReads"; }
+\echo       else if (tr.cells[19].textContent < 70) tr.cells[19].classList.add("lime");
 \echo      }
 \echo   }
 \echo   var el=document.createElement("tfoot");
@@ -1544,6 +1560,11 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo       tr.title="This rule is in shadow of the previous rule(s) and will never be used"
 \echo       shadowed++;
 \echo     }
+\echo     if(tr.cells[12].innerText.trim() > 256){
+\echo       tr.cells[12].classList.add("warn");
+\echo       tr.title="This rule is applicable to more than 256 addresses, which is not recommended for security reasons"
+\echo       shadowed++;
+\echo     }
 \echo   }
 \echo   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules for pg_hba carfully and remove the shadowed ones. Refer <a href=#tblhba>HBA rules</a> section</li>";
 \echo   if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
@@ -1609,18 +1630,23 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += "<c>Deletes / day : " + Math.round(o[3]/days) + "</c>";
 \echo   str += "<c>HOT.updates / day : " + Math.round(o[4]/days) + "</c>";
 \echo   str += "<c>Rel.filename : " + o[11] + "</c>";
-\echo   if (o[12] < 16384) str += "<c>Tablespace : pg_default </c>"; 
+\echo   let am = obj.am.find(el => el.amoid === o[12]);
+\echo   str += "<c>Access Method : " + (am ? am.amname : "Default (heap)") + "</c>";
+\echo   if (o[13] < 16384) str += "<c>Tablespace : pg_default </c>"; 
 \echo   else{
-\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[12]).toString()); 
-\echo     str += "<c>Tablespace : " + o[12] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
+\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[13]).toString()); 
+\echo     str += "<c>Tablespace : " + o[13] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
 \echo   }
-\echo   if (typeof o[13] === "string" && o[13].length > 0 ) str += "<c>Current Settings : " + o[13] + "</c>";
-\echo   if (typeof o[14] === "string" && o[14].length > 0 ) str += "<c>"+ o[14].split(";").filter(x => x.trim()).length +" Pids : " + o[14] + "</c>";
-\echo   if (o[15] && o[15].length > 0) str += "<c>Columns : " + o[15] + "</c>";
-\echo   if (o[16] != null) str += "<c> Tuple datasize : " + o[16] + " bytes</c>";
+\echo   if (typeof o[14] === "string" && o[14].length > 0 ) {
+\echo     let settings = o[14].split(";").filter(x => x.trim()).join(", <br>&nbsp;&nbsp;");
+\echo     str += "<c>Current Settings :<br>" + settings + "</c>";
+\echo   }
+\echo   if (typeof o[15] === "string" && o[15].length > 0 ) str += "<c>"+ o[15].split(";").filter(x => x.trim()).length +" Pids : " + o[15] + "</c>";
+\echo   if (o[16] && o[16].length > 0) str += "<c>Columns : " + o[16] + "</c>";
+\echo   if (o[17] && o[17].trim().length > 0) str += "<c> Tuple datasize : " + o[17] + " bytes</c>";
 \echo   if(o[2] > 0 || vac/days > 50){
 \echo     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-\echo   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>"
+\echo   if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])) + "</c>"
 \echo   if (vac/days > 50) { 
 \echo     let threshold = Math.round((Math.round(o[2]/days) + Math.round(o[3]/days))/48); 
 \echo     if (threshold < 500) threshold = 500;
@@ -1674,22 +1700,6 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   return str
 \echo } else return "No connections"
 \echo }}
-\echo /*
-\echo async function tblDBTimedtls(e){
-\echo   if (e.target.matches("tr td:first-child")){
-\echo   td = e.target;
-\echo   const htmlString = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000)
-\echo     .then(res => res.text())
-\echo     .then(htmlString => {
-\echo       if (td.matches(":hover"))
-\echo         td.appendChild(genPopup( htmlString + "<h4><a href="+ docurl + "events/" + td.innerText.toUpperCase() +">🔗</a><h4>") );
-\echo     })
-\echo     .catch(error => {
-\echo       console.error("Error fetching wait events", error);
-\echo     });
-\echo     return;
-\echo   }
-\echo }*/
 \echo let hoverTimer;
 \echo async function tblDBTimedtls(e) {
 \echo   if (e.target.matches("tr td:first-child")) {
@@ -1831,6 +1841,14 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   for (let tr of trs) {
 \echo    if (tr.rowIndex === 0) continue;
 \echo    evnts=tr.cells[2];
+\echo    switch (tr.cells[0].innerText.toUpperCase()) {
+\echo     case "LOCKMANAGER":
+\echo       strfind += "<li>Lock Manager wait events are detected, which is a sign of high lock contention due locks exceeding fast-path locks. Inreasing max_locks_per_transaction in PG18+ could help</li>";
+\echo       break;
+\echo     default:
+\echo       evnts.title = "Unknown event type: " + tr.cells[0].innerText;
+\echo       break;
+\echo   } 
 \echo    const eventType = eventMaps.get(tr.cells[0].innerText.toUpperCase());
 \echo    if (eventType in counters) {
 \echo      counters[eventType] += Number(evnts.innerText);

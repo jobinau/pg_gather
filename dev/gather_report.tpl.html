@@ -210,7 +210,7 @@ LEFT JOIN LATERAL (SELECT GREATEST((EXTRACT(epoch FROM(c_ts-COALESCE(pg_get_db.s
 <% \pset footer on
 \pset tableattr 'id="tabInfo" class="thidden"'
 SELECT c.relname || CASE WHEN inh.inhrelid IS NOT NULL THEN ' (part)' WHEN c.relkind != 'r' THEN ' ('||c.relkind||')' ELSE '' END "Name" ,
-concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.reltablespace,',',c.reloptions,',',lks.pidlist,',',rs.attcount,',',ROUND(rs.tpl_data_size ::numeric,1)),
+concat(r.relid,',',r.n_tup_ins,',',r.n_tup_upd,',',r.n_tup_del,',',r.n_tup_hot_upd,',',isum.totind,',',isum.ind0scan,',',isum.pk,',',isum.uk,',',inhp.relname,',',inhp.relkind,',',c.relfilenode,',',c.relam,',',c.reltablespace,',',array_to_string(c.reloptions,';'),',',lks.pidlist,',',rs.attcount,',',ROUND(rs.tpl_data_size ::numeric,1)),
 r.relnamespace "NS", CASE WHEN (r.blks + coalesce(rt.blks, 0)) > tb.est_pages THEN (r.blks + coalesce(rt.blks, 0) - tb.est_pages)*100/(r.blks + coalesce(rt.blks, 0)) ELSE NULL END "Bloat%",
 r.n_live_tup "Live",r.n_dead_tup "Dead", CASE WHEN r.n_live_tup <> 0 THEN  ROUND((r.n_dead_tup::real/r.n_live_tup::real)::numeric,1) END "D/L",
 r.rel_size "Rel size",r.tot_tab_size "Tot.Tab size",r.tab_ind_size "Tab+Ind size",r.rel_age "Rel. Age",to_char(r.last_vac,'YYYY-MM-DD HH24:MI:SS') "Last vacuum",to_char(r.last_anlyze,'YYYY-MM-DD HH24:MI:SS') "Last analyze",r.vac_nos "Vaccs",
@@ -555,6 +555,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (SELECT jsonb_build_object('libcs',count(locprovider) FILTER (WHERE locprovider = 'c')) from pg_get_db) AS glibc,
   (SELECT json_agg(pg_get_ns) FROM  pg_get_ns) AS ns,
   (SELECT json_agg(pg_get_tablespace) FROM pg_get_tablespace) AS tbsp,
+  (SELECT json_agg(pg_get_am) FROM pg_get_am) AS am,
   (SELECT to_jsonb((extract (EPOCH FROM (collect_ts - last_archived_time)), pg_wal_lsn_diff( current_wal,
   (coalesce(nullif(CASE WHEN length(last_archived_wal) < 24 THEN '' ELSE ltrim(substring(last_archived_wal, 9, 8), '0') END, ''), '0') || '/' || substring(last_archived_wal, 23, 2) || '000001'        ) :: pg_lsn )
   , last_archived_wal, last_archived_time::text || ' (' || CASE WHEN EXTRACT(EPOCH FROM(collect_ts - last_archived_time)) < 0 THEN 'Right Now'::text ELSE (collect_ts - last_archived_time)::text END  || ')'))
@@ -901,8 +902,8 @@ function checkfindings(){
   const highAlert = (obj.locks.total_locks * 10 > obj.locks.max_possible_locks) ? "<b>Which is high</b>" : ""; 
   strfind += "<li>There are a total of <b>"+ obj.locks.total_locks +" locks</b> currently held by sessions "+ highAlert +". The system can support up to <b>" + obj.locks.max_possible_locks + "</b> locks. However it is important to know the nuances of its <a href='"+ docurl +"locks.html'>Details<a></li>";
   }
- if (mgrver > 18 && obj.locks.max_locks_by_a_pid > 64) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 64 locks per session. check <a href='"+ docurl +"max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
- else if (mgrver <= 18 && obj.locks.max_locks_by_a_pid > 16) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 16 locks per session in PG version " + mgrver + ". Please consider upgrading to PG 18+ and check <a href='"+ docurl +"max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
+ if (mgrver > 18 && obj.locks.max_locks_by_a_pid > 64) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 64 locks per session. check <a href='"+ docurl +"params/max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
+ else if (mgrver <= 18 && obj.locks.max_locks_by_a_pid > 16) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 16 locks per session in PG version " + mgrver + ". Please consider upgrading to PG 18+ and check <a href='"+ docurl +"params/max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
  if (obj.glibc.libcs > 0) strfind += "<li>Detected <a href=#dbs><b>"+ obj.glibc.libcs +"  databases with glibc as default collation provider</b></a>. This could have considerable overhead <a href='"+ docurl +"glibc.html'>Details</a></li>";
  //if (obj.meta.f2 < curdbsz) strfind += "<li><b>Total size of all objects in database is : " + bytesToSize(obj.meta.f2) + ". However, the database occupies " + bytesToSize(curdbsz) + "</b>. This possibily indicates orphaned objects. <a href='"+ docurl +"orphan.html'> Details<a></li>"
@@ -1469,11 +1470,14 @@ function checktabs(){
   const startTime =new Date().getTime();
   tab=document.getElementById("tabInfo")
   tab.caption.innerHTML="<span>Tables</span> in '" + obj.dbts.f1 + "' DB. <a href="+ docurl +"tableinfo.html>🗎</a>"; 
-  const trs=document.getElementById("tabInfo").rows
+  const trs=tab.rows
   const len=trs.length;
+  const days = obj.dbts.f4;
   let bloatTabTot = 0; //Total bloated tables with more than 20% bloat
   let bloatTotSize = 0; //Total bloat size
   let TotTabIndSize=0; //Total Table + Index size
+  //findout the amid for tde_heap
+  let amid = obj.am.find(el => el.amname === "tde_heap")?.amoid ?? null;
   setheadtip(trs[0],["Table Name and its OID","","Namespace / Schema OID","Bloat in Percentage","No. Live Rows/Tuples","No. Dead Rows/Tuples","Dead/Live ratio","Table (main fork) size in bytes",
   "Total Table size (All forks + TOAST) in bytes","Total Table size + Associated Indexes size in bytes","Age of main relation","","","Number of Vacuums per day","","Size of TOAST and its index",
    "Age of TOAST","Age of Table & TOAST","Number of Blocks Read/Fetched","Cache hit while reading","Time of last usage"]);
@@ -1489,27 +1493,29 @@ function checktabs(){
     //Tab+Ind > 10GB
     if (TabIndSize > 10000000000) TabInd.classList.add("lime");
     TotTabIndSize += Number(TabIndSize);
-    if (tr.cells[3].innerText >0 && TabIndSize > 0) { bloatTotSize += TabIndSize * (tr.cells[3].innerText / 100) }
-    if (tr.cells[3].innerText > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
+    let o=tr.cells[1].textContent.split(",");
+    if (o[12] == amid) { tr.cells[0].textContent += " 🔐" }
+    if (tr.cells[3].textContent >0 && TabIndSize > 0) { bloatTotSize += TabIndSize * (tr.cells[3].textContent / 100) }
+    if (tr.cells[3].textContent > 20 && TabIndSize > 5242880) { tr.cells[3].classList.add("warn"); bloatTabTot++; }
     //Check vacuum frequncy
-    if (tr.cells[13].innerText / obj.dbts.f4 > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].innerText / obj.dbts.f4) + "/day"; }
+    if (tr.cells[13].textContent / days > 12){ tr.cells[13].classList.add("warn");  tr.cells[13].title="Too frequent vacuum runs : " + Math.round(tr.cells[13].textContent / days) + "/day"; }
     //Check the TOAST size
-    if (tr.cells[15].innerText > 10000) { 
-      tr.cells[15].title=bytesToSize(Number(tr.cells[15].innerText)); 
+    if (tr.cells[15].textContent > 10000) { 
+      tr.cells[15].title=bytesToSize(Number(tr.cells[15].textContent)); 
       //if TOAST is more than 10GB
-      if (tr.cells[15].innerText > 10737418240) tr.cells[15].classList.add("warn")
+      if (tr.cells[15].textContent > 10737418240) tr.cells[15].classList.add("warn")
       else tr.cells[15].classList.add("lime")
     }
     aged(tr.cells[10]);
     aged(tr.cells[16]);
     aged(tr.cells[17]);
     //Check reads per day
-    if (tr.cells[18].innerText / obj.dbts.f4 > 262144 ){  //More than 2GB fetches per day. Specified in terms of blocks of 8196 bytes
+    if (tr.cells[18].textContent / days > 262144 ){  //More than 2GB fetches per day. Specified in terms of blocks of 8196 bytes
       tr.cells[18].classList.add("lime"); 
-      tr.cells[18].title="High Utilization : " + bytesToSize(Math.round(tr.cells[18].innerText * 8192 / obj.dbts.f4)) + "/day"; 
+      tr.cells[18].title="High Utilization : " + bytesToSize(Math.round(tr.cells[18].textContent * 8192 / days)) + "/day"; 
       //Inspect the cache hit ratio also if utilization is high.
-      if(tr.cells[19].innerText < 40 ){ tr.cells[19].classList.add("warn"); tr.cells[19].title="Poor cache hit ratio, Results in high DiskReads"; }
-      else if (tr.cells[19].innerText < 70) tr.cells[19].classList.add("lime");
+      if(tr.cells[19].textContent < 40 ){ tr.cells[19].classList.add("warn"); tr.cells[19].title="Poor cache hit ratio, Results in high DiskReads"; }
+      else if (tr.cells[19].textContent < 70) tr.cells[19].classList.add("lime");
      }
   }
   var el=document.createElement("tfoot");
@@ -1665,6 +1671,11 @@ function checkhba(){
       tr.title="This rule is in shadow of the previous rule(s) and will never be used"
       shadowed++;
     }
+    if(tr.cells[12].innerText.trim() > 256){
+      tr.cells[12].classList.add("warn");
+      tr.title="This rule is applicable to more than 256 addresses, which is not recommended for security reasons"
+      shadowed++;
+    }
   }
   if (shadowed > 0) strfind += "<li><b>" + shadowed + " shadowed HBA rules detected</b>, which will never be used. Please review the rules for pg_hba carfully and remove the shadowed ones. Refer <a href=#tblhba>HBA rules</a> section</li>";
   if (errs > 0) strfind += "<li><b>" + errs + " erroneous HBA rules detected</b>, please review the rules for pg_hba carfully and fix the errors. Refer <a href=#tblhba>HBA rules</a> section</li>";
@@ -1744,18 +1755,24 @@ function tabInfodtls(e){
   str += "<c>Deletes / day : " + Math.round(o[3]/days) + "</c>";
   str += "<c>HOT.updates / day : " + Math.round(o[4]/days) + "</c>";
   str += "<c>Rel.filename : " + o[11] + "</c>";
-  if (o[12] < 16384) str += "<c>Tablespace : pg_default </c>"; 
+  let am = obj.am.find(el => el.amoid === o[12]);
+  str += "<c>Access Method : " + (am ? am.amname : "Default (heap)") + "</c>";
+  if (o[13] < 16384) str += "<c>Tablespace : pg_default </c>"; 
   else{
-    let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[12]).toString()); 
-    str += "<c>Tablespace : " + o[12] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
+    let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[13]).toString()); 
+    str += "<c>Tablespace : " + o[13] + " (" + tbsp.tsname + " : " + tbsp.location + ")</c>"; 
   }
-  if (typeof o[13] === "string" && o[13].length > 0 ) str += "<c>Current Settings : " + o[13] + "</c>";
-  if (typeof o[14] === "string" && o[14].length > 0 ) str += "<c>"+ o[14].split(";").filter(x => x.trim()).length +" Pids : " + o[14] + "</c>";
-  if (o[15] && o[15].length > 0) str += "<c>Columns : " + o[15] + "</c>";
-  if (o[16] != null) str += "<c> Tuple datasize : " + o[16] + " bytes</c>";
+  //if (typeof o[14] === "string" && o[14].length > 0 ) str += "<c>Current Settings : " + o[14] + "</c>";
+  if (typeof o[14] === "string" && o[14].length > 0 ) {
+    let settings = o[14].split(";").filter(x => x.trim()).join(", <br>&nbsp;&nbsp;");
+    str += "<c>Current Settings :<br>" + settings + "</c>";
+  }
+  if (typeof o[15] === "string" && o[15].length > 0 ) str += "<c>"+ o[15].split(";").filter(x => x.trim()).length +" Pids : " + o[15] + "</c>";
+  if (o[16] && o[16].length > 0) str += "<c>Columns : " + o[16] + "</c>";
+  if (o[17] && o[17].trim().length > 0) str += "<c> Tuple datasize : " + o[17] + " bytes</c>";
   if(o[2] > 0 || vac/days > 50){
     str += "<br><b><u>RECOMMENDATIONS : </u></b>"
-  if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])); + "</c>" //Refer FILLFACTOR in sqlstatement.md
+  if (o[2] > 0) str += "<c>FILLFACTOR :" + Math.round(100 - 20*o[2]/(o[2]+o[1])+ 20*o[2]*o[4]/((o[2]+o[1])*o[2])) + "</c>" //Refer FILLFACTOR in sqlstatement.md
   if (vac/days > 50) { 
     let threshold = Math.round((Math.round(o[2]/days) + Math.round(o[3]/days))/48);  //(UPDATEs per day + DELETEs per day) / 48
     if (threshold < 500) threshold = 500;
@@ -1815,23 +1832,6 @@ if(tr.cells[1].innerText.length > 2){
   return str
 } else return "No connections"
 }}
-
-/*
-async function tblDBTimedtls(e){
-  if (e.target.matches("tr td:first-child")){
-  td = e.target;
-  const htmlString = await fetchWithTimeout(docurl + "events/" + td.innerText.toUpperCase() + ".html", 5000)
-    .then(res => res.text())
-    .then(htmlString => {
-      if (td.matches(":hover")) //Check if the td is still being hovered
-        td.appendChild(genPopup( htmlString + "<h4><a href="+ docurl + "events/" + td.innerText.toUpperCase() +">🔗</a><h4>") );
-    })
-    .catch(error => {
-      console.error("Error fetching wait events", error);
-    });
-    return;
-  }
-}*/
 
 let hoverTimer;
 async function tblDBTimedtls(e) {
@@ -2012,6 +2012,14 @@ if (trs.length > 1){
    if (tr.rowIndex === 0) continue; //skip header row completely and continue to next iteration
    evnts=tr.cells[2];
 
+   switch (tr.cells[0].innerText.toUpperCase()) {
+    case "LOCKMANAGER":
+      strfind += "<li>Lock Manager wait events are detected, which is a sign of high lock contention due locks exceeding fast-path locks. Inreasing max_locks_per_transaction in PG18+ could help</li>";
+      break;
+    default:
+      evnts.title = "Unknown event type: " + tr.cells[0].innerText;
+      break;
+  } 
    const eventType = eventMaps.get(tr.cells[0].innerText.toUpperCase());
    if (eventType in counters) {
      counters[eventType] += Number(evnts.innerText);
