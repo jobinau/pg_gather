@@ -1678,7 +1678,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += "<c>Access Method : " + (tr.cells[4].innerText.trim() || "Unknown") + "</c>";
 \echo   str += "<c>Columns : " + tr.cells[5].innerText + "</c>";
 \echo   str += pk ? "<c>Constraint : Primary Key</c>" : uk ? "<c>Constraint : Unique</c>" : "<c>Constraint : None (Non-unique)</c>";
-\echo   if (o[2] == "f") str += "<div class=warn>INVALID index. Not usable by the planner, but still maintained on every write</div>";
+\echo   if (o[2] == "f") str += "<c class=high>INVALID index. Not usable by the planner, but still maintained on every write</c>";
 \echo   str += "<c>Size : " + bytesToSize(size) + "</c>";
 \echo   str += "<c>Scans : " + formatNumber(scans) + " (" + Math.round(scans/days) + " / day)</c>";
 \echo   if (fetch > 0) {
@@ -1871,6 +1871,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo trs=tab.rows;
 \echo for (let tr of trs) {
 \echo   if (tr.rowIndex === 0) continue;
+\echo   if (tr.cells[1].innerText.split(",")[2] == "f") { tr.cells[0].classList.add("high"); tr.cells[0].title="INVALID Index. Not usable by the planner, but still maintained on every write"; }
 \echo   if(tr.cells[8].innerText == 0) {tr.cells[8].classList.add("warn"); tr.cells[8].title="Unused Index"}
 \echo   tr.cells[9].title=bytesToSize(Number(tr.cells[9].innerText));
 \echo   if(tr.cells[9].innerText > 2000000000) tr.cells[9].classList.add("lime");

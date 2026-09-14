@@ -1809,7 +1809,7 @@ function IndInfodtls(e){
   str += "<c>Access Method : " + (tr.cells[4].innerText.trim() || "Unknown") + "</c>";
   str += "<c>Columns : " + tr.cells[5].innerText + "</c>";
   str += pk ? "<c>Constraint : Primary Key</c>" : uk ? "<c>Constraint : Unique</c>" : "<c>Constraint : None (Non-unique)</c>";
-  if (o[2] == "f") str += "<div class=warn>INVALID index. Not usable by the planner, but still maintained on every write</div>";
+  if (o[2] == "f") str += "<c class=high>INVALID index. Not usable by the planner, but still maintained on every write</c>";
   str += "<c>Size : " + bytesToSize(size) + "</c>";
   str += "<c>Scans : " + formatNumber(scans) + " (" + Math.round(scans/days) + " / day)</c>";
   if (fetch > 0) {
@@ -2042,6 +2042,8 @@ tab.caption.innerHTML="<span>Indexes</span> in '" + obj.dbts.f1 + "' DB"
 trs=tab.rows;
 for (let tr of trs) {
   if (tr.rowIndex === 0) continue; //skip the header row
+  //hidden column : [0]=indexrelid [1]=reltablespace [2]=indisvalid [3]=reloptions
+  if (tr.cells[1].innerText.split(",")[2] == "f") { tr.cells[0].classList.add("high"); tr.cells[0].title="INVALID Index. Not usable by the planner, but still maintained on every write"; }
   if(tr.cells[8].innerText == 0) {tr.cells[8].classList.add("warn"); tr.cells[8].title="Unused Index"}
   tr.cells[9].title=bytesToSize(Number(tr.cells[9].innerText));
   if(tr.cells[9].innerText > 2000000000) tr.cells[9].classList.add("lime");
