@@ -280,6 +280,7 @@ GROUP BY p.relname, p.relkind;
 SELECT  ci.relname as "Index", concat(i.indexrelid,',',ci.reltablespace,',',indisvalid,',',array_to_string(ci.reloptions,';')), n.nsname "Schema", ct.relname AS "Table", am.amname as "Type",
        i.indnatts "Cols",
        indisunique as "UK?", indisprimary as "PK?", numscans as "Scans", size,
+       ROUND(sum(i.size) OVER (PARTITION BY i.indrelid) * 100.0 / nullif(r.rel_size,0)) "Ind/Tab%",
        ci.blocks_fetched "Fetch", ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%",
        to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
 FROM pg_get_index i
@@ -287,6 +288,7 @@ JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
 JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
 LEFT JOIN pg_get_am am ON am.amoid = ci.relam
+LEFT JOIN pg_get_rel r ON r.relid = i.indrelid
 ORDER BY size DESC LIMIT 10000;
 
 \pset tableattr 'id="params"'
@@ -1672,7 +1674,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   let days=(obj.dbts.f4 < 1) ? 1 : obj.dbts.f4;
 \echo   let scans=Number(tr.cells[8].innerText);
 \echo   let size=Number(tr.cells[9].innerText);
-\echo   let fetch=Number(tr.cells[10].innerText);
+\echo   let fetch=Number(tr.cells[11].innerText);
 \echo   let pk=(tr.cells[7].innerText == "t"); let uk=(tr.cells[6].innerText == "t");
 \echo   let str="<c>Schema : " + tr.cells[2].innerText + "</c><c>Table : " + tr.cells[3].innerText + "</c>";
 \echo   str += "<c>Access Method : " + (tr.cells[4].innerText.trim() || "Unknown") + "</c>";
@@ -1680,12 +1682,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   str += pk ? "<c>Constraint : Primary Key</c>" : uk ? "<c>Constraint : Unique</c>" : "<c>Constraint : None (Non-unique)</c>";
 \echo   if (o[2] == "f") str += "<c class=high>INVALID index. Not usable by the planner, but still maintained on every write</c>";
 \echo   str += "<c>Size : " + bytesToSize(size) + "</c>";
+\echo   if (tr.cells[10].innerText.trim().length > 0) str += "<c>All indexes of this table : " + tr.cells[10].innerText + "% of the table size</c>";
 \echo   str += "<c>Scans : " + formatNumber(scans) + " (" + Math.round(scans/days) + " / day)</c>";
 \echo   if (fetch > 0) {
 \echo     str += "<c>Blocks Fetched : " + formatNumber(fetch) + " (" + bytesToSize(fetch*8192) + ")</c>";
 \echo     if (scans > 0 && fetch/scans >= 1) str += "<c>Blocks per Scan : " + Math.round(fetch/scans) + "</c>";
 \echo   }
-\echo   str += (tr.cells[12].innerText.trim().length > 0) ? "<c>Last Use : " + tr.cells[12].innerText + "</c>" : "<c>Last Use : Not recorded (never scanned since stats reset, or source is PG&lt;16)</c>";
+\echo   str += (tr.cells[13].innerText.trim().length > 0) ? "<c>Last Use : " + tr.cells[13].innerText + "</c>" : "<c>Last Use : Not recorded (never scanned since stats reset, or source is PG&lt;16)</c>";
 \echo   str += "<c>Rel.OID : " + o[0] + "</c>";
 \echo   if (o[1] == 1664) str += "<c>Tablespace : pg_global </c>";
 \echo   else if (o[1] < 16384) str += "<c>Tablespace : pg_default </c>";
@@ -1711,8 +1714,8 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo let thIndex = td.cellIndex;
 \echo let thVal = td.innerText;
 \echo if (thIndex == 9) return bytesToSize(thVal);
-\echo else if ([8,10].includes(thIndex)) return formatNumber(Number(thVal)) + (td.title ? "<br>" + td.title : "");
-\echo else if (thIndex == 11 && td.title) return td.title;
+\echo else if ([8,11].includes(thIndex)) return formatNumber(Number(thVal)) + (td.title ? "<br>" + td.title : "");
+\echo else if ([10,12].includes(thIndex) && td.title) return td.title;
 \echo else return "";
 \echo }
 \echo }
@@ -1875,13 +1878,15 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo   if(tr.cells[8].innerText == 0) {tr.cells[8].classList.add("warn"); tr.cells[8].title="Unused Index"}
 \echo   tr.cells[9].title=bytesToSize(Number(tr.cells[9].innerText));
 \echo   if(tr.cells[9].innerText > 2000000000) tr.cells[9].classList.add("lime");
-\echo   if(tr.cells[10].innerText > 262144 && tr.cells[10].innerText/tr.cells[8].innerText > 50 ) {
+\echo   if (tr.cells[10].innerText > 100) { tr.cells[10].classList.add("warn"); tr.cells[10].title="Indexes of this table occupy more space than the table itself. Review whether every index is required"; }
+\echo   else if (tr.cells[10].innerText > 50) { tr.cells[10].classList.add("lime"); tr.cells[10].title="Indexes of this table occupy " + tr.cells[10].innerText + "% of the table size"; }
+\echo   if(tr.cells[11].innerText > 262144 && tr.cells[11].innerText/tr.cells[8].innerText > 50 ) {
 \echo     if (tr.cells[8].innerText > 0 ){
-\echo      tr.cells[10].title="Each Index scan had to fetch " + Math.round(tr.cells[10].innerText/tr.cells[8].innerText) + " pages on average. Expensive Index";
-\echo     }else tr.cells[10].title="Unused indexes. But causing fetches without any benefit"; 
-\echo     tr.cells[10].classList.add("warn");
-\echo     if (tr.cells[11].innerText < 50 ){tr.cells[11].classList.add("warn");tr.cells[11].title="Poor Cache Hit";}
-\echo     else if (tr.cells[11].innerText < 80 ) {tr.cells[11].classList.add("lime");tr.cells[11].title="Indexes with less cache hit can cause considerable I/O"; }
+\echo      tr.cells[11].title="Each Index scan had to fetch " + Math.round(tr.cells[11].innerText/tr.cells[8].innerText) + " pages on average. Expensive Index";
+\echo     }else tr.cells[11].title="Unused indexes. But causing fetches without any benefit"; 
+\echo     tr.cells[11].classList.add("warn");
+\echo     if (tr.cells[12].innerText < 50 ){tr.cells[12].classList.add("warn");tr.cells[12].title="Poor Cache Hit";}
+\echo     else if (tr.cells[12].innerText < 80 ) {tr.cells[12].classList.add("lime");tr.cells[12].title="Indexes with less cache hit can cause considerable I/O"; }
 \echo   }
 \echo }
 \echo }
