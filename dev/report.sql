@@ -276,8 +276,9 @@ LEFT JOIN family_locks fl ON fl.reloid = p.reloid
 WHERE p.relkind = 'p' OR (p.relkind = 'r' AND p.inhrelid IS NOT NULL) --Eliminates standalone unpartitioned tables
 GROUP BY p.relname, p.relkind;
 
-\pset tableattr 'id="IndInfo"'
-SELECT n.nsname "Schema", ct.relname AS "Table", ci.relname as "Index",
+\pset tableattr 'id="IndInfo" class="thidden"'
+SELECT  ci.relname as "Index", concat(i.indexrelid,',',ci.reltablespace,',',indisvalid,',',array_to_string(ci.reloptions,';')), n.nsname "Schema", ct.relname AS "Table", am.amname as "Type",
+       i.indnatts "Cols",
        indisunique as "UK?", indisprimary as "PK?", numscans as "Scans", size,
        ci.blocks_fetched "Fetch", ci.blocks_hit*100/nullif(ci.blocks_fetched,0) "C.Hit%",
        to_char(i.lastuse,'YYYY-MM-DD HH24:MI:SS') "Last Use"
@@ -285,6 +286,7 @@ FROM pg_get_index i
 JOIN pg_get_class ct on i.indrelid = ct.reloid and ct.relkind != 't'
 JOIN pg_get_class ci ON i.indexrelid = ci.reloid
 LEFT JOIN pg_get_ns n ON n.nsoid = ci.relnamespace
+LEFT JOIN pg_get_am am ON am.amoid = ci.relam
 ORDER BY size DESC LIMIT 10000;
 
 \pset tableattr 'id="params"'
@@ -1662,6 +1664,58 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo else return "";
 \echo }
 \echo }
+\echo function IndInfodtls(e){
+\echo   let td = e.target;
+\echo   let tr = td.parentNode;
+\echo   if (e.target.matches("tr td:first-child")){
+\echo   let o=tr.cells[1].innerText.split(",");
+\echo   let days=(obj.dbts.f4 < 1) ? 1 : obj.dbts.f4;
+\echo   let scans=Number(tr.cells[8].innerText);
+\echo   let size=Number(tr.cells[9].innerText);
+\echo   let fetch=Number(tr.cells[10].innerText);
+\echo   let pk=(tr.cells[7].innerText == "t"); let uk=(tr.cells[6].innerText == "t");
+\echo   let str="<c>Schema : " + tr.cells[2].innerText + "</c><c>Table : " + tr.cells[3].innerText + "</c>";
+\echo   str += "<c>Access Method : " + (tr.cells[4].innerText.trim() || "Unknown") + "</c>";
+\echo   str += "<c>Columns : " + tr.cells[5].innerText + "</c>";
+\echo   str += pk ? "<c>Constraint : Primary Key</c>" : uk ? "<c>Constraint : Unique</c>" : "<c>Constraint : None (Non-unique)</c>";
+\echo   if (o[2] == "f") str += "<div class=warn>INVALID index. Not usable by the planner, but still maintained on every write</div>";
+\echo   str += "<c>Size : " + bytesToSize(size) + "</c>";
+\echo   str += "<c>Scans : " + formatNumber(scans) + " (" + Math.round(scans/days) + " / day)</c>";
+\echo   if (fetch > 0) {
+\echo     str += "<c>Blocks Fetched : " + formatNumber(fetch) + " (" + bytesToSize(fetch*8192) + ")</c>";
+\echo     if (scans > 0 && fetch/scans >= 1) str += "<c>Blocks per Scan : " + Math.round(fetch/scans) + "</c>";
+\echo   }
+\echo   str += (tr.cells[12].innerText.trim().length > 0) ? "<c>Last Use : " + tr.cells[12].innerText + "</c>" : "<c>Last Use : Not recorded (never scanned since stats reset, or source is PG&lt;16)</c>";
+\echo   str += "<c>Rel.OID : " + o[0] + "</c>";
+\echo   if (o[1] == 1664) str += "<c>Tablespace : pg_global </c>";
+\echo   else if (o[1] < 16384) str += "<c>Tablespace : pg_default </c>";
+\echo   else{
+\echo     let tbsp = obj.tbsp.find(el => el.tsoid === JSON.parse(o[1]).toString());
+\echo     str += "<c>Tablespace : " + o[1] + (tbsp ? " (" + tbsp.tsname + " : " + tbsp.location + ")" : "") + "</c>";
+\echo   }
+\echo   if (typeof o[3] === "string" && o[3].length > 0 ) {
+\echo     let settings = o[3].split(";").filter(x => x.trim()).join(", <br>&nbsp;&nbsp;");
+\echo     str += "<c>Current Settings :<br>&nbsp;&nbsp;" + settings + "</c>";
+\echo   }
+\echo   let rec="";
+\echo   if (o[2] == "f") rec += "<c>DROP and recreate this index. Generally a leftover of a failed CREATE INDEX CONCURRENTLY / REINDEX CONCURRENTLY</c>";
+\echo   if (scans == 0 && !pk && !uk) {
+\echo     rec += "<c>Unused index. DROP INDEX CONCURRENTLY reclaims " + bytesToSize(size) + " and removes its maintenance cost from every INSERT/UPDATE/DELETE</c>";
+\echo     if (days < 7) rec += "<c>Caution : statistics cover only " + days + " day(s). Confirm over a longer window before dropping</c>";
+\echo   } else if (scans == 0) rec += "<c>Unused, but backs a " + (pk ? "PRIMARY KEY" : "UNIQUE") + " constraint. Drop the constraint, not the index, if it is really not needed</c>";
+\echo   if (scans > 0 && fetch > 262144 && fetch/scans > 50) rec += "<c>Expensive index : " + Math.round(fetch/scans) + " blocks fetched per scan. Check selectivity and bloat</c>";
+\echo   if (rec.length > 0) str += "<br><b><u>RECOMMENDATIONS : </u></b>" + rec;
+\echo   return "<b>" + tr.cells[0].innerText + "</b>" + str;
+\echo }else{
+\echo if (td.tagName == "TH") return "";
+\echo let thIndex = td.cellIndex;
+\echo let thVal = td.innerText;
+\echo if (thIndex == 9) return bytesToSize(thVal);
+\echo else if ([8,10].includes(thIndex)) return formatNumber(Number(thVal)) + (td.title ? "<br>" + td.title : "");
+\echo else if (thIndex == 11 && td.title) return td.title;
+\echo else return "";
+\echo }
+\echo }
 \echo function tblsessdtls(e){
 \echo   if (e.target.matches("tr td:first-child")){
 \echo   th = e.target.parentNode;  
@@ -1816,16 +1870,17 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo tab.caption.innerHTML="<span>Indexes</span> in '" + obj.dbts.f1 + "' DB" 
 \echo trs=tab.rows;
 \echo for (let tr of trs) {
-\echo   if(tr.cells[5].innerText == 0) {tr.cells[5].classList.add("warn"); tr.cells[5].title="Unused Index"}
-\echo   tr.cells[6].title=bytesToSize(Number(tr.cells[6].innerText));
-\echo   if(tr.cells[6].innerText > 2000000000) tr.cells[6].classList.add("lime");
-\echo   if(tr.cells[7].innerText > 262144 && tr.cells[7].innerText/tr.cells[5].innerText > 50 ) {
-\echo     if (tr.cells[5].innerText > 0 ){
-\echo      tr.cells[7].title="Each Index scan had to fetch " + Math.round(tr.cells[7].innerText/tr.cells[5].innerText) + " pages on average. Expensive Index";
-\echo     }else tr.cells[7].title="Unused indexes. But causing fetches without any benefit"; 
-\echo     tr.cells[7].classList.add("warn");
-\echo     if (tr.cells[8].innerText < 50 ){tr.cells[8].classList.add("warn");tr.cells[8].title="Poor Cache Hit";}
-\echo     else if (tr.cells[8].innerText < 80 ) {tr.cells[8].classList.add("lime");tr.cells[8].title="Indexes with less cache hit can cause considerable I/O"; }
+\echo   if (tr.rowIndex === 0) continue;
+\echo   if(tr.cells[8].innerText == 0) {tr.cells[8].classList.add("warn"); tr.cells[8].title="Unused Index"}
+\echo   tr.cells[9].title=bytesToSize(Number(tr.cells[9].innerText));
+\echo   if(tr.cells[9].innerText > 2000000000) tr.cells[9].classList.add("lime");
+\echo   if(tr.cells[10].innerText > 262144 && tr.cells[10].innerText/tr.cells[8].innerText > 50 ) {
+\echo     if (tr.cells[8].innerText > 0 ){
+\echo      tr.cells[10].title="Each Index scan had to fetch " + Math.round(tr.cells[10].innerText/tr.cells[8].innerText) + " pages on average. Expensive Index";
+\echo     }else tr.cells[10].title="Unused indexes. But causing fetches without any benefit"; 
+\echo     tr.cells[10].classList.add("warn");
+\echo     if (tr.cells[11].innerText < 50 ){tr.cells[11].classList.add("warn");tr.cells[11].title="Poor Cache Hit";}
+\echo     else if (tr.cells[11].innerText < 80 ) {tr.cells[11].classList.add("lime");tr.cells[11].title="Indexes with less cache hit can cause considerable I/O"; }
 \echo   }
 \echo }
 \echo }
