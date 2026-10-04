@@ -12,7 +12,7 @@ Space freed by deletes is reused, so tables with heavy deletes need less reserve
 #### Update on Indexed column
 If updates change indexed columns, a lower fillfactor won't turn them into HOT updates.
 
-## Accurate Calculation of FILLFACTOR
+## Theoretical Calculation of FILLFACTOR
 
 ```
 ReserveNeedInBytes ≈ (updates landing on a page between prunes) × (new tuple size + 4)
@@ -21,23 +21,11 @@ fillfactor ≈ 100 × (1 − ReserveNeedInBytes ÷ 8168)
 ```
 However, it is practically very difficult to do it. And it may not stay stable.
 
-## Approximate Calculation of FILLFACTOR
+## Practical Calculation of FILLFACTOR
 This is the practical approch.
 Hovering the mouse over the table names, gives approximate suggessions for fillfactor.
 Following are better options for FILLFACTOR estimate
 ```
---OLD METHOD
-WITH  tabs AS
-(SELECT ns.nsname, c.relname , r.n_tup_ins, r.n_tup_upd, r.n_tup_del, r.n_tup_hot_upd
-FROM pg_get_rel r
-JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p') AND r.n_tup_upd > 0
-JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid)
-SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( FILLFACTOR='|| 100 - 20*n_tup_upd/(n_tup_ins+n_tup_upd) + 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd) || ' );'
---, (20*n_tup_upd/(n_tup_ins+n_tup_upd) - 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd))
-FROM tabs
-WHERE (20*n_tup_upd/(n_tup_ins+n_tup_upd) - 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd)) > 1 ;
-
---NEW METHOD (Works only from pg_gather version 34)
 WITH param AS (SELECT 20 AS max_step,          -- Max reduction (%) suggested in one step
                       70 AS min_ff,            -- Never suggest below this
                       1000 AS min_upd,         -- Ignore tables with fewer updates

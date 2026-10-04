@@ -150,15 +150,47 @@ select  (
 ) a;
 
 --16. FILLFACTOR recommendations - Statement generator
-WITH  tabs AS 
-(SELECT ns.nsname, c.relname , r.n_tup_ins, r.n_tup_upd, r.n_tup_del, r.n_tup_hot_upd
-FROM pg_get_rel r
-JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p') AND r.n_tup_upd > 0
-JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid)
-SELECT 'ALTER TABLE '||nsname||'.'||relname||' SET ( FILLFACTOR='|| 100 - 20*n_tup_upd/(n_tup_ins+n_tup_upd) + 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd) || ' );'
---, (20*n_tup_upd/(n_tup_ins+n_tup_upd) - 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd))
-FROM tabs
-WHERE (20*n_tup_upd/(n_tup_ins+n_tup_upd) - 20*n_tup_upd*n_tup_hot_upd/((n_tup_ins+n_tup_upd)*n_tup_upd)) > 1 ;
+-- PG16+ : updates that did not fit on the page (n_tup_newpage_upd), scaled by the HOT-eligible fraction measured
+--         on the updates that did fit : hot / (upd - newpage). Updates changing indexed columns are discounted.
+-- PG15- : n_tup_newpage_upd is NULL, falls back to the non-HOT ratio (cannot discount indexed-column updates).
+-- Recommendation is relative to the current FILLFACTOR, so re-running after a change does not undo it.
+WITH param AS (SELECT 20 AS max_step,          -- Max reduction (%) suggested in one step
+                      70 AS min_ff,            -- Never suggest below this
+                      1000 AS min_upd,         -- Ignore tables with fewer updates
+                      1000 AS min_sample,      -- Min same-page updates to trust the HOT-eligible fraction
+                      8*1024*1024 AS min_size), -- Ignore tables smaller than 8MB
+tabs AS (
+ SELECT ns.nsname, c.relname, r.n_tup_ins, r.n_tup_upd, r.n_tup_hot_upd, r.n_tup_newpage_upd,
+   COALESCE(substring(array_to_string(c.reloptions,',') from '(?:^|,)fillfactor=(\d+)')::int, 100) AS cur_ff
+ FROM pg_get_rel r
+ JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
+ JOIN pg_get_ns ns ON r.relnamespace = ns.nsoid
+ JOIN param ON r.n_tup_upd >= param.min_upd AND r.rel_size >= param.min_size),
+est AS (
+ SELECT tabs.*, param.*,
+  CASE WHEN n_tup_newpage_upd IS NULL THEN 'non-HOT ratio (pre-PG16)'
+       WHEN n_tup_upd - n_tup_newpage_upd < min_sample THEN 'newpage, HOT-eligibility unknown'
+       ELSE 'newpage x HOT-eligible' END AS method,
+  CASE WHEN n_tup_newpage_upd IS NULL OR n_tup_upd - n_tup_newpage_upd < min_sample THEN NULL
+       ELSE n_tup_hot_upd::numeric / (n_tup_upd - n_tup_newpage_upd) END AS hot_eligible
+ FROM tabs, param),
+rec AS (
+ SELECT est.*,
+  CASE WHEN cur_ff < 100 AND hot_eligible < 0.1 THEN 100   -- Space already reserved, but updates change indexed columns
+       ELSE GREATEST(min_ff, cur_ff - round(max_step *
+         CASE WHEN n_tup_newpage_upd IS NULL THEN n_tup_upd - n_tup_hot_upd
+              ELSE n_tup_newpage_upd * COALESCE(hot_eligible, 1) END
+         / (n_tup_ins + n_tup_upd)))::int END AS rec_ff
+ FROM est)
+SELECT nsname||'.'||relname AS "Table", cur_ff AS "Cur.FF", rec_ff AS "Rec.FF", method AS "Method",
+  n_tup_ins AS "Inserts", n_tup_upd AS "Updates",
+  round(100.0*n_tup_hot_upd/n_tup_upd,1) AS "HOT%",
+  round(100.0*n_tup_newpage_upd/n_tup_upd,1) AS "NewPage%",
+  round(100*hot_eligible,1) AS "HOT-eligible%",
+  'ALTER TABLE '||quote_ident(nsname)||'.'||quote_ident(relname)||' SET ( FILLFACTOR='||rec_ff||' );' AS "Statement"
+FROM rec
+WHERE abs(cur_ff - rec_ff) >= 2
+ORDER BY cur_ff - rec_ff DESC, n_tup_upd DESC;
 
 --17. Table level AUTOVACUUM recommendations
 WITH curdb AS (SELECT trim(both '\"' from substring(connstr from '\"\w*\"')) "curdb" FROM pg_srvr WHERE connstr like '%to database%'),

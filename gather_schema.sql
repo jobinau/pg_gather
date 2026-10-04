@@ -202,6 +202,7 @@ CREATE UNLOGGED TABLE pg_get_rel (
     n_tup_upd bigint,
     n_tup_del bigint,
     n_tup_hot_upd bigint,
+    n_tup_newpage_upd bigint,
     rel_size bigint,
     tot_tab_size bigint,
     tab_ind_size bigint,
