@@ -1103,6 +1103,13 @@ var paramDespatch = {
     param["suggest"] = "'" + trnsTimout/60 + "s'";
     if(val.innerText == 0) { val.classList.add("warn"); val.title="It is highly recommended to set this to a value between 10 and 60 seconds to detect dead connections and prevent connection pool exhaustion" ;}
   },
+  data_checksums: function(rowref){
+    val=rowref.cells[1];
+    if(val.innerText == "off") { val.classList.add("warn"); val.title="Data checksums are not enabled. This is highly recommended for data integrity" ;
+      let param = params.find(p => p.param === "data_checksums");
+      param["suggest"] = "on";
+    }
+  },
   data_directory: function(rowref){
     datadir=val.innerText;
   },
