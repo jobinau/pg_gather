@@ -1029,6 +1029,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     param["suggest"] = "'" + trnsTimout/60 + "s'";
 \echo     if(val.innerText == 0) { val.classList.add("warn"); val.title="It is highly recommended to set this to a value between 10 and 60 seconds to detect dead connections and prevent connection pool exhaustion" ;}
 \echo   },
+\echo   data_checksums: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText == "off") { val.classList.add("warn"); val.title="Data checksums are not enabled. This is highly recommended for data integrity" ;
+\echo       let param = params.find(p => p.param === "data_checksums");
+\echo       param["suggest"] = "on";
+\echo     }
+\echo   },
 \echo   data_directory: function(rowref){
 \echo     datadir=val.innerText;
 \echo   },

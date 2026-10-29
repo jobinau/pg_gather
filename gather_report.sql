@@ -526,7 +526,10 @@ GROUP BY 1;
 SELECT 'obj='||to_jsonb(r)::text FROM
 (SELECT 
   (select recovery from pg_gather) AS clsr,
-  (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL))) 
+  (SELECT to_jsonb(ROW(count(*),COUNT(*) FILTER (WHERE last_vac IS NULL), COUNT(*) FILTER (WHERE b.table_oid IS NULL AND r.n_live_tup != 0 ),COUNT(*) FILTER (WHERE last_anlyze IS NULL),
+  COUNT(*) FILTER (WHERE r.n_tup_upd >= 1000 AND r.rel_size >= 8388608 AND r.n_live_tup > 0 AND r.n_tup_upd >= 0.2*r.n_live_tup --FILLFACTOR candidates
+    AND COALESCE(r.n_tup_newpage_upd, r.n_tup_upd - r.n_tup_hot_upd)::numeric/(r.n_tup_ins+r.n_tup_upd) > 0.1
+    AND COALESCE(substring(array_to_string(c.reloptions,',') from 'fillfactor=(\d+)')::int, 100) > 70)))
   FROM pg_get_rel r JOIN pg_get_class c ON r.relid = c.reloid AND c.relkind NOT IN ('t','p')
 LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
   (SELECT to_jsonb(ROW(COUNT(*),COUNT(*) FILTER (WHERE CONN < interval '15 minutes' ) )) FROM 
@@ -857,6 +860,7 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo  if (mgrver > 18 && obj.locks.max_locks_by_a_pid > 64) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 64 locks per session. check <a href='"+ docurl +"params/max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
 \echo  else if (mgrver <= 18 && obj.locks.max_locks_by_a_pid > 16) strfind += "<li>There is a session holding <b>"+ obj.locks.max_locks_by_a_pid +" locks</b>. This is more than the default average of 16 locks per session in PG version " + mgrver + ". Please consider upgrading to PG 18+ and check <a href='"+ docurl +"params/max_locks_per_transaction.html'>max_locks_per_transaction</a></li>";
 \echo  if (obj.tabs.bloatTabNum > 0) strfind += "<li>Found <b>"+ obj.tabs.bloatTabNum +" bloated tables</b> in this database. This could affect performance. <a href='"+ docurl +"bloat.html'>Details</a></li>";
+\echo  if (obj.tabs.f5 > 0) strfind += "<li>Found <b>"+ obj.tabs.f5 +" tables which could benefit from a lower FILLFACTOR</b> due to frequent updates which are not HOT. <a href='"+ docurl +"fillfactor.html'>Details</a></li>";
 \echo  if (obj.glibc.libcs > 0) strfind += "<li>Detected <a href=#dbs><b>"+ obj.glibc.libcs +"  databases with glibc as default collation provider</b></a>. This could have considerable overhead <a href='"+ docurl +"glibc.html'>Details</a></li>";
 \echo   document.getElementById("finditem").innerHTML += strfind;
 \echo }
@@ -1024,6 +1028,13 @@ LEFT JOIN pg_tab_bloat b ON c.reloid = b.table_oid) AS tabs,
 \echo     let param = params.find(p => p.param === "client_connection_check_interval");
 \echo     param["suggest"] = "'" + trnsTimout/60 + "s'";
 \echo     if(val.innerText == 0) { val.classList.add("warn"); val.title="It is highly recommended to set this to a value between 10 and 60 seconds to detect dead connections and prevent connection pool exhaustion" ;}
+\echo   },
+\echo   data_checksums: function(rowref){
+\echo     val=rowref.cells[1];
+\echo     if(val.innerText == "off") { val.classList.add("warn"); val.title="Data checksums are not enabled. This is highly recommended for data integrity" ;
+\echo       let param = params.find(p => p.param === "data_checksums");
+\echo       param["suggest"] = "on";
+\echo     }
 \echo   },
 \echo   data_directory: function(rowref){
 \echo     datadir=val.innerText;
