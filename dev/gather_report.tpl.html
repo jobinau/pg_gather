@@ -1806,6 +1806,25 @@ else return "";
 }
 }
 
+function tabPartdtls(e) {
+  const td = e.target, tr = td.closest("tr");
+  if (!tr) return "";
+
+  if (td.matches("tr td:first-child")) {
+    const [poid, defPart, , pids] = tr.cells[1].innerText.split(",");
+    const defRows = Number(defPart);
+
+    return [
+      poid && ("<c>Parent OID: " + poid + "</c>"),
+      defPart ? ("<c>Default Partition : " + defPart + "</c>") : (Number(tr.cells[3].innerText) > 0 ? "<c class=lime>No Default Partition Found</c>" : ""),
+      defRows > 1 && ("<c class=warn>" + defPart + " rows/tuples in the default partition</c>"),
+      pids?.trim() && ("<c>" + pids.split(";").filter(x => x.trim()).length + " Pids : " + pids + "</c>")
+    ].filter(Boolean).join("");
+  }
+
+  return td.tagName !== "TH" && [4, 5].includes(td.cellIndex) ? bytesToSize(td.innerText) + (td.title ? "<br>" + td.title : "") : "";
+}
+
 //Pop-up for Indexes.
 function IndInfodtls(e){
   let td = e.target;
@@ -1924,21 +1943,6 @@ async function tblDBTimedtls(e) {
       }
     }, 500); 
     td.addEventListener("mouseleave", () => clearTimeout(hoverTimer), { once: true }); //Add a one-time listener to cancel the timer if the mouse leaves early
-  }
-}
-
-
-function tabPartdtls(e){
-  if (e.target.matches("tr td:first-child")){
-  th = e.target.parentNode;
-  let o=th.cells[1].innerText.split(",");
-  let str = "";
-  if (o[0]) str += "<c>Parent OID: " + o[0] + "</c>";
-  if (o[1]) str += "<c>Default Parittion :" + o[1] + "</c>";
-  else if(th.cells[3].innerText > 0) str+="<c class=lime>No Default Partition Found</c>";
-  if (o[1] && o[1]>1) str += "<c class=warn>"+ o[1] + "rows/tuples in the default partition</c>";
-  if (o[3] && o[3].length>0) str += "<c>"+ o[3].split(";").filter(x => x.trim()).length +" Pids : " + o[3] + "</c>";
-  return str;
   }
 }
 
